@@ -1,0 +1,40 @@
+# Backend de ingestión + servidor iperf3 propio para las pruebas de campo.
+#
+# Pensado para correr en una máquina con salida real a Internet por Claro en
+# Colombia (VPS local o un equipo tuyo con esa conexión): así el iperf3 y el
+# API quedan "cerca" de la red del operador que se está probando, en vez de
+# depender de servidores públicos de Ookla/Cloudflare que pueden enrutar raro.
+#
+# Uso:
+#   cp .env.example .env   # y pon un API_KEY real
+#   docker compose up -d --build
+#
+# El servidor queda en :8080 (API) y :5201/tcp+udp (iperf3).
+services:
+  server:
+    build: .
+    restart: unless-stopped
+    environment:
+      - LISTEN_ADDR=:8080
+      - DB_PATH=/data/notion5g.db
+      - API_KEY=${API_KEY:?define API_KEY en .env}
+    ports:
+      - "8080:8080"
+    volumes:
+      - notion5g_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  iperf3:
+    image: networkstatic/iperf3:latest
+    restart: unless-stopped
+    command: ["-s"] # modo servidor
+    ports:
+      - "5201:5201"
+      - "5201:5201/udp"
+
+volumes:
+  notion5g_data:

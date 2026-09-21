@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notion 5G — Dashboard</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Notion 5G <span class="muted">· dashboard de pruebas de campo</span></h1>
+    <div class="key-box">
+      <label for="api-key">API Key</label>
+      <input id="api-key" type="password" placeholder="X-API-Key" autocomplete="off">
+      <button id="key-save" type="button">Guardar y probar</button>
+      <span id="key-status" class="status-pill status-unknown">sin probar</span>
+    </div>
+  </header>
+
+  <main id="app">
+    <section id="view-list" class="view">
+      <div class="view-head">
+        <h2>Dispositivos</h2>
+        <span id="list-updated" class="muted"></span>
+      </div>
+      <div id="list-error" class="banner banner-error" hidden></div>
+      <div id="list-empty" class="banner banner-info" hidden>
+        Todavía no hay dispositivos reportando. Cuando el módem mande su primer heartbeat o medición, aparecerá aquí.
+      </div>
+      <div class="table-wrap">
+        <table id="devices-table" class="data-table" hidden>
+          <thead>
+            <tr>
+              <th>Equipo</th>
+              <th>Estado</th>
+              <th>Última vez visto</th>
+              <th>Operador</th>
+              <th>Red / Banda</th>
+              <th>RSRP</th>
+              <th>Ping</th>
+              <th>Ubicación</th>
+              <th>Velocidad (↓/↑)</th>
+              <th>Encendido</th>
+            </tr>
+          </thead>
+          <tbody id="devices-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="view-detail" class="view" hidden>
+      <div class="view-head">
+        <button id="back-btn" type="button" class="btn-link">&larr; Volver a dispositivos</button>
+        <h2 id="detail-title"></h2>
+      </div>
+
+      <div class="detail-actions">
+        <button id="run-speedtest" type="button" class="btn-primary">Correr prueba de velocidad</button>
+        <span id="speedtest-status" class="muted"></span>
+      </div>
+      <p class="muted" style="margin-top:-6px">
+        Corre en el propio router: su CPU no tiene aceleración de cifrado ni pasa por el camino
+        acelerado de NAT del equipo, así que en 5G queda muy por debajo de la velocidad real
+        (misma limitación que ya teníamos con el <code>wget</code> interno en LTE).
+      </p>
+
+      <div class="detail-actions" style="margin-top:10px">
+        <button id="run-browser-speedtest" type="button" class="btn-primary">Prueba real desde este navegador</button>
+        <span id="browser-speedtest-status" class="muted"></span>
+      </div>
+      <p class="muted" style="margin-top:-6px">
+        Corré esto desde un celular o PC conectado al router (por WiFi o cable): ese tráfico sí pasa
+        por el NAT acelerado por hardware del equipo, así que refleja la velocidad real del 5G. El
+        resultado se guarda igual que el botón de arriba.
+      </p>
+
+      <div class="detail-actions" style="margin-top:10px">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
+          <input type="checkbox" id="movement-toggle" />
+          <span>Modo en movimiento (manda la ubicación del navegador cada 15s)</span>
+        </label>
+        <span id="movement-status" class="muted"></span>
+      </div>
+      <p class="muted" style="margin-top:4px">
+        Reemplaza a la app del celular para el perfil de ping: deja esta página abierta durante el
+        trayecto. Mientras esté prendido, la página le pide al navegador que la pantalla no se
+        apague sola (Wake Lock, si el equipo lo soporta). Aun así, si cambiás de pestaña/app el
+        navegador puede pausar el envío igual — es un límite real del propio navegador, no de esta
+        página; la única forma de evitarlo del todo es una app nativa con servicio en primer plano.
+      </p>
+
+      <div id="detail-error" class="banner banner-error" hidden></div>
+
+      <div class="filter-row">
+        <label for="operator-filter">Filtrar por operador</label>
+        <select id="operator-filter">
+          <option value="">Todos los operadores</option>
+        </select>
+      </div>
+
+      <div id="band-summary" class="summary-box"></div>
+
+      <h3>Mapa de ubicaciones</h3>
+      <p class="muted" style="margin-top:-6px">Mediciones (●) y heartbeats (·), coloreados por calidad de señal (RSRP). Tocá un punto para ver operador, banda, velocidad y uptime.</p>
+      <div id="map" class="map-container"></div>
+      <div id="map-legend" class="map-legend"></div>
+
+      <h3>Últimas mediciones</h3>
+      <p class="muted table-hint" aria-hidden="true">&larr; deslizá para ver toda la tabla &rarr;</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Operador</th>
+              <th>Banda</th>
+              <th>RSRP / RSRQ / SINR</th>
+              <th>↓ Mbps</th>
+              <th>↑ Mbps</th>
+              <th>Uptime</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="measurements-tbody"></tbody>
+        </table>
+      </div>
+
+      <h3>Perfil de ping + ubicación (heartbeats)</h3>
+      <p class="muted" style="margin-top:-6px">Ping y ubicación mientras el equipo va en movimiento (uno por minuto).</p>
+      <p class="muted table-hint" aria-hidden="true">&larr; deslizá para ver toda la tabla &rarr;</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Operador</th>
+              <th>Red</th>
+              <th>RSRP</th>
+              <th>Ping</th>
+              <th>Ubicación</th>
+              <th>Uptime</th>
+            </tr>
+          </thead>
+          <tbody id="heartbeats-tbody"></tbody>
+        </table>
+      </div>
+
+      <h3>Últimos comandos</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Creado</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th>Pedido por</th>
+            </tr>
+          </thead>
+          <tbody id="commands-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Si la API key de Google Maps no está autorizada para este dominio
+    // (queda authFailure y no una excepción que se pueda atrapar en app.js),
+    // Google llama esta función global -- así se puede avisar en pantalla en
+    // vez de dejar el mapa roto en silencio.
+    window.gm_authFailure = function () {
+      window.__gmapsAuthFailed = true;
+      var el = document.getElementById("map");
+      if (el) {
+        el.innerHTML =
+          '<p class="muted" style="padding:14px">No se pudo cargar Google Maps: la API key no está autorizada para este sitio ' +
+          "(notion.h3s-iot.com). Hay que revisar sus restricciones en Google Cloud Console.</p>";
+      }
+    };
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDr05FdHSs3qD0utukrruHxUcQ-MW7o2uk&v=weekly"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

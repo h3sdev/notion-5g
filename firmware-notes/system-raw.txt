@@ -1,0 +1,440 @@
+processor	: 0
+model name	: ARMv7 Processor rev 5 (v7l)
+BogoMIPS	: 1744.89
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x0
+CPU part	: 0xc07
+CPU revision	: 5
+
+processor	: 1
+model name	: ARMv7 Processor rev 5 (v7l)
+BogoMIPS	: 1785.85
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x0
+CPU part	: 0xc07
+CPU revision	: 5
+
+processor	: 2
+model name	: ARMv7 Processor rev 5 (v7l)
+BogoMIPS	: 1785.85
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x0
+CPU part	: 0xc07
+CPU revision	: 5
+
+processor	: 3
+model name	: ARMv7 Processor rev 5 (v7l)
+BogoMIPS	: 1785.85
+Features	: half thumb fastmult vfp edsp thumbee neon vfpv3 tls vfpv4 idiva idivt vfpd32 lpae 
+CPU implementer	: 0x41
+CPU architecture: 7
+CPU variant	: 0x0
+CPU part	: 0xc07
+CPU revision	: 5
+
+Hardware	: ASR1901 (Device Tree Support)
+Revision	: 0000
+Serial		: 0000000000000000
+
+              total        used        free      shared  buff/cache   available
+Mem:          97472       46020       23172         540       28280       37096
+Swap:         23548           0       23548
+
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                14.4M     14.4M         0 100% /
+tmpfs                    47.6M    540.0K     47.1M   1% /tmp
+ubi0:data                15.6M     28.0K     14.7M   0% /data
+ubi0:data                15.6M     28.0K     14.7M   0% /mnt
+ubi0:data                15.6M     28.0K     14.7M   0% /log
+/dev/root                14.4M     14.4M         0 100% /rom
+overlayfs:/overlay/etc
+                          2.8M    160.0K      2.5M   6% /system/etc
+overlayfs:/overlay/nvm
+                          1.9M    112.0K      1.7M   6% /NVM
+ubi1:oem_data             2.9M     24.0K      2.9M   1% /NVM/oem_data
+tmpfs                   512.0K         0    512.0K   0% /dev
+
+dev:    size   erasesize  name
+mtd0: 000a0000 00020000 "bootloader"
+mtd1: 00020000 00020000 "cp_reliabledata"
+mtd2: 00020000 00020000 "ap_reliabledata"
+mtd3: 00020000 00020000 "cp_reliabledata_backup"
+mtd4: 00020000 00020000 "ap_reliabledata_backup"
+mtd5: 00020000 00020000 "mep-ota"
+mtd6: 00020000 00020000 "mep-ota_backup"
+mtd7: 00100000 00020000 "asr_flag"
+mtd8: 00040000 00020000 "dtim"
+mtd9: 01a40000 00020000 "cpimage"
+mtd10: 000c0000 00020000 "u-boot"
+mtd11: 00500000 00020000 "kernel"
+mtd12: 00020000 00020000 "rootfs-sdtim"
+mtd13: 03200000 00020000 "rootfs"
+mtd14: 02000000 00020000 "rootfs_data"
+mtd15: 00020000 00020000 "oemdata-sdtim"
+mtd16: 005e0000 00020000 "oem_data"
+mtd17: 00020000 00020000 "bootargs"
+mtd18: 00120000 00020000 "RSA"
+mtd19: 01d40000 00020000 "OTA"
+mtd20: 006c0000 00020000 "MRVL_BBM"
+
+/dev/root on / type squashfs (ro,relatime)
+proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)
+sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)
+tmpfs on /tmp type tmpfs (rw,nosuid,nodev,noatime)
+ubi0:data on /data type ubifs (rw,noatime,assert=read-only,ubi=0,vol=0)
+ubi0:data on /mnt type ubifs (rw,noatime,assert=read-only,ubi=0,vol=0)
+ubi0:data on /log type ubifs (rw,noatime,assert=read-only,ubi=0,vol=0)
+/dev/root on /rom type squashfs (ro,relatime)
+overlayfs:/overlay/etc on /system/etc type overlay (rw,noatime,lowerdir=/system/etc,upperdir=/overlay/etc/root,workdir=/overlay/etc/work)
+overlayfs:/overlay/nvm on /NVM type overlay (rw,noatime,lowerdir=/NVM,upperdir=/overlay/nvm/root,workdir=/overlay/nvm/work)
+ubi1:oem_data on /NVM/oem_data type ubifs (ro,noatime,bulk_read,assert=read-only,ubi=1,vol=0)
+tmpfs on /dev type tmpfs (rw,nosuid,noexec,noatime,size=512k,mode=755)
+devpts on /dev/pts type devpts (rw,nosuid,noexec,noatime,mode=600,ptmxmode=000)
+debugfs on /sys/kernel/debug type debugfs (rw,nosuid,nodev,noexec,noatime)
+none on /sys/fs/bpf type bpf (rw,nosuid,nodev,noexec,noatime,mode=700)
+
+act_connmark           16384  0 
+act_csum               16384  0 
+act_gact               16384  0 
+act_mirred             16384  0 
+act_pedit              16384  0 
+act_simple             16384  0 
+act_skbedit            16384  0 
+act_skbmod             16384  0 
+af_key                 28672  0 
+ah4                    16384  0 
+ah6                    16384  0 
+aic8800D80_fdrv       393216  0 
+algif_aead             16384  0 
+algif_rng              16384  0 
+arc4                   16384  0 
+asr5811               245760  0 
+atm                    40960  2 pppoatm,br2684
+br2684                 16384  0 
+button_hotplug         16384  0 
+ccm                    20480  0 
+cfg80211              212992  3 mac80211,aic8800D80_fdrv,asr5811
+cls_basic              16384  0 
+cls_flow               16384  0 
+cls_fw                 16384  0 
+cls_matchall           16384  0 
+cls_route              16384  0 
+cls_u32                20480  0 
+cmac                   16384  0 
+crc_ccitt              16384  1 ppp_async
+crypto_user            16384  0 
+ctr                    16384  0 
+cts                    16384  0 
+drbg                   24576  0 
+ebt_802_3              16384  0 
+ebt_among              16384  0 
+ebt_arp                16384  0 
+ebt_arpreply           16384  0 
+ebt_dnat               16384  0 
+ebt_ip                 16384  0 
+ebt_ip6                16384  0 
+ebt_limit              16384  0 
+ebt_mark               16384  0 
+ebt_mark_m             16384  0 
+ebt_pkttype            16384  0 
+ebt_redirect           16384  0 
+ebt_snat               16384  0 
+ebt_stp                16384  0 
+ebt_vlan               16384  0 
+ebtable_broute         16384  0 
+ebtable_filter         16384  0 
+ebtable_nat            16384  0 
+ebtables               24576  3 ebtable_nat,ebtable_filter,ebtable_broute
+echainiv               16384  0 
+em_cmp                 16384  0 
+em_meta                16384  0 
+em_nbyte               16384  0 
+em_text                16384  0 
+em_u32                 16384  0 
+esp4                   20480  0 
+esp6                   20480  0 
+gre                    16384  3 pptp,ip6_gre,ip_gre
+ip_gre                 24576  0 
+ip_set                 28672 17 xt_set,ip_set_list_set,ip_set_hash_netportnet,ip_set_hash_netport,ip_set_hash_netnet,ip_set_hash_netiface,ip_set_hash_net,ip_set_hash_mac,ip_set_hash_ipportnet,ip_set_hash_ipportip,ip_set_hash_ipport,ip_set_hash_ipmark,ip_set_hash_ipmac,ip_set_hash_ip,ip_set_bitmap_port,ip_set_bitmap_ipmac,ip_set_bitmap_ip
+ip_set_bitmap_ip       16384  0 
+ip_set_bitmap_ipmac    16384  0 
+ip_set_bitmap_port     16384  0 
+ip_set_hash_ip         28672  0 
+ip_set_hash_ipmac      28672  0 
+ip_set_hash_ipmark     28672  0 
+ip_set_hash_ipport     28672  0 
+ip_set_hash_ipportip   28672  0 
+ip_set_hash_ipportnet   32768  0 
+ip_set_hash_mac        20480  0 
+ip_set_hash_net        32768  0 
+ip_set_hash_netiface   32768  0 
+ip_set_hash_netnet     32768  0 
+ip_set_hash_netport    32768  0 
+ip_set_hash_netportnet   32768  0 
+ip_set_list_set        20480  0 
+ip_tunnel              24576  2 ip_gre,ipip
+ip6_gre                28672  0 
+ip6_tables             24576 25 ip6table_nat,ip6table_mangle,ip6table_filter
+ip6_tunnel             28672  1 ip6_gre
+ip6_udp_tunnel         16384  1 l2tp_core
+ip6t_NPT               16384  0 
+ip6t_REJECT            16384  2 
+ip6t_ah                16384  0 
+ip6t_eui64             16384  0 
+ip6t_frag              16384  0 
+ip6t_hbh               16384  0 
+ip6t_ipv6header        16384  0 
+ip6t_mh                16384  0 
+ip6t_rt                16384  0 
+ip6table_filter        16384  1 
+ip6table_mangle        16384  1 
+ip6table_nat           16384  0 
+ipcomp                 16384  0 
+ipcomp6                16384  0 
+ipip                   16384  0 
+ipt_ECN                16384  0 
+ipt_REJECT             16384  2 
+ipt_ah                 16384  0 
+ipt_trigger            16384  1 
+iptable_filter         16384  1 
+iptable_mangle         16384  1 
+iptable_nat            16384  1 
+iptable_raw            16384  1 
+l2tp_core              20480  2 l2tp_ppp,l2tp_netlink
+l2tp_netlink           24576  1 l2tp_ppp
+l2tp_ppp               20480  0 
+mac80211              294912  0 
+macvlan                20480  0 
+md4                    16384  0 
+mfp                    73728  0 
+nf_conncount           24576  1 xt_connlimit
+nf_conntrack_netlink   32768  1 mfp
+nf_flow_table          24576  2 xt_FLOWOFFLOAD,nf_flow_table_hw
+nf_flow_table_hw       16384  1 
+nf_log_common          16384  2 nf_log_ipv6,nf_log_ipv4
+nf_log_ipv4            16384  0 
+nf_log_ipv6            16384  0 
+nf_nat                 45056  7 xt_nat,xt_REDIRECT,xt_NETMAP,xt_MASQUERADE,iptable_nat,ipt_trigger,ip6table_nat
+nf_reject_ipv4         16384  1 ipt_REJECT
+nf_reject_ipv6         16384  1 ip6t_REJECT
+nfnetlink              16384  4 mfp,nf_conntrack_netlink,ip_set
+ppp_async              20480  0 
+ppp_generic            32768  7 pppoe,l2tp_ppp,pptp,pppox,ppp_mppe,ppp_async,pppoatm
+ppp_mppe               16384  0 
+pppoatm                16384  0 
+pppoe                  20480  0 
+pppox                  16384  3 pppoe,l2tp_ppp,pptp
+pptp                   24576  0 
+sch_codel              16384  0 
+sch_fq                 20480  0 
+sch_gred               20480  0 
+sch_hfsc               24576  0 
+sch_htb                24576  0 
+sch_ingress            16384  0 
+sch_multiq             16384  0 
+sch_sfq                20480  0 
+sch_tbf                16384  0 
+sch_teql               16384  0 
+seqiv                  16384  0 
+sha512_arm             24576  0 
+sha512_generic         16384  0 
+slhc                   16384  1 ppp_generic
+ts_bm                  16384  0 
+ts_fsm                 16384  0 
+ts_kmp                 16384  0 
+tunnel4                16384  2 xfrm4_tunnel,ipip
+tunnel6                16384  2 xfrm6_tunnel,ip6_tunnel
+udp_tunnel             16384  1 l2tp_core
+xfrm_algo              16384  7 esp6,ah6,esp4,ah4,xfrm_user,xfrm_ipcomp,af_key
+xfrm_ipcomp            16384  2 ipcomp6,ipcomp
+xfrm_user              28672  0 
+xfrm4_tunnel           16384  0 
+xfrm6_tunnel           16384  1 ipcomp6
+xt_CLASSIFY            16384  0 
+xt_CT                  16384  0 
+xt_DSCP                16384  0 
+xt_FLOWOFFLOAD         16384  0 
+xt_HL                  16384  0 
+xt_LOG                 16384  0 
+xt_MASQUERADE          16384  2 
+xt_NETMAP              16384  0 
+xt_REDIRECT            16384  0 
+xt_TCPMSS              16384 36 
+xt_addrtype            16384  0 
+xt_bpf                 20480  0 
+xt_comment             16384354 
+xt_connbytes           16384  0 
+xt_connlimit           16384  0 
+xt_connmark            16384  0 
+xt_conntrack           16384 36 
+xt_dscp                16384  0 
+xt_ecn                 16384  0 
+xt_esp                 16384  0 
+xt_hl                  16384  0 
+xt_iprange             16384  0 
+xt_length              16384  0 
+xt_limit               16384 25 
+xt_mac                 16384  0 
+xt_mark                16384  0 
+xt_multiport           16384  0 
+xt_nat                 16384  0 
+xt_owner               16384  0 
+xt_pkttype             16384  0 
+xt_policy              16384  0 
+xt_quota               16384  0 
+xt_recent              20480  0 
+xt_set                 16384  0 
+xt_state               16384  0 
+xt_statistic           16384  0 
+xt_string              16384  0 
+xt_tcpmss              16384  0 
+xt_time                16384  0 
+zram                   24576  1 
+zsmalloc               24576  1 zram
+
+  PID USER       VSZ STAT COMMAND
+    1 root      1224 S    /sbin/procd -S
+    2 root         0 SW   [kthreadd]
+    3 root         0 IW<  [rcu_gp]
+    4 root         0 IW<  [rcu_par_gp]
+    5 root         0 IW   [kworker/0:0-rcu]
+    6 root         0 IW<  [kworker/0:0H-kb]
+    7 root         0 IW   [kworker/u8:0-ev]
+    8 root         0 IW<  [mm_percpu_wq]
+    9 root         0 SW   [ksoftirqd/0]
+   10 root         0 IW   [rcu_preempt]
+   11 root         0 SW   [migration/0]
+   12 root         0 SW   [cpuhp/0]
+   13 root         0 SW   [cpuhp/1]
+   14 root         0 SW   [migration/1]
+   15 root         0 SW   [ksoftirqd/1]
+   16 root         0 IW   [kworker/1:0-rcu]
+   17 root         0 IW<  [kworker/1:0H-cp]
+   18 root         0 SW   [cpuhp/2]
+   19 root         0 SW   [migration/2]
+   20 root         0 SW   [ksoftirqd/2]
+   21 root         0 IW   [kworker/2:0-eve]
+   22 root         0 IW<  [kworker/2:0H-cp]
+   23 root         0 SW   [cpuhp/3]
+   24 root         0 SW   [migration/3]
+   25 root         0 SW   [ksoftirqd/3]
+   26 root         0 IW   [kworker/3:0-mm_]
+   27 root         0 IW<  [kworker/3:0H-cp]
+   28 root         0 SW   [rcu_tasks_kthre]
+   29 root         0 IW   [kworker/0:1-eve]
+   30 root         0 SW   [oom_reaper]
+   31 root         0 IW<  [writeback]
+   32 root         0 SW   [kcompactd0]
+   42 root         0 IW<  [pencrypt_serial]
+   43 root         0 IW<  [pdecrypt_serial]
+   44 root         0 IW<  [cryptd]
+   56 root         0 IW<  [kblockd]
+   57 root         0 IW   [kworker/0:2-eve]
+   58 root         0 SW   [irq/184-ASRPM80]
+   59 root         0 IW<  [devfreq_wq]
+   60 root         0 SW   [watchdogd]
+   61 root         0 IW   [kworker/1:1-eve]
+   62 root         0 IW   [kworker/u8:1-de]
+   70 root         0 SW   [kswapd0]
+   71 root         0 SW   [irq/54-ipc_adsp]
+   73 root         0 SW   [spi1]
+   74 root         0 DW   [kworker/2:1+eve]
+   75 root         0 IW   [kworker/3:1-eve]
+   76 root         0 IW<  [stmmac_wq]
+   77 root         0 IW<  [asr_vbus_queue]
+   78 root         0 IW<  [vbus_delayed_qu]
+   79 root         0 SW   [irq/31-asr-usb-]
+   80 root         0 SW   [irq/44-d4013300]
+   81 root         0 IW<  [kworker/u9:0]
+   82 root         0 IW<  [sdhci]
+   83 root         0 SW   [irq/32-mmc0]
+   84 root         0 IW<  [sdhci]
+   85 root         0 SW   [irq/33-mmc1]
+   86 root         0 IW<  [seh_rx_wq]
+   87 root         0 IW<  [diag_wq]
+   88 root         0 SW   [audio_rcv_task]
+   89 root         0 IW<  [init_wq(ccidata]
+   90 root         0 IW<  [init_wq(cctdata]
+   91 root         0 IW<  [init_wq(cidatat]
+   92 root         0 IW<  [ipv6_addrconf]
+  104 root         0 SW   [hwrng]
+  115 root         0 IW<  [modem_gadget_tx]
+  116 root         0 IW<  [diag_gadget_tx]
+  117 root         0 IW<  [debug_gadget_tx]
+  118 root         0 SW   [file-storage]
+  119 root         0 SW   [irq/195-dwc3]
+  120 root         0 IW<  [kworker/2:1H]
+  121 root         0 IW<  [kworker/3:1H]
+  123 root         0 IW<  [kworker/0:1H-cp]
+  124 root         0 IW<  [kworker/1:1H]
+  125 root         0 IW<  [cfg80211]
+  126 root         0 IW   [kworker/1:2-eve]
+  129 root         0 IW<  [kworker/3:2H]
+  196 root         0 SW   [ubi_bgt0d]
+  209 root         0 SW   [ubifs_bgt0_0]
+  213 root         0 SW   [ubifs_bgt0_1]
+  215 root         0 SW   [ubifs_bgt0_2]
+  225 root         0 SW   [ubi_bgt1d]
+  548 root         0 IW<  [cp_main]
+  549 root      1776 S    /bin/nvmproxy
+  550 root       904 S    {telinit} /bin/sh /etc/telinit
+  551 root      4844 S    /bin/atcmdsrv
+  552 root      4064 S    /bin/rild
+  556 root         0 IW<  [kworker/2:2H-cp]
+  558 root      1580 S    /usr/bin/audio_if
+  562 root         0 DW   [usbnet_rx_threa]
+  566 ubus       852 S    /sbin/ubusd
+  570 root         0 IW   [kworker/2:2-eve]
+  577 root       588 S    /sbin/askfirst /bin/login
+  583 root         0 IW<  [kworker/1:2H]
+  666 root       900 S    /bin/pppmodem
+  668 root         0 IW<  [kworker/0:2H-cp]
+ 1026 root         0 IW   [kworker/u8:2-fl]
+ 1336 root      1544 S    /sbin/netifd
+ 1455 root         0 SW   [pcie_rxbuf_proc]
+ 1532 root         0 IW<  [cmd_wq]
+ 1533 root         0 IW<  [apmStaloss_wq]
+ 1536 root         0 SW   [pcie_rxbuf_rep_]
+ 1551 root         0 IW   [kworker/3:2]
+ 1584 root         0 IW<  [fp_device]
+ 1588 root      2464 S    /usr/bin/cm
+ 1885 root       656 S    odhcp6c -s /lib/netifd/dhcpv6.script -P0 -t120 eth0.1
+ 1903 root       900 S    udhcpc -p /var/run/udhcpc-eth0.1.pid -s /lib/netifd/dhcp.script -f -t 0 -i eth0.1 -x hostname:cpe.baselin
+ 3033 root         0 IW   [kworker/u8:3-ev]
+ 3437 logd      1296 S    /sbin/logd -S 16
+ 3438 root       880 S    /sbin/logread -f -F /system/etc/logfile -p /var/run/logread.1.pid -S 16
+ 3439 root       880 S    /sbin/logread -f -d -p /var/run/logread.3.pid -S 16
+ 4569 root      1624 S    /bin/eeh -M yes
+ 4619 root       868 S    /sbin/rpcd -s /var/run/ubus/ubus.sock -t 30
+ 4781 root       716 S    /usr/sbin/dropbear -F -P /var/run/dropbear.1.pid -p 22 -K 300 -T 3
+ 4979 root      4748 S    /usr/sbin/hostapd -s -g /var/run/hostapd/global
+ 4980 root      4548 S    /usr/sbin/wpa_supplicant -n -s -g /var/run/wpa_supplicant/global
+ 5066 root         0 SW   [asr_txmisc_thre]
+ 5070 root         0 IW   [kworker/2:3-eve]
+ 5082 root       900 S<   /usr/sbin/ntpd -n -N -S /usr/sbin/ntpd-hotplug -p 0.openwrt.pool.ntp.org -p 1.openwrt.pool.ntp.org -p 2.o
+ 5242 root         0 SW   [oob_intr_thread]
+ 5252 root         0 IW   [kworker/1:3-eve]
+ 5509 root         0 IW<  [apmprobe_wq]
+ 5641 root       848 S    /usr/sbin/odhcpd
+ 5702 root      2760 S    /usr/bin/imsd
+ 5756 root       868 S    /usr/bin/stk
+ 5758 root      1360 S    /usr/bin/traf_s
+ 5759 root      1756 S    {router_settings} /usr/bin/router
+ 5760 root       928 S    /usr/bin/wireless
+ 5762 root      1556 S    {otad} /usr/bin/ota ota
+ 5763 root      5760 S    /usr/bin/tr069
+ 5766 root       836 S    /usr/bin/qos
+ 5768 root      1220 S    /usr/bin/diagnose
+ 5771 root      2500 S    /usr/bin/dxslic
+ 5870 root       900 S    /usr/sbin/crond -f -c /etc/crontabs -l 5
+ 6121 root      4576 S    /usr/sbin/lighttpd -D -f /etc/lighttpd/lighttpd.conf
+ 6388 dnsmasq   1032 S    /usr/sbin/dnsmasq -C /var/etc/dnsmasq.conf.cfg01411c -k -x /var/run/dnsmasq/dnsmasq.cfg01411c.pid
+ 6422 root      1004 S    /usr/sbin/dnsmasq -C /var/etc/dnsmasq.conf.cfg01411c -k -x /var/run/dnsmasq/dnsmasq.cfg01411c.pid
+ 7504 root       740 R    /usr/sbin/dropbear -F -P /var/run/dropbear.1.pid -p 22 -K 300 -T 3
+ 7505 root       908 R    ps w

@@ -1,0 +1,1353 @@
+[    0.000000] c0 Booting Linux on physical CPU 0x0
+[    0.000000] c0 Linux version 5.4.288+ (jenkins@sh-lin03) (arm-openwrt-linux-muslgnueabi-gcc (OpenWrt GCC 13.3.0 r0-ac162f84a7) 13.3.0, GNU ld (GNU Binutils) 2.42) #1 SMP PREEMPT Wed Aug 19 11:26:06 UTC 2026
+[    0.000000] c0 CPU: ARMv7 Processor [410fc075] revision 5 (ARMv7), cr=50c5387d
+[    0.000000] c0 CPU: div instructions available: patching division code
+[    0.000000] c0 CPU: PIPT / VIPT nonaliasing data cache, VIPT aliasing instruction cache
+[    0.000000] c0 OF: fdt: Machine model: ASR 1901(Kestrel) Board EVB
+[    0.000000] c0 PROD = 0
+[    0.000000] c0 Reserved BM memory: 0x3000000@0x6000000,600
+[    0.000000] c0 Memory policy: Data cache writealloc
+[    0.000000] c0 Reserved CP memory: 0x6600000@0x9a00000
+[    0.000000] c0 Reserved mmplog memory : 0MB at 0x01f00000
+[    0.000000] c0 RSV ADSP mem: 0x80000@0x5f80000
+[    0.000000] c0 On node 0 totalpages: 65536
+[    0.000000] c0   Normal zone: 512 pages used for memmap
+[    0.000000] c0   Normal zone: 0 pages reserved
+[    0.000000] c0   Normal zone: 65536 pages, LIFO batch:15
+[    0.000000] c0 Reserving 0MB of memory at 0MB for crashkernel (System RAM: 256MB)
+[    0.000000] c0 percpu: Embedded 28 pages/cpu s82648 r8192 d23848 u114688
+[    0.000000] c0 pcpu-alloc: s82648 r8192 d23848 u114688 alloc=28*4096
+[    0.000000] c0 pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+[    0.000000] c0 Built 1 zonelists, mobility grouping on.  Total pages: 65024
+[    0.000000] c0 Kernel command line: root=/dev/mtdblock13 rootfstype=squashfs init=/etc/preinit noinitrd console=ttyS1,115200 panic_debug crashkernel=4k@0x00003000 RDCA=0x00003400 rootsize=0x1200000 force_pm80x_fg mem=256M@0x0 ddr_mode=1 APMF=2 CPLOG=1 f_hwsulog PROD=0 IMSD=1 LOGB=d1008000 cpmem=102M@0x9a00000 nocpload=0x9a00000 bm=0x3000000@0x6000000,600 quiet
+[    0.000000] c0 Dentry cache hash table entries: 32768 (order: 5, 131072 bytes, linear)
+[    0.000000] c0 Inode-cache hash table entries: 16384 (order: 4, 65536 bytes, linear)
+[    0.000000] c0 mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.000000] c0 Memory: 97192K/262144K available (4806K kernel code, 326K rwdata, 1996K rodata, 280K init, 284K bss, 164952K reserved, 0K cma-reserved)
+[    0.000000] c0 SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] c0 rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] c0 	Tasks RCU enabled.
+[    0.000000] c0 rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+[    0.000000] c0 NR_IRQS: 16, nr_irqs: 16, preallocated irqs: 16
+[    0.000000] c0 GIC physical location is 0xd8001000
+[    0.000000] c0 regs address io map done
+[    0.000000] c0 asr_clocks_enable : can't find clk ripc_clk
+[    0.000000] c0 uiprofile = 3
+[    0.000000] c0 	*********************************
+[    0.000000] c0 ULT1: 7AF9A8007A7250F4, ULT0: 08E14E440EA4B801
+[    0.000000] c0 	*********************************
+[    0.000000] c0 	ULT decoded below
+[    0.000000] c0 		LOT_ID         = 0x00000000525c0084
+[    0.000000] c0 		WAFER_ID       = 0x00e
+[    0.000000] c0 		SVT_DRO        = 0x0d4
+[    0.000000] c0 		XLOC           = 0x005
+[    0.000000] c0 		YLOC           = 0x00e
+[    0.000000] c0 		DEV_VER        = 0x000
+[    0.000000] c0 		TINFO          = 0x111e9c94
+[    0.000000] c0 		FOUNDRY        = 0
+[    0.000000] c0 		ADC            = 0x017 0x80f
+[    0.000000] c0 	*********************************
+[    0.000000] c0 	SVT_DRO = 212
+[    0.000000] c0 		Profile	= 3
+[    0.000000] c0 	*********************************
+[    0.000000] c0 pclk(src:sel,div)	l2clk(src,div)	pdclk(src,div)	baclk(src,div)	
+[    0.000000] c0 periphclk(src,div)	l1_rtc:l2_rtc
+[    0.000000] c0 312(312:1,0)	0([NULL],0)	156([pclk],1)	156([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0 416(416:2,0)	0([NULL],0)	208([pclk],1)	208([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0 624(624:0,0)	0([NULL],0)	312([pclk],1)	312([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0 832(832:3,0)	0([NULL],0)	416([pclk],1)	416([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0 983(983:4,0)	0([NULL],0)	491([pclk],1)	491([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0 1248(1248:5,0)	0([NULL],0)	624([pclk],1)	624([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0 1475(1475:6,0)	0([NULL],0)	737([pclk],1)	737([pclk],1)	0([NULL],0)	0x0:0x0
+[    0.000000] c0  CPU boot up @832000000HZ
+[    0.000000] c0  CPU boot up @832000000HZ
+[    0.000000] c0 aclk(src:sel,div)::  208(416:1,1);  312(312:0,0); 
+[    0.000000] c0 get_cur_axi_op axi clk tsrc:312 csel:0 parent:pll1_312
+[    0.000000] c0  AXI boot up @312000000HZ
+[    0.000000] c0  AXI boot up @312000000HZ
+[    0.000000] c0 dclk(src:sel,div,tblindex)::  800(1600:0,1,0);  1000(2000:1,4,1);  1600(1600:0,0,2); 
+[    0.000000] c0  DDR boot up @800000000HZ
+[    0.000000] c0  DDR boot up @800000000HZ
+[    0.000000] c0 Timer 0: fail to get crsr, use default 8
+[    0.000000] c0 sched_clock: 32 bits at 32kHz, resolution 30517ns, wraps every 65535999984741ns
+[    0.000000] c0 clocksource: clocksource-mmp: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 58327039986419 ns
+[    0.000000] c0 Timer 1: fail to get crsr, use default 8
+[    0.000671] c0 Console: colour dummy device 80x30
+[    0.000732] c0 Calibrating delay loop... 1744.89 BogoMIPS (lpj=872448)
+[    0.007324] c0 CPU: Testing write buffer coherency: ok
+[    0.007385] c0 pid_max: default: 32768 minimum: 301
+[    0.007507] c0 Mount-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.007507] c0 Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.008544] c0 missing device node for CPU 0
+[    0.008544] c0 missing device node for CPU 1
+[    0.008575] c0 missing device node for CPU 2
+[    0.008575] c0 missing device node for CPU 3
+[    0.008605] c0 CPU0: thread -1, cpu 0, socket 0, mpidr 80000000
+[    0.009277] c0 Setting up static identity map for 0x8240 - 0x8294
+[    0.009307] c0 Power ops has already been initialized
+[    0.009307] c0 mmp power management initialized
+[    0.009460] c0 rcu: Hierarchical SRCU implementation.
+[    0.010009] c0 smp: Bringing up secondary CPUs ...
+[    0.019195] c1 CPU1: thread -1, cpu 1, socket 0, mpidr 80000001
+[    0.027770] c2 CPU2: thread -1, cpu 2, socket 0, mpidr 80000002
+[    0.036407] c3 CPU3: thread -1, cpu 3, socket 0, mpidr 80000003
+[    0.036560] c0 smp: Brought up 1 node, 4 CPUs
+[    0.036590] c0 SMP: Total of 4 processors activated (7102.46 BogoMIPS).
+[    0.036590] c0 CPU: All CPU(s) started in SVC mode.
+[    0.046905] c0 VFP support v0.3: implementor 41 architecture 2 part 30 variant 7 rev 5
+[    0.047515] c0 clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+[    0.047515] c0 futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.047729] c0 pinctrl core: initialized pinctrl subsystem
+[    0.048095] c0 regulator-dummy: no parameters
+[    0.049438] c0 bm_core_init: BM: 0x6000000@0x3000000, Region[0]: 0x2000000@0x6000000, Region[1]: 0x1000000@0x8000000
+[    0.049438] c0 bm_core_init: Block: 0x2d50000@0x62a0000, Ring: 0x80c0@0x8ff0000, Per Block Size: 0x8000
+[    0.049438] c0 bm_core_init: PSD: UL High Ring: 0x80000@0x6000000, UL Normal Ring: 0x80000@0x6080000, DL Ring: 0x4000@0x6100000
+[    0.049468] c0 bm_core_init: TOE: UL High Ring: 0x80000@0x6104000, UL Normal Ring: 0x80000@0x6184000, DL Ring: 0x80000@0x6204000, Ref Ring: 0x18000@0x6284000
+[    0.091369] c0 NET: Registered protocol family 16
+[    0.092132] c0 DMA: preallocated 256 KiB pool for atomic coherent allocations
+[    0.093688] c0 cpuidle: using governor menu
+[    0.164916] c0 No ATAGs?
+[    0.165649] c0 auxadc fusedata: 017 80f
+[    0.165679] c0 asr-auxadc d4013400.auxadc: auxadc done
+[    0.165832] c0 asr-usb3-phy c0230000.usb3phy: failed to get platform data
+[    0.165863] c0 asr_usb3_phy_preinit
+[    0.165924] c0 asr-usb3-phy c0230000.usb3phy: Initialized ASR USB 3.0 PHY
+[    0.166137] c0 axi facbric monitor last save info:
+[    0.166137] c0 FAB_TIMEOUT_ID=0x20206004
+[    0.166137] c0 FAB_TIMEOUT_STATUS0=0xc0108000
+[    0.166168] c0 FAB_TIMEOUT_STATUS1=0x620450a4
+[    0.166168] c0 enable mmp axi facbric monitor, FAB_TIMEOUT_CTRL=0x72001000
+[    0.166229] c0 obm/uboot boot log found: 6364 Bytes
+[    0.166259] c0 mmp_log_buf_init: *mmp_log_mag:4d474f4c *mmp_log_pos:1a2a mmp_log_buf:d3885000 mmp_log_size:16376
+[    0.166259] c0 last_kmsg_size: 16376
+[    0.166351] c0 mmp_log_save_old: saved old log at 16376@d385a000
+[    0.166412] c0 printk: console [mmp_log_buf-1] enabled
+[    0.166412] c0 printk: console [mmp_log_buf-1] disabled
+[    0.175109] c0 cryptd: max_cpu_qlen set to 1000
+[    0.177429] c0 pinctrl-single d401e000.pinmux: 204 pins, size 816
+[    0.177978] c0 MFP Extra Configuration initialized
+[    0.182525] c0 pxa-gpio mmp-gpio: IRQ gpio0 not found
+[    0.182556] c0 pxa-gpio mmp-gpio: IRQ gpio1 not found
+[    0.183227] c0 Rail vcc_main_ap_active
+[    0.183258] c0 clk[cpu] rate[1248000000] volt[1]
+[    0.183258] c0 clk[cpu] rate[1475000000] volt[2]
+[    0.183288] c0 clk[cpu] rate[1475000000] volt[3]
+[    0.183288] c0 clk[cpu] rate[1475000000] volt[4]
+[    0.183319] c0 Rail vcc_main_ap_active
+[    0.183319] c0 clk[ddr] rate[800000000] volt[1]
+[    0.183349] c0 clk[ddr] rate[1066000000] volt[2]
+[    0.183349] c0 clk[ddr] rate[1600000000] volt[3]
+[    0.183380] c0 clk[ddr] rate[2000000000] volt[4]
+[    0.183380] c0 Rail vcc_main_ap_active
+[    0.183380] c0 clk[axi] rate[208000000] volt[1]
+[    0.183410] c0 clk[axi] rate[312000000] volt[2]
+[    0.183410] c0 clk[axi] rate[312000000] volt[3]
+[    0.183410] c0 clk[axi] rate[416000000] volt[4]
+[    0.183441] c0 Rail vcc_main_ap_active
+[    0.183441] c0 clk[SDH0] rate[1000000] volt[1]
+[    0.183471] c0 clk[SDH0] rate[2000000] volt[2]
+[    0.183471] c0 clk[SDH0] rate[3000000] volt[3]
+[    0.183471] c0 clk[SDH0] rate[4000000] volt[4]
+[    0.183502] c0 Rail vcc_main_ap_active
+[    0.183502] c0 clk[SDH1] rate[1000000] volt[1]
+[    0.183532] c0 clk[SDH1] rate[2000000] volt[2]
+[    0.183532] c0 clk[SDH1] rate[3000000] volt[3]
+[    0.183532] c0 clk[SDH1] rate[4000000] volt[4]
+[    0.183563] c0 Rail vcc_main_ap_active
+[    0.183563] c0 clk[ETH] rate[1000000] volt[1]
+[    0.183593] c0 clk[ETH] rate[2000000] volt[2]
+[    0.183593] c0 clk[ETH] rate[3000000] volt[3]
+[    0.183593] c0 clk[ETH] rate[4000000] volt[4]
+[    0.183624] c0 Rail vcc_main_ap_lpm
+[    0.183654] c0 clk[ddr] rate[800000000] volt[1]
+[    0.183654] c0 clk[ddr] rate[1066000000] volt[2]
+[    0.183654] c0 clk[ddr] rate[1600000000] volt[3]
+[    0.183685] c0 clk[ddr] rate[2000000000] volt[4]
+[    0.183715] c0 Rail vcc_main_ap_lpm
+[    0.183746] c0 clk[axi] rate[208000000] volt[1]
+[    0.183746] c0 clk[axi] rate[312000000] volt[2]
+[    0.183746] c0 clk[axi] rate[312000000] volt[3]
+[    0.183776] c0 clk[axi] rate[416000000] volt[4]
+[    0.183776] c0 Rail vcc_main_ap_lpm
+[    0.183776] c0 clk[SDH0] rate[1000000] volt[1]
+[    0.183807] c0 clk[SDH0] rate[2000000] volt[2]
+[    0.183807] c0 clk[SDH0] rate[3000000] volt[3]
+[    0.183807] c0 clk[SDH0] rate[4000000] volt[4]
+[    0.183837] c0 Rail vcc_main_ap_lpm
+[    0.183837] c0 clk[SDH1] rate[1000000] volt[1]
+[    0.183837] c0 clk[SDH1] rate[2000000] volt[2]
+[    0.183868] c0 clk[SDH1] rate[3000000] volt[3]
+[    0.183868] c0 clk[SDH1] rate[4000000] volt[4]
+[    0.183868] c0 Rail vcc_main_ap_lpm
+[    0.183898] c0 clk[ETH] rate[1000000] volt[1]
+[    0.183898] c0 clk[ETH] rate[2000000] volt[2]
+[    0.183929] c0 clk[ETH] rate[3000000] volt[3]
+[    0.183929] c0 clk[ETH] rate[4000000] volt[4]
+[    0.183929] c0 Rail vcc_main_apsub_idle
+[    0.183959] c0 clk[ddr] rate[800000000] volt[1]
+[    0.183959] c0 clk[ddr] rate[1066000000] volt[2]
+[    0.183959] c0 clk[ddr] rate[1600000000] volt[3]
+[    0.183990] c0 clk[ddr] rate[2000000000] volt[4]
+[    0.183990] c0 Rail vcc_main_apsub_idle
+[    0.183990] c0 clk[SDH0] rate[1000000] volt[1]
+[    0.184020] c0 clk[SDH0] rate[2000000] volt[2]
+[    0.184020] c0 clk[SDH0] rate[3000000] volt[3]
+[    0.184020] c0 clk[SDH0] rate[4000000] volt[4]
+[    0.184051] c0 Rail vcc_main_apsub_idle
+[    0.184051] c0 clk[SDH1] rate[1000000] volt[1]
+[    0.184082] c0 clk[SDH1] rate[2000000] volt[2]
+[    0.184082] c0 clk[SDH1] rate[3000000] volt[3]
+[    0.184082] c0 clk[SDH1] rate[4000000] volt[4]
+[    0.184112] c0 Rail vcc_main_apsub_idle
+[    0.184112] c0 clk[ETH] rate[1000000] volt[1]
+[    0.184112] c0 clk[ETH] rate[2000000] volt[2]
+[    0.184143] c0 clk[ETH] rate[3000000] volt[3]
+[    0.184143] c0 clk[ETH] rate[4000000] volt[4]
+[    0.184295] c0 pinctrl-single d401e000.pinmux: Invalid number of rows: 0
+[    0.184326] c0 pinctrl-single d401e000.pinmux: no pins entries for sd_ldo_en
+[    0.184356] c0 reg-fixed-voltage: probe of sd-regulator failed with error -22
+[    0.186340] c0 I2C: i2c-1: PXA I2C adapter
+[    0.187347] c0 I2C: i2c-2: PXA I2C adapter
+[    0.187591] c0 pxa2xx-i2c pxa2xx-i2c.3: could not get pinctrl
+[    0.187622] c0 pxa2xx-i2c pxa2xx-i2c.3: hardware lock address: 0xfe0b0300
+[    0.188079] c0 pmic id: 0xa
+[    0.189697] c0 i2c: <pxa_i2c-i2c> slave_0x38 error: exhausted retries
+[    0.189697] c0 i2c: msg_num: 0 msg_idx: -2000 msg_ptr: 0
+[    0.189727] c0 i2c: IBMR: 00000003 IDBR: 00000070 ICR: 00786100 ISR: 00000000
+[    0.189727] c0 i2c: log: 
+[    0.189727] c0 [0048c000:00786100] 
+[    0.189758] c0 
+[    0.189880] c0  Failed: i2c-3: slave_38, R 1 byte by 2 msg R: 00: 00 
+[    0.189880] 
+[    0.189880] c0 88PM805 3-0038: Failed to read CHIP ID: -121
+[    0.189910] c0 88PM805 3-0038: pm805_init fail!
+[    0.190002] c0 88PM805: probe of 3-0038 failed with error -121
+[    0.190948] c0 ASRPM802 3-0030: pmic id: 0xa
+[    0.195495] c0 ASRPM802 3-0030: vref/sample offset: -35/-2
+[    0.195526] c0 ASRPM802 3-0030: PM802 device_gpadc_init: Done
+[    0.198150] c0 pm802-regulator pm802-regulator: DMA mask not set
+[    0.199554] c0 BUCK1: 600 <--> 3950 mV at 1300 mV at 1600 mA 
+[    0.201324] c0 BUCK2: 600 <--> 3950 mV at 1800 mV at 800 mA 
+[    0.203033] c0 BUCK3: 600 <--> 3950 mV at 1200 mV at 800 mA 
+[    0.204711] c0 BUCK4: 600 <--> 3950 mV at 1800 mV at 800 mA 
+[    0.206390] c0 BUCK5: 600 <--> 3950 mV at 650 mV at 1200 mA 
+[    0.208068] c0 LDO1: 1200 <--> 3300 mV at 2800 mV at 200 mA 
+[    0.209716] c0 LDO2: 1700 <--> 3300 mV at 3100 mV at 200 mA 
+[    0.211730] c0 LDO4: 1800 <--> 3300 mV at 2800 mV at 400 mA 
+[    0.213439] c0 LDO5: 1200 <--> 3300 mV at 1800 mV at 200 mA 
+[    0.215454] c0 LDO6: 1200 <--> 3300 mV at 2800 mV at 200 mA 
+[    0.216400] c0 OF: /soc/apb@d4000000/i2c@d4018800/pm802@00/usb: could not find phandle
+[    0.217132] c0 is_scs_mode: false
+[    0.222808] c0 ASRPM802 3-0030: Powerup log 0x10: 0x20
+[    0.222839] c0  -------------------------------
+[    0.222839] c0 |     name(power up) |  status  |
+[    0.222839] c0 |--------------------|----------|
+[    0.222869] c0 |  ONKEY_WAKEUP      |    0     |
+[    0.222869] c0 |  EXTON1_WAKEUP        |    0     |
+[    0.222869] c0 |  EXTON2_WAKEUP      |    0     |
+[    0.222900] c0 |  BAT_WAKEUP        |    0     |
+[    0.222900] c0 |  RTC_ALARM_WAKEUP  |    0     |
+[    0.222900] c0 |  FAULT_WAKEUP      |    1     |
+[    0.222930] c0 |  UNDEFINED_WAKEUP  |    0     |
+[    0.222930] c0  -------------------------------
+[    0.223663] c0 ASRPM802 3-0030: PowerDW Log1 0xe5: 0x4
+[    0.223663] c0  -------------------------------
+[    0.223693] c0 | name(power down1)  |  status  |
+[    0.223693] c0 |--------------------|----------|
+[    0.223693] c0 |    OVER_TEMP       |    0     |
+[    0.223693] c0 |    UV_VSYS1        |    0     |
+[    0.223724] c0 |    SW_PDOWN        |    1     |
+[    0.223724] c0 |    SYSEN_EVENT        |    0     |
+[    0.223724] c0 |    WD              |    0     |
+[    0.223754] c0 |    LONG_ONKEY      |    0     |
+[    0.223754] c0 |    OV_VSYS         |    0     |
+[    0.223754] c0 |    RTC_RESET       |    0     |
+[    0.223785] c0  -------------------------------
+[    0.224517] c0 ASRPM802 3-0030: PowerDW Log2 0xe6: 0x0
+[    0.224517] c0  -------------------------------
+[    0.224517] c0 |  name(power down2) |  status  |
+[    0.224517] c0 |--------------------|----------|
+[    0.224548] c0 |    HYB_DONE        |    0     |
+[    0.224548] c0 |    UV_VSYS2        |    0     |
+[    0.224548] c0 |    HW_RESET        |    0     |
+[    0.224578] c0 |    PGOOD_PDOWN     |    0     |
+[    0.224578] c0 |    LONKEY_RTC      |    0     |
+[    0.224578] c0  -------------------------------
+[    0.226043] c0 ASRPM826 3-0020: pm826 id: 0x42
+[    0.226715] c0 88pm8xx-dvc 88pm8xx-dvc: DMA mask not set
+[    0.227539] c0 88pm8xx-dvc 88pm8xx-dvc: DVC power hold enabled 80! DVC buck 1
+[    0.227996] c0 ASRPM826 3-0020: Powerup status 0x1: 0x0
+[    0.228027] c0  -------------------------------
+[    0.228027] c0 |     name(status) |  status  |
+[    0.228027] c0 |--------------------|----------|
+[    0.228027] c0 |  UVLO        |    0     |
+[    0.228057] c0 |  OVTEMP      |    0     |
+[    0.228057] c0 |  OVP         |    0     |
+[    0.228057] c0 |  HICUR_BK1   |    0     |
+[    0.228088] c0 |  HICUR_BK2   |    0     |
+[    0.228088] c0  -------------------------------
+[    0.228302] c0 I2C: i2c-3: PXA I2C adapter
+[    0.229187] c0 Advanced Linux Sound Architecture Driver Initialized.
+[    0.230316] c0 clocksource: Switched to clocksource clocksource-mmp
+[    0.235107] c0 thermal_sys: Registered thermal governor 'user_space'
+[    0.235107] c0 thermal_sys: Registered thermal governor 'bi_direction'
+[    0.235473] c0 ddr clk 4x mode enabled
+[    0.235504] c0 devfreq-ddr devfreq-ddr: dmcu6 controller is detected!
+[    0.235504] c0 intr_en_val: 0x5
+[    0.235534] c0 devfreq-ddr devfreq-ddr: ddr burst length = 16
+[    0.236633] c0 NET: Registered protocol family 2
+[    0.236877] c0 IP idents hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.237823] c0 tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 6144 bytes, linear)
+[    0.237884] c0 TCP established hash table entries: 2048 (order: 1, 8192 bytes, linear)
+[    0.237915] c0 TCP bind hash table entries: 2048 (order: 3, 40960 bytes, linear)
+[    0.237976] c0 TCP: Hash tables configured (established 2048 bind 2048)
+[    0.238098] c0 UDP hash table entries: 256 (order: 1, 12288 bytes, linear)
+[    0.238128] c0 UDP-Lite hash table entries: 256 (order: 1, 12288 bytes, linear)
+[    0.238342] c0 NET: Registered protocol family 1
+[    0.241241] c0 workingset: timestamp_bits=30 max_order=15 bucket_order=0
+[    0.246063] c0 squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.246246] c0 fuse: init (API version 7.31)
+[    0.246917] c0 NET: Registered protocol family 38
+[    0.246948] c0 Key type asymmetric registered
+[    0.246948] c0 Asymmetric key parser 'x509' registered
+[    0.249267] c0 PMIC level 0: 800 mV, cur 800 mV
+[    0.250091] c0 PMIC level 1: 820 mV, cur 820 mV
+[    0.250885] c0 PMIC level 2: 840 mV, cur 840 mV
+[    0.251678] c0 PMIC level 3: 860 mV, cur 860 mV
+[    0.251678] c0 AP active 1, M2 1, D1P: 0
+[    0.254791] c0 mmp-pdma d4000000.pdma: initialized 32 channels
+[    0.255462] c0 pxa2xx-uart d4018000.uart: pxa dma_disable:0
+[    0.255645] c0 d4018000.uart: ttyS1 at MMIO 0xd4018000 (irq = 45, base_baud = 921250) is a UART2
+[    0.353515] c0 printk: console [ttyS1] enabled
+[    0.354309] c0 pxa9xx AC-IPC initialized!
+[    0.362854] c0 brd: module loaded
+[    0.363281] c0 enter maxlinear_slic_probe. 
+[    0.363342] c0 maxlinear-slic maxlinear-slic: maxlinear_slic_dt_init: of_get_named_gpio failed: -2
+[    0.372436] c0 maxlinear_slic_dt_init: reset_n_gpio=40, edge_wakeup_gpio=56, vdd_3v3_gpio=-1, ASR1826 Old DKB.
+[    0.372436] c0 maxlinear_slic_dt_init: g_reset_n_gpio=40, g_edge_wakeup_gpio=56, g_vdd_3v3_gpio=-1.
+[    0.372497] c0 maxlinear-slic maxlinear-slic: maxlinear-slic supply vdd33 not found, using dummy regulator
+[    0.372741] c0 fail to set regulator wib_3v3 supply 2 to 3.3v
+[    0.379608] c0 maxlinear-slic maxlinear-slic: slic chip powered on
+[    0.380828] c0 pcie-rfkill pcie-rfkill: edge-wakeup-gpio undefined
+[    0.380950] c0 pcie8x_rfkill_probe_dt: the regulator for wib_3v3 not found
+[    0.490692] c0 rtl8192fr set_power on start
+[    0.490692] c0 rtl8192fr set_power on end
+[    0.490722] c0 pcie_dev set_power off start
+[    0.490722] c0 pcie8x_pwr_ctrl: on=0
+[    0.490722] c0 aic8800d80p_pwr_ctrl: on=0
+[    0.512695] c0 aic8800d80p_pwr_ctrl: aic8800d80p pwr_ctrl off
+[    1.061248] c0 pcie_dev set_power off end
+[    1.170989] c0 pcie_dev set_power on start
+[    1.170989] c0 pcie8x_pwr_ctrl: on=1
+[    1.170989] c0 aic8800d80p_pwr_ctrl: on=1
+[    1.236846] c0 aic8800d80p_pwr_ctrl: aic8800d80p pwr_ctrl on
+[    1.236907] c0 pcie_dev set_power on end
+[    1.237609] c0 SET:sim[8]-gpio-num:41
+[    1.237701] c0 SET:sim[12]-gpio-num:45
+[    1.237731] c0 SET:sim[13]-gpio-num:46
+[    1.237792] c0 GET:sim[0]-gpio-num:0
+[    1.237823] c0 GET:sim[1]-gpio-num:0
+[    1.237823] c0 GET:sim[2]-gpio-num:0
+[    1.237854] c0 GET:sim[3]-gpio-num:0
+[    1.237884] c0 GET:sim[4]-gpio-num:0
+[    1.237915] c0 GET:sim[5]-gpio-num:0
+[    1.237945] c0 GET:sim[6]-gpio-num:0
+[    1.237945] c0 GET:sim[7]-gpio-num:0
+[    1.237976] c0 GET:sim[8]-gpio-num:86
+[    1.238006] c0 GET:sim[9]-gpio-num:0
+[    1.238037] c0 GET:sim[10]-gpio-num:0
+[    1.238067] c0 GET:sim[11]-gpio-num:0
+[    1.238098] c0 GET:sim[12]-gpio-num:83
+[    1.238128] c0 GET:sim[13]-gpio-num:84
+[    1.238159] c0 GET:sim[14]-gpio-num:0
+[    1.238189] c0 GET:sim[15]-gpio-num:0
+[    1.238220] c0 sim_init sucess
+[    1.238677] c0 [5616 codec-dai probe: begin] alc5616_probe/L4123.
+[    1.238708] c0 alc5616_config_init, platform is Kestrel.
+[    1.238708] c0 alc5616_config_init/L3999, gpio_tds_dio10 = 0, gpio_vcxo_out = 0
+[    1.238739] c0 alc5616_config_init/L4018, gpio_1V8=0, gpio_3V3=-2.
+[    1.238739] c0 audio_set_codec_vdd: codec now:0, to be:1
+[    1.238769] c0 audio_set_codec_vdd: the regulator for vdd_1v8 not found.
+[    1.238800] c0 audio_set_codec_vdd: the regulator for vdd_3v3 not found.
+[    1.240081] c0 i2c: <pxa_i2c-i2c> slave_0x1b error: exhausted retries
+[    1.246612] c0 i2c: msg_num: 0 msg_idx: -2000 msg_ptr: 0
+[    1.252014] c0 i2c: IBMR: 00000003 IDBR: 00000036 ICR: 00786100 ISR: 00000000
+[    1.259246] c0 i2c: log: 
+[    1.259246] c0 [0048c000:00786100] 
+[    1.259277] c0 
+[    1.259399] c0  Failed: i2c-1: slave_1b, W 1 byte by 1 msg W: fe: 
+[    1.259399] 
+[    1.259399] c0 alc5616_reg_read: alc5616 read failed.
+[    1.259399] c0 alc5616_read: alc5616_reg read failed.
+[    1.259429] c0 codec_alc5616_init:L492: alc5616_init_ok=0, l_connect_alc5616 =0.
+[    1.259429] c0 Please check codec alc5616 OK or not.
+[    1.259582] c0 pm813pa_init/L325.
+[    1.259582] c0 pm813pa_cdev_init/L280, Major = 248, Minor = 0
+[    1.259735] c0 adspInit/2098.
+[    1.259918] c0 adsp_plat_probe/1956 irq=0x36.
+[    1.259948] c0 squ :[d101c000-d1020000]-->[d391c000-d3920000]
+[    1.259948] dtcm:[d6000000-d6040000]-->[d3940000-d3980000]
+[    1.259948] itcm:[d6200000-d6210000]-->[d3990000-d39a0000]
+[    1.259948] shm :[d6a00000-d6a04000]-->[d3924000-d3928000]
+[    1.259979] c0 adsp_plat_probe/2064 Done.
+[    1.260070] c0 adsp_cdev_init/1859, Major = 247, Minor = 0
+[    1.260192] c0 adsp_debugfs_init/1597: platform is 1901S
+[    1.260589] c0 adsp_ipc_init_phase1/605: ret=0
+[    1.260620] c0 reg[0xfe015090] = 0x4
+[    1.260620] c0 reg[0xfe015090] = 0x3
+[    1.260620] c0 adsp_ipc_init_phase1/619 Done.
+[    1.260650] c0 enable_pmu_audio_clk/906: Done.
+[    1.260650] c0 adspInit/2110 Done.
+[    1.262908] c0 asr-qspi d420b000.spi: asr_qspi_probe:memmap base:0x80000000, memmap size:0x8000000
+[    1.262939] c0 asr-qspi d420b000.spi: use sram as tx buf, virt=0xd3870000 phy=0xd1010000
+[    1.263031] c0 asr-qspi d420b000.spi: host_irq:38
+[    1.263061] c0 asr-qspi d420b000.spi: IRQ index 1 not found
+[    1.268737] c0 asr-qspi d420b000.spi: rx dma not enable
+[    1.268798] c0 asr-qspi d420b000.spi: tx dma enable, channel:0
+[    1.268798] c0 asr-qspi d420b000.spi: asr_qspi_probe: rx_buf_size:128, tx_buf_size:256
+[    1.268829] c0 asr-qspi d420b000.spi: asr_qspi_probe: ahb_buf_size:512, ahb_read:1
+[    1.268829] c0 asr-qspi d420b000.spi: config mfp for cs:[0]
+[    1.268890] c0 asr-qspi d420b000.spi: bus clock 13000000Hz, PMUap reg[0xd4282860]:0x0000015b
+[    1.268920] c0 asr-qspi d420b000.spi: AHB buf size: 512
+[    1.268920] c0 asr-qspi d420b000.spi: qspi host init done.
+[    1.269683] c0 ---------forsee_spinand_detect ok---------
+[    1.269683] c0 asr-qspi d420b000.spi: tclqv=15ns tset=2ns thold=3ns
+[    1.269714] c0 asr-qspi d420b000.spi: QSPI_SMPR=0x0 t=19230
+[    1.269714] c0 asr-qspi d420b000.spi: QSPI_FLSHCR=0x202, delay=18000
+[    1.269744] c0 asr-qspi d420b000.spi: bus clock 52000000Hz, PMUap reg[0xd4282860]:0x0000015b
+[    1.269775] c0 spi-nand spi0.0: FORESEE SPI NAND was found.
+[    1.269775] c0 spi-nand spi0.0: 128 MiB, block size: 128 KiB, page size: 2048, OOB size: 64
+[    1.269836] c0 spi0.0: bitflip_threshold=1
+[    1.279571] c0 Max capacity of BBM is 54 blocks!!
+[    1.290618] c0 [abbt] at page:0, order:positive, max=504
+[    1.290649] c0 The reloc table is empty now
+[    1.290649] c0 [bbt] at block:0 page:8, begin:8, order:positive
+[    1.290679] c0 The reloc table is empty now
+[    1.295013] c0 19 fixed-partitions partitions found on MTD device spi0.0
+[    1.295043] c0 Creating 20 MTD partitions on "spi0.0":
+[    1.295043] c0 0x000000000000-0x0000000a0000 : "bootloader"
+[    1.295959] c0 0x0000000a0000-0x0000000c0000 : "cp_reliabledata"
+[    1.296752] c0 0x0000000c0000-0x0000000e0000 : "ap_reliabledata"
+[    1.297515] c0 0x0000000e0000-0x000000100000 : "cp_reliabledata_backup"
+[    1.298278] c0 0x000000100000-0x000000120000 : "ap_reliabledata_backup"
+[    1.299011] c0 0x000000120000-0x000000140000 : "mep-ota"
+[    1.299774] c0 0x000000140000-0x000000160000 : "mep-ota_backup"
+[    1.300537] c0 0x000000160000-0x000000260000 : "asr_flag"
+[    1.301239] c0 0x000000260000-0x0000002a0000 : "dtim"
+[    1.302032] c0 0x0000002a0000-0x000001ce0000 : "cpimage"
+[    1.302886] c0 0x000001ce0000-0x000001da0000 : "u-boot"
+[    1.303649] c0 0x000001da0000-0x0000022a0000 : "kernel"
+[    1.304443] c0 0x0000022a0000-0x0000022c0000 : "rootfs-sdtim"
+[    1.305206] c0 0x0000022c0000-0x0000054c0000 : "rootfs"
+[    1.305938] c0 1 squashfs-split partitions found on MTD device rootfs
+[    1.305969] c0 0x0000034c0000-0x0000054c0000 : "rootfs_data"
+[    1.306762] c0 0x0000054c0000-0x0000054e0000 : "oemdata-sdtim"
+[    1.307525] c0 0x0000054e0000-0x000005ac0000 : "oem_data"
+[    1.308258] c0 0x000005ac0000-0x000005ae0000 : "bootargs"
+[    1.308990] c0 0x000005ae0000-0x000005c00000 : "RSA"
+[    1.309783] c0 0x000005c00000-0x000007940000 : "OTA"
+[    1.310638] c0 0x000007940000-0x000008000000 : "MRVL_BBM"
+[    1.313537] c0 ==========in yt92xxrb_probe==========
+[    1.313568] c0 ==========yt92xxrb_probe:EPROBE_DEFER==========
+[    1.315551] c0 asr-xgmac d4270000.ethernet: IRQ eth_lpi not found
+[    1.315704] c0 asr-xgmac d4270000.ethernet: Cannot get CSR clock
+[    1.315704] c0 asr-xgmac d4270000.ethernet: PTP uses main clock
+[    1.315734] c0 asr-xgmac d4270000.ethernet: no reset control found
+[    2.226470] c0 asr-xgmac d4270000.ethernet: ===> gpio init finished
+[    2.226684] c0 ==> APMU_XGMAC_RGMII_RX_DLINE: 0x80000100 rgmii_rx_delay_code=1
+[    2.226684] c0 ==> APMU_XGMAC_RGMII_TX_DLINE: 0x80000100 rgmii_tx_delay_code=1
+[    2.226715] c0 ==> APMU_XGMAC_CLK_RST_CTRL: 0x7
+[    2.226898] c0 asr-xgmac d4270000.ethernet: User ID: 0x76, Synopsys ID: 0x31
+[    2.226928] c0 asr-xgmac d4270000.ethernet: 	XGMAC2
+[    2.226928] c0 asr-xgmac d4270000.ethernet: DMA HW capability register supported
+[    2.226959] c0 asr-xgmac d4270000.ethernet: RX Checksum Offload Engine supported
+[    2.226959] c0 asr-xgmac d4270000.ethernet: COE Type 1
+[    2.226959] c0 asr-xgmac d4270000.ethernet: TX Checksum insertion supported
+[    2.226989] c0 asr-xgmac d4270000.ethernet: Wake-Up On Lan supported
+[    2.227020] c0 asr-xgmac d4270000.ethernet: TSO supported
+[    2.227050] c0 asr-xgmac d4270000.ethernet: Enable RX Mitigation via HW Watchdog Timer
+[    2.227081] c0 asr-xgmac d4270000.ethernet: device MAC address a2:8f:ab:a8:56:ed
+[    2.227111] c0 asr-xgmac d4270000.ethernet: TSO feature enabled
+[    2.227111] c0 asr-xgmac d4270000.ethernet: Using 32 bits DMA width
+[    2.228149] c0 mdio_bus stmmac-0: MDIO device at address 3 is missing.
+[    2.235351] c0 mdio_bus stmmac-0: MDIO device at address 7 is missing.
+[    2.242126] c0 asr-xgmac d4270000.ethernet: Get mdio_node found:mdio-bus
+[    2.249633] c0 ------------asr_dwmac_probe success------------
+[    2.250152] c0 tmrcnt: 0
+[    2.253967] c0 dwc3 dr_mode: 2
+[    2.253997] c0 USB3 PHY init start...
+[    2.254058] c0 USB3 PHY init done...
+[    2.275482] c0 USB3 PHY set_suspend: 0...
+[    2.275482] c0 software_get_typec_dir typec_type[0]
+[    2.275482] c0 sw set typec dir: 0
+[    2.275512] c0 RTERM Test for ASR1901 a0+
+[    2.275512] c0 skip lane0 rterm calibration: 0x0
+[    2.275512] c0 USB3 PHY set_suspend done
+[    2.277099] c0 register hwsulog callback
+[    2.277099] c0 dwc3 c0200000.dwc31: phys_mem_end: 0x10000000
+[    2.277130] c0 dwc3 c0200000.dwc31: dwc3 probe successful
+[    2.277557] c0 asr-dwc3 d4200000.axi:usb3-1: IRQ index 1 not found
+[    2.283843] c0 asr-dwc3 d4200000.axi:usb3-1: no sulog irq
+[    2.283966] c0 asr-dwc3 d4200000.axi:usb3-1: dwc3_asr_probe done
+[    2.284454] c0 NO lonkey timeout!
+[    2.284484] c0 No GPIO number for long onkey!
+[    2.284484] c0 No hw reset type for gpio + long onkey!
+[    2.284484] c0 NO long onkey type!
+[    2.285552] c0 input: 88pm80x_on as /devices/platform/soc/d4000000.apb/pxa2xx-i2c.3/i2c-3/3-0030/88pm80x-onkey/input/input0
+[    2.286468] c0 onkey timeout: 0xb0
+[    2.290740] c0 88pm80x-rtc 88pm80x-rtc: 70-0-1-->0: 27: 25
+[    2.295379] c0 88pm80x-rtc 88pm80x-rtc: registered as rtc0
+[    2.296783] c0 88pm80x-rtc 88pm80x-rtc: setting system clock to 1970-01-01T00:27:25 UTC (1645)
+[    2.299346] c0 sa1100-rtc sa1100-rtc: registered as rtc1
+[    2.299530] c0 i2c /dev entries driver
+[    2.300720] c0 MPMU_CRSR: 0x201
+[    2.300750] c0 thermal status fine
+[    2.300811] c0 *************THERMAL RANG & POLICY*********************
+[    2.300811] c0 *************THERMAL POLICY POWER_SAVING_MODE********
+[    2.300811] c0 * Thermal Stage:0(up:Temp <85000C; down:Temp<82000C)
+[    2.300842] c0         (vl_show)vl:2;
+[    2.300842] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+[    2.300872] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+[    2.300872] c0 * Thermal Stage:1(up:85000<Temp<90000C; down:82000<Temp<87000C)
+[    2.300872] c0         (vl_show)vl:2;
+[    2.300903] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+[    2.300903] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+[    2.300903] c0 * Thermal Stage:2(up:90000<Temp<95000C; down:87000<Temp<92000C)
+[    2.300933] c0         (vl_show)vl:2;
+[    2.300933] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+[    2.300933] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+[    2.300964] c0 * Thermal Stage:3(up:95000<Temp<99000C; down:92000<Temp<96000C)
+[    2.300964] c0         (vl_show)vl:2;
+[    2.300994] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+[    2.300994] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+[    2.300994] c0 * Thermal Stage:4(up:99000<Temp<103000C; down:96000<Temp<100000C)
+[    2.301025] c0         (vl_show)vl:2;
+[    2.301025] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+[    2.301025] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+[    2.301055] c0 * Thermal Stage:5(up:103000<Temp<107000C; down:100000<Temp<104000C)
+[    2.301055] c0         (vl_show)vl:1;
+[    2.301055] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+[    2.301086] c0         (vl_master)ddr:state_1(freq:1000000000hz)
+[    2.301086] c0 * Thermal Stage:6(up:107000<Temp<111000C; down:104000<Temp<108000C)
+[    2.301086] c0         (vl_show)vl:0;
+[    2.301116] c0         (vl_slave)cpu:state_1(freq:1248000000hz)
+[    2.301116] c0         (vl_master)ddr:state_2(freq:800000000hz)
+[    2.301147] c0 * Thermal Stage:7(up:Temp>111000C; down:Temp>108000C)
+[    2.301147] c0         (vl_show)vl:0;
+[    2.301147] c0         (vl_slave)cpu:state_1(freq:1248000000hz)
+[    2.301177] c0         (vl_master)ddr:state_2(freq:800000000hz)
+[    2.301818] c0 tsen not enabled on read
+[    2.301971] c0 asr1901 thermal probed
+[    2.302764] c0 sdhci: Secure Digital Host Controller Interface driver
+[    2.302764] c0 sdhci: Copyright(c) Pierre Ossman
+[    2.303436] c0 sdhci-asr d4280000.sdh: could not get slow pinstate
+[    2.344543] c0 mmc0: SDHCI controller on d4280000.sdh [d4280000.sdh] using ADMA
+[    2.345184] c0 sdhci-asr d4280800.sdh: could not get slow pinstate
+[    2.377502] c0 mmc1: SDHCI controller on d4280800.sdh [d4280800.sdh] using ADMA
+[    2.377716] c0 sdhci-pltfm: SDHCI platform and OF driver helper
+[    2.379150] c0 logger: created 64K log 'log_main'
+[    2.379241] c0 logger: created 4K log 'log_events'
+[    2.379486] c0 logger: created 512K log 'log_radio'
+[    2.379547] c0 logger: created 4K log 'log_system'
+[    2.379577] c0 exFAT: Version 1.3.0
+[    2.380340] c0 cp_load_probe: failed to read remap-smc-funcid
+[    2.383819] c0 [embms]: ENTER embms_control_init
+[    2.383850] c0 CHRDEV "embms" major requested (1253) is greater than the maximum (511)
+[    2.391937] c0 [embms]eMBMS registering character device error!
+[    2.392089] c0 seh ffffffff.seh: ripc_init: no ripc_wakeup iomem defined
+[    2.399139] c0 seh ffffffff.seh: cp_watchdog_probe: watchdog type 2
+[    2.399200] c0 seh ffffffff.seh: cp_watchdog_probe: init watchdog success
+[    2.400024] c0 Pseudo CI TTY driver v1.0
+[    2.400634] c0 dg buf in cp
+[    2.400634] c0 Direct_rb Create dir /proc/DiagDev_Debug
+[    2.408203] c0 Direct_rb Create /proc/DiagDev_Debug/Debug_Switch
+[    2.408203] c0 Direct_rb Create /proc/DiagDev_Debug/utcomm
+[    2.408233] c0 Direct_rb Create /proc/DiagDev_Debug/diagbuf_len
+[    2.414001] c0 pcm master=1, audiostub_inited=0
+[    2.414459] c2 audio_rcv_task start...
+[    2.414550] c0 Enter VoIP_init
+[    2.414642] c0 enter VoIP_proc_init. 
+[    2.414978] c0 ccidatastub is created
+[    2.415252] c0 cctdatadev is created
+[    2.415496] c0 cidatatty0 is created
+[    2.416717] c0 [5616 platform probe: begin] asoc_ssp_probe/L233.
+[    2.416748] c0 [5616 platform probe: end] asoc_ssp_probe/L260.
+[    2.418151] c0 NET: Registered protocol family 10
+[    2.421051] c0 Segment Routing with IPv6
+[    2.421234] c0 NET: Registered protocol family 17
+[    2.421295] c0 8021q: 802.1Q VLAN Support v1.8
+[    2.421386] c0 Key type dns_resolver registered
+[    2.457366] c0 kst-pcie d4c00000.pcie: host bridge /soc/axi@d4200000/pcie@d4c00000 ranges:
+[    2.457427] c0 kst-pcie d4c00000.pcie:   err 0xe0020000..0xe0020fff -> 0xe0020000
+[    2.457489] c0 kst-pcie d4c00000.pcie:    IO 0xe0010000..0xe001ffff -> 0x00000000
+[    2.457519] c0 kst-pcie d4c00000.pcie:   MEM 0xe8200000..0xec1fffff -> 0xe8200000
+[    2.460998] c0 ASR1901 PCIe Host 1x link negotiated (gen 1)
+[    2.461212] c0 kst-pcie d4c00000.pcie: PCI host bridge to bus 0000:00
+[    2.461242] c0 pci_bus 0000:00: root bus resource [bus 00-ff]
+[    2.461242] c0 pci_bus 0000:00: root bus resource [??? 0xe0020000-0xe0020fff flags 0x0]
+[    2.461273] c0 pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    2.461273] c0 pci_bus 0000:00: root bus resource [mem 0xe8200000-0xec1fffff]
+[    2.461334] c0 pci 0000:00:00.0: [1e5d:3003] type 01 class 0x060400
+[    2.461364] c0 pci 0000:00:00.0: reg 0x10: [mem 0x00000000-0x000fffff]
+[    2.461395] c0 pci 0000:00:00.0: reg 0x14: [mem 0x00000000-0x000fffff]
+[    2.461517] c0 pci 0000:00:00.0: supports D1
+[    2.461517] c0 pci 0000:00:00.0: PME# supported from D0 D1 D3hot
+[    2.464141] c0 PCI: bus0: Fast back to back transfers disabled
+[    2.464355] c0 pci 0000:01:00.0: [a69c:8d90] type 00 class 0x028000
+[    2.464508] c0 pci 0000:01:00.0: reg 0x10: [mem 0x00000000-0x0000ffff]
+[    2.465118] c0 pci 0000:01:00.0: supports D1 D2
+[    2.465118] c0 pci 0000:01:00.0: PME# supported from D0 D1 D2 D3hot D3cold
+[    2.467773] c0 PCI: bus1: Fast back to back transfers disabled
+[    2.467834] c0 pci 0000:00:00.0: BAR 0: assigned [mem 0xe8200000-0xe82fffff]
+[    2.467864] c0 pci 0000:00:00.0: BAR 1: assigned [mem 0xe8300000-0xe83fffff]
+[    2.467864] c0 pci 0000:00:00.0: BAR 8: assigned [mem 0xe8400000-0xe84fffff]
+[    2.467895] c0 pci 0000:01:00.0: BAR 0: assigned [mem 0xe8400000-0xe840ffff]
+[    2.467926] c0 pci 0000:00:00.0: PCI bridge to [bus 01-ff]
+[    2.467956] c0 pci 0000:00:00.0:   bridge window [mem 0xe8400000-0xe84fffff]
+[    2.471466] c0 pcieport 0000:00:00.0: PME: Signaling with IRQ 196
+[    2.472167] c0 asr_geu d4292800.geu: Fuse is initialized
+[    2.473358] c0 asr_bcm d4290000.bcm: CIPHER engine is initialized
+[    2.474243] c0 asr_bcm d4290000.bcm: SHA engine is initialized
+[    2.474884] c0 asr_rng d4293800.rng: H/W RNG is initialized
+[    2.475158] c1 random: crng init done
+[    2.475616] c0 ThumbEE CPU extension supported.
+[    2.475646] c0 Registering SWP/SWPB emulation handler
+[    2.477020] c0 TIMESTAMP 32kHz: timer-common = 73827 = 0x00013d0f - 0x00001cac
+[    2.487945] c0 pinctrl-single d401e000.pinmux: Invalid number of rows: 0
+[    2.501129] c0 pinctrl-single d401e000.pinmux: no pins entries for sd_ldo_en
+[    2.508331] c0 reg-fixed-voltage: probe of sd-regulator failed with error -22
+[    2.509155] c0 asr-rfkill asr-rfkill: pd-gpio undefined
+[    2.509185] c0 asr-rfkill asr-rfkill: chipen-gpio undefined
+[    2.509216] c0 asr-rfkill asr-rfkill: 3v3-ldo-gpio undefined
+[    2.509216] c0 asr-rfkill asr-rfkill: 1v8-ldo-gpio undefined
+[    2.509246] c0 asr-rfkill asr-rfkill: asr_rfkill_probe_dt: regulator wib_3v3 not found
+[    2.509277] c0 asr-rfkill asr-rfkill: asr_rfkill_probe_dt: regulator wib_1v8 not found
+[    2.509307] c0 asr-rfkill asr-rfkill: asr_rfkill_probe_dt: regulator wib_sdio_1v8 not found
+[    2.509307] c0 asr_pwr_ctrl(mmc1): on=1
+[    2.529785] c0 ==========in yt92xxrb_probe==========
+[    2.529846] c0 cal_profile_yt9215rb_init: phy_id=0x0
+[    4.414001] c0 ------yt9215RB_modules_init-------
+[    4.667846] c0 ==========yt92xxrb_probe:get chipInfo:92153==========
+[    4.667846] c0 in [yt92xxrb_switch_init]
+[    4.667877] c0 out [yt92xxrb_switch_init]
+[    4.667907] c0 ==========yt92xxrb init success==========
+[    4.668518] c2 dwc3 c0200000.dwc31: dwc3 already pulled up
+[    4.668548] c2 +preempt disable
+[    4.668548] c2 -preempt enable
+[    4.669586] c2 acm_alloc_instance: gserial_alloc_line port_num: 0
+[    4.669677] c2 acm_alloc_instance: gserial_alloc_line port_num: 1
+[    4.669830] c2 disable echo for dwc3 hwsulog
+[    4.670166] c2 initialize 1 instances
+[    4.670227] c2 Initialized 1 ports
+[    4.670684] c2 android_usb gadget: Mass Storage Function, version: 2009/09/11
+[    4.670715] c2 android_usb gadget: Number of LUNs=1
+[    4.670715] c2  lun0: LUN: removable read only CD-ROM file: (no medium)
+[    4.670806] c2 android_usb gadget: android_usb ready
+[    4.671081] c2 dwc3 c0200000.dwc31: set dwc3 irq thread on cpu-1 by default
+[    4.678161] c2 USB3 PHY set_suspend: 0...
+[    4.678161] c2 software_get_typec_dir typec_type[0]
+[    4.678192] c2 sw set typec dir: 0
+[    4.678192] c2 RTERM Test for ASR1901 a0+
+[    4.678192] c2 skip lane0 rterm calibration: 0x0
+[    4.678222] c2 USB3 PHY set_suspend done
+[    4.678283] c2 dwc3 c0200000.dwc31: st ep cfg done
+[    4.678283] c2 dwc3 c0200000.dwc31: ep0 enable done
+[    4.678314] c2 dwc3 c0200000.dwc31: ep1 enable done
+[    4.678314] c2 dwc->ep0state: 0
+[    4.678375] c0 dwc3 c0200000.dwc31: vbus is off.
+[    4.678405] c0 dwc3 c0200000.dwc31: asr_usb_vbus_session: softconnect 0, vbus_active 0, pre_chrgr: 0
+[    4.678405] c0 USB3 PHY set_suspend: 0...
+[    4.678436] c0 software_get_typec_dir typec_type[0]
+[    4.678436] c0 sw set typec dir: 0
+[    4.678436] c0 RTERM Test for ASR1901 a0+
+[    4.678466] c0 skip lane0 rterm calibration: 0x0
+[    4.678466] c0 USB3 PHY set_suspend done
+[    4.678497] c0 USB3 PHY set_suspend: 1...
+[    4.678497] c0 USB3 PHY set_suspend done
+[    4.678527] c0 dwc3 c0200000.dwc31: final charger type: NULL_CHARGER
+[    4.678527] c0 dwc3 c0200000.dwc31: rls pm lock
+[    4.679138] c2 input: gpio-keys as /devices/platform/gpio-keys/input/input1
+[    4.679748] c2 88pm80x-wdt 88pm80x-wdt: DMA mask not set
+[    4.680755] c2 create boot log 6364@0xd3881008
+[    4.680969] c2 ALSA device list:
+[    4.680969] c2   No soundcards found.
+[    4.684600] c2 VFS: Mounted root (squashfs filesystem) readonly on device 31:13.
+[    4.685058] c2 Freeing unused kernel memory: 280K
+[    4.685089] c2 This architecture does not have kernel memory protection.
+[    4.685089] c2 Run /etc/preinit as init process
+[    5.325500] c3 init: Console is alive
+[    6.606567] c2 kmodloader: loading kernel modules from /etc/modules-boot.d/*
+[    6.642181] c2 Button Hotplug driver version 0.4.1
+[    6.679412] c2 asr_wifi_mod_init
+[    6.679504] c2 asr_sdio_register_drv: sdio driver register ret is 0
+[    6.680084] c2 kmodloader: done loading kernel modules from /etc/modules-boot.d/*
+[    6.687316] c1 init: - preinit -
+[    7.072265] c3 ubi0: attaching mtd14
+[    7.246185] c3 ubi0: scanning is finished
+[    7.254302] c1 ubi0: attached mtd14 (name "rootfs_data", size 32 MiB)
+[    7.254333] c1 ubi0: PEB size: 131072 bytes (128 KiB), LEB size: 126976 bytes
+[    7.254333] c1 ubi0: min./max. I/O unit sizes: 2048/2048, sub-page size 2048
+[    7.254364] c1 ubi0: VID header offset: 2048 (aligned 2048), data offset: 4096
+[    7.254364] c1 ubi0: good PEBs: 256, bad PEBs: 0, corrupted PEBs: 0
+[    7.254394] c1 ubi0: user volume: 3, internal volumes: 1, max. volumes count: 128
+[    7.254394] c1 ubi0: max/mean erase counter: 2/0, WL threshold: 4096, image sequence number: 360837253
+[    7.254425] c1 ubi0: available PEBs: 0, total reserved PEBs: 256, PEBs reserved for bad PEB handling: 20
+[    7.254547] c0 ubi0: background thread "ubi_bgt0d" started, PID 196
+[    7.323699] c3 UBIFS (ubi0:0): Mounting in unauthenticated mode
+[    7.324005] c2 UBIFS (ubi0:0): background thread "ubifs_bgt0_0" started, PID 209
+[    7.355895] c3 UBIFS (ubi0:0): recovery needed
+[    7.425994] c3 UBIFS (ubi0:0): recovery completed
+[    7.426116] c3 UBIFS (ubi0:0): UBIFS: mounted UBI device 0, volume 0, name "data"
+[    7.426147] c3 UBIFS (ubi0:0): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+[    7.426147] c3 UBIFS (ubi0:0): FS size: 18538496 bytes (17 MiB, 146 LEBs), journal size 1015809 bytes (0 MiB, 7 LEBs)
+[    7.426177] c3 UBIFS (ubi0:0): reserved for root: 875618 bytes (855 KiB)
+[    7.426177] c3 UBIFS (ubi0:0): media format: w5/r0 (latest is w5/r0), UUID A72FE5F3-CE9B-4D6B-8FFE-AB82FCF9E12A, small LPT model
+[    7.440582] c0 UBIFS (ubi0:1): Mounting in unauthenticated mode
+[    7.440765] c3 UBIFS (ubi0:1): background thread "ubifs_bgt0_1" started, PID 213
+[    7.461883] c0 UBIFS (ubi0:1): recovery needed
+[    7.525238] c0 UBIFS (ubi0:1): recovery completed
+[    7.525848] c0 UBIFS (ubi0:1): UBIFS: mounted UBI device 0, volume 1, name "etc"
+[    7.525848] c0 UBIFS (ubi0:1): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+[    7.525878] c0 UBIFS (ubi0:1): FS size: 4063232 bytes (3 MiB, 32 LEBs), journal size 1015809 bytes (0 MiB, 6 LEBs)
+[    7.525878] c0 UBIFS (ubi0:1): reserved for root: 191915 bytes (187 KiB)
+[    7.525909] c0 UBIFS (ubi0:1): media format: w5/r0 (latest is w5/r0), UUID 4B821F4C-6C86-4B49-B2C2-FA24E2EA0F14, small LPT model
+[    7.530273] c2 UBIFS (ubi0:2): Mounting in unauthenticated mode
+[    7.530487] c0 UBIFS (ubi0:2): background thread "ubifs_bgt0_2" started, PID 215
+[    7.558471] c2 UBIFS (ubi0:2): recovery needed
+[    7.665954] c2 UBIFS (ubi0:2): recovery completed
+[    7.666107] c2 UBIFS (ubi0:2): UBIFS: mounted UBI device 0, volume 2, name "nvm"
+[    7.666107] c2 UBIFS (ubi0:2): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+[    7.666137] c2 UBIFS (ubi0:2): FS size: 3047424 bytes (2 MiB, 24 LEBs), journal size 1015809 bytes (0 MiB, 6 LEBs)
+[    7.666137] c2 UBIFS (ubi0:2): reserved for root: 143937 bytes (140 KiB)
+[    7.666168] c2 UBIFS (ubi0:2): media format: w5/r0 (latest is w5/r0), UUID FC179C33-06FE-42BC-8D2E-234C5E148E20, small LPT model
+[    7.720947] c1 ubi1: attaching mtd16
+[    7.744781] c1 ubi1: scanning is finished
+[    7.750610] c1 ubi1 warning: ubi_eba_init: cannot reserve enough PEBs for bad PEB handling, reserved 0, need 20
+[    7.751312] c1 ubi1: attached mtd16 (name "oem_data", size 5 MiB)
+[    7.751342] c1 ubi1: PEB size: 131072 bytes (128 KiB), LEB size: 126976 bytes
+[    7.751342] c1 ubi1: min./max. I/O unit sizes: 2048/2048, sub-page size 2048
+[    7.751373] c1 ubi1: VID header offset: 2048 (aligned 2048), data offset: 4096
+[    7.751373] c1 ubi1: good PEBs: 47, bad PEBs: 0, corrupted PEBs: 0
+[    7.751373] c1 ubi1: user volume: 1, internal volumes: 1, max. volumes count: 128
+[    7.751434] c1 ubi1: max/mean erase counter: 1/0, WL threshold: 4096, image sequence number: 1808945013
+[    7.751434] c1 ubi1: available PEBs: 0, total reserved PEBs: 47, PEBs reserved for bad PEB handling: 0
+[    7.751525] c3 ubi1: background thread "ubi_bgt1d" started, PID 225
+[    7.927276] c0 UBIFS (ubi1:0): static UBI volume - read-only mode
+[    7.927734] c0 UBIFS (ubi1:0): Mounting in unauthenticated mode
+[    7.970458] c0 UBIFS (ubi1:0): UBIFS: mounted UBI device 1, volume 0, name "oem_data", R/O mode
+[    7.970489] c0 UBIFS (ubi1:0): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+[    7.970489] c0 UBIFS (ubi1:0): FS size: 4190208 bytes (3 MiB, 33 LEBs), journal size 1142785 bytes (1 MiB, 8 LEBs)
+[    7.970520] c0 UBIFS (ubi1:0): reserved for root: 0 bytes (0 KiB)
+[    7.970520] c0 UBIFS (ubi1:0): media format: w4/r0 (latest is w5/r0), UUID BB8FF7CA-4AA5-4070-BC82-AEB27071042A, small LPT model
+[    7.972351] c2 urandom-seed: Seed file not found (/etc/urandom.seed)
+[    9.156677] c3 telinit /etc/default.prop
+[    9.646514] c2 asr_geu d4292800.geu: fuse is not burned
+[    9.646606] c2 cp vma open 0xb6e3e000 -> 0x9a00000 (0x707) cp_load(547)
+[    9.646636] c2 cp vma close 0xb6e3e000 -> 0x9a00000 cp_load(547)
+[    9.654296] c2 cp_ioctl: arbel physical address 0x09a00000, size 13420784
+[    9.654296] cp_ioctl: reliable bin physical address 0x0bb00000, size 524288
+[    9.654693] c2 ring buffer cp-portq:
+[    9.654693] 	skctl_pa: 0x0bcf3460, skctl_va: 0xdbaf6460
+[    9.654693] 	tx_pa: 0x0bcd3c60, tx_va: 0xcbcd3c60
+[    9.654693] 	tx_total_size: 0x0000f800, tx_skbuf_size: 0x00000800
+[    9.654693] 	tx_skbuf_num: 0x0000001f, tx_skbuf_low_wm: 0x00000008
+[    9.654693] 	rx_pa: 0x0bce3460, rx_va: 0xcbce3460
+[    9.654693] 	rx_total_size: 0x00010000, rx_skbuf_size: 0x00000800
+[    9.654693] 	rx_skbuf_num: 0x00000020, rx_skbuf_low_wm: 0x00000008
+[    9.655426] c2 msocket connection sync with CP O.K.!
+[    9.655456] c2 acipc_ready_cb enter.
+[    9.655487] c2 init_work:io->port:6 opened
+[    9.655548] c2 cp_init: shm channel init success
+[    9.655609] c2 ring buffer cp-psd:
+[    9.655609] 	skctl_pa: 0x0bcd3460, skctl_va: 0xdbafa460
+[    9.655639] c2 tx ring 0:
+[    9.655639] 	tx_pa: 0x06000000, tx_va: 0xdce91000
+[    9.655639] 	tx_total_size: 0x00080000, tx_skbuf_size: 0x00000004
+[    9.655639] 	tx_skbuf_num: 0x00020000
+[    9.655639] c2 tx ring 1:
+[    9.655639] 	tx_pa: 0x06080000, tx_va: 0xdcf12000
+[    9.655639] 	tx_total_size: 0x00080000, tx_skbuf_size: 0x00000004
+[    9.655639] 	tx_skbuf_num: 0x00020000
+[    9.655670] c2 rx_pa: 0x06100000, rx_va: 0xdbbf2000
+[    9.655670] 	rx_total_size: 0x00004000, rx_skbuf_size: 0x00000004
+[    9.655670] 	rx_skbuf_num: 0x00001000
+[    9.655792] c2 diag buf in cp: 0x0bc31c60, 0x00080000
+[    9.660949] c2 ring buffer cp-diag:
+[    9.660949] 	skctl_pa: 0x0bcc1c60, skctl_va: 0xdbafcc60
+[    9.660949] 	tx_pa: 0x0bc22460, tx_va: 0xcbc22460
+[    9.660949] 	tx_total_size: 0x0000f800, tx_skbuf_size: 0x00000800
+[    9.660949] 	tx_skbuf_num: 0x0000001f, tx_skbuf_low_wm: 0x00000008
+[    9.660949] 	rx_pa: 0x0bc31c60, rx_va: 0xcbc31c60
+[    9.660949] 	rx_total_size: 0x00080000, rx_skbuf_size: 0x00000800
+[    9.660949] 	rx_skbuf_num: 0x00000100, rx_skbuf_low_wm: 0x00000040
+[    9.661071] c2 __toe_probe: first boot: 1
+[    9.664093] c2 toe_tuple_buffer_alloc rx_v4_tuple  vir_addr:0xdbbf9000 phy_addr:0x4d70000
+[    9.664154] c2 toe_tuple_buffer_alloc tx_v4_tuple  vir_addr:0xdcf93000 phy_addr:0x4d78000
+[    9.664215] c2 toe_tuple_buffer_alloc rx v4_col_tuple  vir_addr:0xdcf9a000 phy_addr:0x4d9a000
+[    9.664245] c2 toe_tuple_buffer_alloc tx v4_col_tuple  vir_addr:0xdcf9d000 phy_addr:0x4d9c000
+[    9.664306] c2 toe_tuple_buffer_alloc rx v6_tuple  vir_addr:0xdcfa0000 phy_addr:0x4da0000
+[    9.664428] c2 toe_tuple_buffer_alloc tx v6_tuple  vir_addr:0xdcfac000 phy_addr:0x4db0000
+[    9.664520] c2 toe_tuple_buffer_alloc rx v6_col_tuple  vir_addr:0xdcfb8000 phy_addr:0x4de8000
+[    9.664550] c2 toe_tuple_buffer_alloc tx v6_col_tuple  vir_addr:0xdcfbc000 phy_addr:0x4dec000
+[    9.666992] c2 __toe_probe ok.
+[    9.666992] c2 acipc_toe_init: Toe init
+[    9.669433] c2 acipc_toe_init: got ack: Toe init ack, timeout: 48, retry: 2
+[    9.669464] c2 received netdev (eth0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[    9.669464] c2 received netdev (embms0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.669494] c2 toe_netdev_pkt_type: not supported netdevice: embms0
+[    9.675872] c2 received netdev (ccinet0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675872] c2 received netdev (ccinet1) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675903] c2 received netdev (ccinet2) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675903] c2 received netdev (ccinet3) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675933] c2 received netdev (ccinet4) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675933] c2 received netdev (ccinet5) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675964] c2 received netdev (ccinet6) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.675964] c2 received netdev (ccinet7) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[    9.676086] c2 MSOCK: network mode:877079367
+[    9.676177] c2 buf={1}, cp_enable=1
+[    9.676239] c2 Check loading Arbel image:
+[    9.676239] 00f020e304f01fe5fc4d4c0a2081c00bdc20810a01000000b425810ab025810a
+[    9.676239] Check loading ReliableData image:
+[    9.676239] fecafeca43097bec191000003c540600160000002500feca5c000001534e2e62
+[    9.676239] c2 reset_ripc_lock: reset ripc lock
+[    9.676269] c2 cp is already in active state!
+[    9.703613] c3 android_usb: already disabled
+[    9.716339] c3 enabled functions: rndis,acm,marvell_diag,marvell_debug
+[    9.717498] c3 ### Default OS is WIN7/WINXP, win7
+[    9.717498] 
+[    9.717498] c3 win7: rndis,acm,marvell_diag,marvell_debug
+[    9.717498]  rndis,acm,marvell_diag,marvell_debug
+[    9.717498] 
+[    9.718170] c3 USB_Debug Enter android_enable:1
+[    9.723419] c2 rndis_function_bind_config MAC: 00:00:00:00:00:00
+[    9.723480] c2 android_usb gadget: using random self ethernet address
+[    9.723510] c2 android_usb gadget: using random host ethernet address
+[    9.725921] c2 received netdev (usbnet0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[    9.726226] c2 usbnet0: MAC e6:1e:7c:34:19:f8
+[    9.726287] c2 usbnet0: HOST MAC 96:07:ff:96:b7:f6
+[    9.726959] c2 android_usb gadget: acm ttyGS0: super speed IN/ep3in OUT/ep2out NOTIFY/ep4in
+[    9.726989] c2 dwc3 c0200000.dwc31: dwc3_gadget_pullup: softconnect 1, vbus_active 0, pre_chrgr: 0
+[    9.727661] c2 starting usbnet_rx_fill_thread: cpu=2 pid=562
+[    9.788421] c3 MSOCK: binding port 2, success.
+[    9.788452] c3 MSOCK: port 2 is opened by process id:549 ("nvmproxy")
+[    9.788818] c2 NVMProxy start handshake
+[    9.788970] c1 NVMProxy start gainCalibration server! 
+[    9.889190] c2 NVMProxy handshake done!!!!
+[   10.214843] c2 sysfixtime use rtc=/dev/rtc0
+[   10.219024] c2 timezone set to GMT+5
+[   10.263305] c2 MSOCK: binding port 1, success.
+[   10.263305] c2 MSOCK: port 1 is opened by process id:551 ("atcmdsrv")
+[   10.263336] c2 ccidatastub (opened 1)
+[   10.610931] c2 handshake_task: pcm_fsync_rate = 0, pcm_master = TRUE, bitclk = 4, modem_audio_controller is 0, audioctl-slic=disabled in dts.
+[   10.611114] c2 handshake_task start...
+[   10.611663] c2 audio_data_handler,pcm=1, wb=0, ver=18
+[   11.038421] c2 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+[   11.038452] c2 audiostub_close/537: minor=0 mode=0 audiostub_inited=1
+[   11.109283] c2 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+[   11.109344] c2 ioctl : AUDIOSTUB_GET_STATUS. pcm_fsync_rate = 0, pcm_master = TRUE. 
+[   11.109344] c2 audiostub_close/537: minor=0 mode=0 audiostub_inited=1
+[   11.114776] c2 prepare ve for adsp
+[   11.114807] c2 2d23|3a53
+[   11.115478] c1 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+[   11.205169] c2 skip ssid change
+[   11.634613] c2 handshake_task quit
+[   11.634796] c0 boot_adsp_task/1208: platform is 1901S
+[   11.634796] c0 ap_boot_adsp/1010: 0xc5f80000
+[   11.634826] c2 audio_data_handler: pcm_fsync_rate = 0, pcm_master = TRUE. 
+[   11.636260] c0 ap_boot_adsp/1025: load /lib/firmware/adsp_s.bin
+[   11.698669] c0 cidatatty0: port:6, init: 1!
+[   11.871154] c0 matched CI Version:
+[   11.871215] c0 cc:0xeff0, ss:0xeff0, mm:0xeff0, pb:0xeff0, sim:0xeff0, msg:0xeff0, ps:0xeff0, dat:0xeff0, dev:0xeff0
+[   11.874481] c0 ccidatastub_ioctl,cmd=0x4004f601
+[   11.874511] c0 ccidatastub_ioctl,dataSvgHandle=0x10000008
+[   11.876953] c0 Telephony seems OK
+[   11.943847] c3 load adsp bin size: 0x780d0
+[   11.948791] c3 adsp check ddr: pass
+[   11.948791] c3 wait for audio power state (on) ...
+[   11.948822] c3 pwr_on_hw/934: power on audio (hw mode) ok
+[   11.948974] c3 pwr_on_hw/949: release audio bx2 core
+[   11.949005] c3 pwr_on_hw/952 Done.
+[   11.949340] c0 adsp_ipc_init_phase2/628 g_audio_ipc_handle.ring_ctl 0xd3925000
+[   11.949371] c0 adsp_ipc_init_phase2/647 Done.
+[   11.949432] c0 ADSP Version: CRANE_BX2_V001.EVSOFF.015_Jun  9 2026 11
+[   14.164611] c2 ytswitch port[
+[   14.166748] c2 0 
+[   14.169128] c2 1 
+[   14.171386] c2 2 
+[   14.173736] c2 3 
+[   14.173736] c2 ] MAC table flushed (link kept up)
+[   14.525207] c3 netifd open kmsg done
+[   14.612548] c1 kmodloader: loading kernel modules from /etc/modules.d/*
+[   14.634887] c1 jitterentropy: Initialization failed with host not compliant with requirements: 2
+[   14.670715] c1 zram: Added device: zram0
+[   14.673736] c1 NET: Registered protocol family 8
+[   14.673736] c1 NET: Registered protocol family 20
+[   14.682037] c1 NET: Registered protocol family 15
+[   14.684631] c1 Initializing XFRM netlink socket
+[   14.702911] c0 received netdev (ip6tnl0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[   14.702911] c0 toe_netdev_pkt_type: not supported netdevice: ip6tnl0
+[   14.712493] c0 ipip: IPv4 and MPLS over IPv4 tunneling driver
+[   14.713134] c0 received netdev (tunl0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[   14.713165] c0 toe_netdev_pkt_type: not supported netdevice: tunl0
+[   14.738494] c0 l2tp_core: L2TP core driver, V2.0
+[   14.740997] c0 l2tp_netlink: L2TP netlink interface
+[   14.743194] c0 gre: GRE over IPv4 demultiplexor driver
+[   14.746337] c0 ip_gre: GRE over IPv4 tunneling driver
+[   14.747924] c0 received netdev (gre0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[   14.747985] c0 toe_netdev_pkt_type: not supported netdevice: gre0
+[   14.756164] c0 received netdev (gretap0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   14.756225] c0 toe_netdev_pkt_type: not supported netdevice: gretap0
+[   14.763732] c0 received netdev (erspan0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   14.763763] c0 toe_netdev_pkt_type: not supported netdevice: erspan0
+[   14.772552] c0 ip6_gre: GRE over IPv6 tunneling driver
+[   14.773895] c0 received netdev (ip6gre0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[   14.773956] c0 toe_netdev_pkt_type: not supported netdevice: ip6gre0
+[   14.785949] c0 PPP generic driver version 2.4.2
+[   14.877532] c2 fw_flsupg 0 
+[   14.877563] c2 fw_flggen2 0 
+[   14.877563] c2 fw_flggen1 0 
+[   15.805908] c1 ieee80211 phy0: HT supp 1, VHT supp 1, HE supp 1
+[   15.815734] c1 received netdev (wlan1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   15.816619] c1 received netdev (wlan0-vxd) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   15.924011] c2 GACT probability on
+[   15.926818] c2 Mirror/redirect action on
+[   15.946014] c2 u32 classifier
+[   15.946044] c2     input device check on
+[   15.946075] c2     Actions configured
+[   15.963775] c2 Simple TC action Loaded
+[   15.989410] c2 received netdev (teql0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+[   15.989471] c2 toe_netdev_pkt_type: not supported netdevice: teql0
+[   16.077941] c2 PPP MPPE Compression module registered
+[   16.079132] c2 NET: Registered protocol family 24
+[   16.080535] c2 PPTP driver version 0.8.5
+[   16.149139] c2 xt_time: kernel timezone is -0500
+[   16.166046] c2 l2tp_ppp: PPPoL2TP kernel driver, V2.0
+[   16.170043] c2 jitterentropy: Initialization failed with host not compliant with requirements: 2
+[   16.189910] c2 kmodloader: 1 module could not be probed
+[   16.195617] c2 kmodloader: - jitterentropy_rng - 0
+[   16.226287] c1 netif_rx_fastpath_register hook=6b260cec
+[   16.226440] c1 fp_cm gennetlink register success!!!
+[   16.646972] c1 fp_cm_genl_set_pid, get cm pid: 1588
+[   16.812744] c0 toe_port_switchdev_event dev: br-lan, event: 3, fdb: [d2:40:4f:a9:89:f7, 1, 0, 1, 0]
+[   16.812927] c0 received netdev (br-lan) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   16.820343] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:0,dev.act:1,bm:usbnet0,act:0
+[   16.823455] c0 br-lan: port 1(usbnet0) entered blocking state
+[   16.823486] c0 br-lan: port 1(usbnet0) entered disabled state
+[   16.823822] c0 device usbnet0 entered promiscuous mode
+[   16.823974] c0 toe_port_switchdev_event dev: usbnet0, event: 3, fdb: [e6:1e:7c:34:19:f8, 0, 0, 1, 0]
+[   16.824005] c0 toe_port_switchdev_event dev: usbnet0, event: 3, fdb: [e6:1e:7c:34:19:f8, 1, 0, 1, 0]
+[   16.824096] c0 toe_port_switchdev_event dev: br-lan, event: 4, fdb: [d2:40:4f:a9:89:f7, 1, 0, 1, 0]
+[   16.890838] c3 zram0: detected capacity change from 0 to 24117248
+[   16.912780] c2 eth=ytswitch, action = SWT_CONNECT, port=0
+[   16.917480] c0 Adding 23548k swap on /dev/zram0.  Priority:100 extents:1 across:23548k SSDsc
+[   16.976501] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:1,dev.act:1,bm:eth0.2,act:0
+[   17.003570] c0 asr-xgmac d4270000.ethernet eth0: No Safety Features support found
+[   17.003631] c0 asr-xgmac d4270000.ethernet eth0: PTP not supported by HW
+[   17.003662] c0 asr-xgmac d4270000.ethernet eth0: configuring for fixed/rgmii link mode
+[   17.003692] c0 ==> APMU_XGMAC_RGMII_RX_DLINE: 0x80000100 rgmii_rx_delay_code=1
+[   17.003723] c0 ==> APMU_XGMAC_RGMII_TX_DLINE: 0x80000100 rgmii_tx_delay_code=1
+[   17.003723] c0 ==> APMU_XGMAC_CLK_RST_CTRL: 0x7
+[   17.003753] c3 ==> APMU_XGMAC_RGMII_RX_DLINE: 0x80000100 rgmii_rx_delay_code=1
+[   17.003784] c3 ==> APMU_XGMAC_RGMII_TX_DLINE: 0x80000100 rgmii_tx_delay_code=1
+[   17.003784] c3 ==> APMU_XGMAC_CLK_RST_CTRL: 0x7
+[   17.003875] c3 asr-xgmac d4270000.ethernet eth0: --Link is Up - 1Gbps/Full - flow control rx/tx
+[   17.006744] c0 received netdev (eth0.2) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   17.006774] c0 add eth0 vid 2 to toe.
+[   17.013946] c0 br-lan: port 2(eth0.2) entered blocking state
+[   17.013977] c0 br-lan: port 2(eth0.2) entered disabled state
+[   17.014465] c0 device eth0.2 entered promiscuous mode
+[   17.014495] c0 device eth0 entered promiscuous mode
+[   17.014739] c0 toe_port_switchdev_event dev: eth0.2, event: 3, fdb: [a2:8f:ab:a8:56:ed, 0, 0, 1, 0]
+[   17.014801] c0 toe_port_switchdev_event dev: eth0.2, event: 3, fdb: [a2:8f:ab:a8:56:ed, 1, 0, 1, 0]
+[   17.014862] c0 br-lan: port 2(eth0.2) entered blocking state
+[   17.014862] c0 br-lan: port 2(eth0.2) entered forwarding state
+[   17.015289] c3 IPv6: ADDRCONF(NETDEV_CHANGE): br-lan: link becomes ready
+[   17.015472] c3 device (br-lan) not found
+[   17.017608] c0 device_claim: active: 2
+[   17.018493] c0 received netdev (eth0.1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   17.018493] c0 add eth0 vid 1 to toe.
+[   17.113128] c3 eth=asr_emac, action = LINKUP, port=0
+[   17.163177] c0 drv_mac80211_setup enter, device='AP1_5G' 
+[   17.208221] c0 drv_mac80211_setup enter, device='AP0_24G' 
+[   17.223602] c0 Could not find PHY for device 'AP0_24G'
+[   17.436737] c2 drv_mac80211_teardown enter, device='AP0_24G' 
+[   17.438171] c2 Bug: PHY is undefined for device 'AP0_24G'
+[   17.724792] c1 aic8800D80_fdrv 0000:01:00.0 wlan0-vxd: Remove Interface
+[   17.741546] c1 received netdev (wlan0-vxd) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+[   17.741668] c1 received netdev (wlan0-vxd) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+[   17.742492] c1 All entries related to wlan0-vxd deleted
+[   17.742767] c1 device (wlan0-vxd) found and deleted
+[   17.749511] c3 mfp device:destroy_fpdev:304: device (wlan0-vxd) destroyed
+[   17.778656] c2 toe_port_switchdev_event dev: eth0.2, event: 3, fdb: [f8:e4:3b:54:c6:ad, 0, 0, 0, 0]
+[   18.012756] c2 aic8800D80_fdrv 0000:01:00.0 wlan1: Remove Interface
+[   18.018493] c2 received netdev (wlan1) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+[   18.018646] c2 received netdev (wlan1) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+[   18.019561] c2 All entries related to wlan1 deleted
+[   18.019805] c2 device (wlan1) found and deleted
+[   18.028472] c3 mfp device:destroy_fpdev:304: device (wlan1) destroyed
+[   19.167266] c0 mac80211_hostapd_setup_base enter phy0 
+[   19.294799] c0 mac80211_prepare_iw_htmode enter 
+[   19.306304] c0 mac80211_prepare_vif enter 
+[   19.326568] c0 mac80211_hostapd_setup_bss enter, phy=phy0, ifname=wlan1 
+[   19.530670] c0 shm_recv: len: 2084 port: 1
+[   19.829803] c0 yt92xxrb port 1 link up
+[   20.363586] c0 mac80211_prepare_vif NEWAPLIST: wlan1  
+[   20.363677] c0 mac80211_prepare_vif hostapd_ctrl:  
+[   20.373352] c0 drv_mac80211_setup NEWAPLIST: wlan1 ,phy:phy0,OLDAPLIST:
+[   20.373596] c0 mac80211_vap_cleanup hostapd   start
+[   20.373687] c0 mac80211_vap_cleanup hostapd   end
+[   20.373779] c0 drv_mac80211_setup NEW_MD5: 0956a6b065a8340a02a54f4cb54289e7  /var/run/hostapd-phy0.conf,phy:phy0,OLD_MD5:0956a6b065a8340a02a54f4cb54289e7  /var/run/hostapd-phy0.conf
+[   20.373992] c0 mac80211_iw_interface_add enter 
+[   20.378875] c1 received netdev (wlan1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   20.380157] c0 drv_mac80211_setup hostapd_ctrl: /var/run/hostapd/wlan1,primary_ap: wlan1
+[   26.144531] c0 shm_recv: len: 2384 port: 1
+[   26.144714] c2 ccidatastub_ioctl,cmd=0x4004f602
+[   26.148895] c2 CCIDATASTUB_DATAHANDLE: cid =0, type =1
+[   26.205474] c3 received packet from cid 0 before wan up
+[   26.220367] c0 ccidatastub_ioctl,cmd=0x4004f602
+[   26.220397] c0 CCIDATASTUB_DATAHANDLE: cid =0, type =1
+[   27.016693] c1 add_cp_ip  idx:0  ip:0xa7af6ba
+[   27.023345] c1 device_claim: active: 2
+[   27.046569] c3 received RA on dev (ccinet0), saddr=fe80::1, daddr=ff02::1
+[   27.601501] c3 wan0 ipaddr: 10.122.246.186
+[   27.601593] c3 wan0 ip6addr: 2803:1800:132b:27a1:18d5:f03d:12b7:8bc0/64
+[   28.800811] c3 ip:190.248.0.3
+[   28.800903] c3 id:0
+[   28.912658] c1 check ip:8.8.8.8,count:0,result:0
+[   28.912780] c1 check count:0,result:0
+[   28.926544] c1 ping is ok
+[   29.215820] c2 flag_bridgemode = 0
+[   29.937133] c0 ytswitch port[
+[   29.939483] c0 0 
+[   29.941925] c0 1 
+[   29.944274] c0 2 
+[   29.946594] c0 3 
+[   29.946594] c0 ] MAC table flushed (link kept up)
+[   30.780975] c2 del_cp_ip  idx:0  ip:0xa7af6ba
+[   30.783996] c0 --Release Network device ccinet0, new active count: 1
+[   30.784545] c0 device_claim: active: 2
+[   30.792816] c0 add_cp_ip  idx:0  ip:0xa7af6ba
+[   30.820617] c3 received RA on dev (ccinet0), saddr=fe80::1, daddr=ff02::1
+[   30.827331] c0 flag_bridgemode = 0
+[   32.690338] c3 flag_bridgemode = 0
+[   33.581939] c1 eeh_get_tmp_config: open file/tmp/RDUP failed -1
+[   33.587066] c1 cp_ctrl_param: 4cc60a
+[   33.898010] c3 *************dropbear_mode is open**********
+[   33.901611] c3 Enter change shadow key
+[   33.901794] c3 key_type is null return
+[   34.249572] c0 +++++++++++mwan3_enable=0
+[   34.296051] c0 flag_bridgemode = 0
+[   34.529388] c1 mwlan boot
+[   34.589874] c0 asr_wlan(mmc1) set_power on start
+[   34.589904] c0 asr_pwr_ctrl(mmc1): on=1
+[   34.640380] c0 mmc1: tuning pass window [0 : 254], len = 255
+[   34.640747] c0 mmc1: tunning passed at 127, pass window length is 255
+[   34.641906] c0 mmc1: new ultra high speed SDR104 SDIO card at address 0001
+[   34.655761] c0 asr_sdio_probe vendor=0x424C device=0x6006
+[   34.655944] c0 asr_init_host_wifi_gpio: find node asr-rfkill ok
+[   34.655975] c0 asr_init_host_wifi_gpio err: cant't find pd-gpio
+[   34.655975] c0 asr_init_host_wifi_gpio: find pd-gpio -2
+[   34.656005] c0 asr_init_host_wifi_gpio: find rst-gpio 67
+[   34.656097] c0 mmc1 sdhci_postpone_clock_gate: read SDHC_OP_EXT_REG(0x108) is 0x750f0400
+[   34.665710] c0 asr80211_driver_cfg_parse oob_thread_cpu_id:2
+[   34.671600] c0 asr80211_driver_cfg_parse tx_cpu 1 txmisc_thread_cpu_id:1
+[   34.679107] c0 asr_sdio_disable_host_intmask read reg(0x2) is 0x0,ret: 0
+[   34.679138] c0 asr_sdio_disable_host_intmask write reg(0x2) is 0x0,ret: 0
+[   34.681579] c0 asr_tx_msg_ctrl_init: no0 tx_msg list(0xbf875a28)(prev:0xbf875a28 next:0xbf875a28)
+[   34.681610] c0 asr_tx_msg_ctrl_init: no1 tx_msg list(0xbf875e64)(prev:0xbf875e64 next:0xbf875e64)
+[   34.681640] c0 asr_tx_msg_ctrl_init: no2 tx_msg list(0xbf8762a0)(prev:0xbf8762a0 next:0xbf8762a0)
+[   34.681671] c0 asr_tx_msg_ctrl_init: no3 tx_msg list(0xbf8766dc)(prev:0xbf8766dc next:0xbf8766dc)
+[   34.681671] c0 asr_tx_msg_ctrl_init: no4 tx_msg list(0xbf876b18)(prev:0xbf876b18 next:0xbf876b18)
+[   34.681701] c0 asr_tx_msg_ctrl_init: no5 tx_msg list(0xbf876f54)(prev:0xbf876f54 next:0xbf876f54)
+[   34.681701] c0 asr_tx_msg_ctrl_init: no6 tx_msg list(0xbf877390)(prev:0xbf877390 next:0xbf877390)
+[   34.681732] c0 asr_tx_msg_ctrl_init: no7 tx_msg list(0xbf8777cc)(prev:0xbf8777cc next:0xbf8777cc)
+[   34.681732] c0 asr_tx_msg_ctrl_init: no8 tx_msg list(0xbf877c08)(prev:0xbf877c08 next:0xbf877c08)
+[   34.681762] c0 asr_tx_msg_ctrl_init: no9 tx_msg list(0xbf878044)(prev:0xbf878044 next:0xbf878044)
+[   34.681793] c0 asr_tx_msg_ctrl_init: no10 tx_msg list(0xbf878480)(prev:0xbf878480 next:0xbf878480)
+[   34.681793] c0 asr_tx_msg_ctrl_init: no11 tx_msg list(0xbf8788bc)(prev:0xbf8788bc next:0xbf8788bc)
+[   34.681823] c0 asr_tx_msg_ctrl_init: no12 tx_msg list(0xbf878cf8)(prev:0xbf878cf8 next:0xbf878cf8)
+[   34.681854] c0 asr_tx_msg_ctrl_init: no13 tx_msg list(0xbf879134)(prev:0xbf879134 next:0xbf879134)
+[   34.681884] c0 asr_tx_msg_ctrl_init: no14 tx_msg list(0xbf879570)(prev:0xbf879570 next:0xbf879570)
+[   34.681915] c0 asr_tx_msg_ctrl_init: no15 tx_msg list(0xbf8799ac)(prev:0xbf8799ac next:0xbf8799ac)
+[   34.681945] c0 asr_tx_msg_ctrl_init: no16 tx_msg list(0xbf879de8)(prev:0xbf879de8 next:0xbf879de8)
+[   34.681976] c0 asr_tx_msg_ctrl_init: no17 tx_msg list(0xbf87a224)(prev:0xbf87a224 next:0xbf87a224)
+[   34.682006] c0 asr_tx_msg_ctrl_init: no18 tx_msg list(0xbf87a660)(prev:0xbf87a660 next:0xbf87a660)
+[   34.682006] c0 asr_tx_msg_ctrl_init: no19 tx_msg list(0xbf87aa9c)(prev:0xbf87aa9c next:0xbf87aa9c)
+[   34.682037] c0 asr_tx_msg_ctrl_init: no20 tx_msg list(0xbf87aed8)(prev:0xbf87aed8 next:0xbf87aed8)
+[   34.682067] c0 asr_tx_msg_ctrl_init: no21 tx_msg list(0xbf87b314)(prev:0xbf87b314 next:0xbf87b314)
+[   34.682098] c0 asr_tx_msg_ctrl_init: no22 tx_msg list(0xbf87b750)(prev:0xbf87b750 next:0xbf87b750)
+[   34.682128] c0 asr_tx_msg_ctrl_init: no23 tx_msg list(0xbf87bb8c)(prev:0xbf87bb8c next:0xbf87bb8c)
+[   34.682128] c0 asr_tx_msg_ctrl_init: no24 tx_msg list(0xbf87bfc8)(prev:0xbf87bfc8 next:0xbf87bfc8)
+[   34.682159] c0 asr_tx_msg_ctrl_init: no25 tx_msg list(0xbf87c404)(prev:0xbf87c404 next:0xbf87c404)
+[   34.682189] c0 asr_tx_msg_ctrl_init: no26 tx_msg list(0xbf87c840)(prev:0xbf87c840 next:0xbf87c840)
+[   34.682189] c0 asr_tx_msg_ctrl_init: no27 tx_msg list(0xbf87cc7c)(prev:0xbf87cc7c next:0xbf87cc7c)
+[   34.682220] c0 asr_tx_msg_ctrl_init: no28 tx_msg list(0xbf87d0b8)(prev:0xbf87d0b8 next:0xbf87d0b8)
+[   34.682220] c0 asr_tx_msg_ctrl_init: no29 tx_msg list(0xbf87d4f4)(prev:0xbf87d4f4 next:0xbf87d4f4)
+[   34.682250] c0 asr_tx_msg_ctrl_init: no30 tx_msg list(0xbf87d930)(prev:0xbf87d930 next:0xbf87d930)
+[   34.682250] c0 asr_tx_msg_ctrl_init: no31 tx_msg list(0xbf87dd6c)(prev:0xbf87dd6c next:0xbf87dd6c)
+[   34.682281] c0 asr_tx_msg_ctrl_init: no32 tx_msg list(0xbf87e1a8)(prev:0xbf87e1a8 next:0xbf87e1a8)
+[   34.682281] c0 asr_tx_msg_ctrl_init: no33 tx_msg list(0xbf87e5e4)(prev:0xbf87e5e4 next:0xbf87e5e4)
+[   34.682312] c0 asr_tx_msg_ctrl_init: tx_msg_busy_list(0xbf87ea24)(prev:0xbf87ea24 next:0xbf87ea24)
+[   34.688140] c0 asr_sdio_disable_host_intmask read reg(0x2) is 0x0,ret: 0
+[   34.688171] c0 asr_sdio_disable_host_intmask write reg(0x2) is 0x0,ret: 0
+[   34.688446] c2 asr_init_ioport: read CARD_MISC_CFG_REG_2(0x6e)=0 ret 0
+[   34.691650] c2 br-lan: port 3(wlan1) entered blocking state
+[   34.691772] c2 br-lan: port 3(wlan1) entered disabled state
+[   34.692108] c2 device wlan1 entered promiscuous mode
+[   34.692199] c2 toe_port_switchdev_event dev: wlan1, event: 3, fdb: [e4:7d:eb:e9:30:96, 0, 0, 1, 0]
+[   34.692260] c2 toe_port_switchdev_event dev: wlan1, event: 3, fdb: [e4:7d:eb:e9:30:96, 1, 0, 1, 0]
+[   34.692382] c2 br-lan: port 3(wlan1) entered blocking state
+[   34.692382] c2 br-lan: port 3(wlan1) entered forwarding state
+[   34.700805] c1 mmc1 asr_bind_mmc_irq_to_cpu: irq33 in cpu1 ret=0...
+[   34.701049] c1 asr_tx_misc_process: set_cpu(nr_cpu_ids=4 cur_bind=1 ret=0) policy 1 rt_priority 97 cpu=1 pid=5066
+[   34.858001] c0 asr_sdio_prepare_firmware: type 1 filename HOOPOEL_FMACFW_A0.bin fw(data:0xdd788000 size:213276)
+[   34.858215] c0 asr_set_log_level: asr_log_lvl is set to 4
+[   34.870391] c0 asr_sdio_download_firmware fw_type 1 fw_len:213276 pad_len:0 crc_len:4 total_len:213280 headers: 0x89abcdef-0x3411c-0x100-0x342 crc:0xc9a6acaf
+[   34.870574] c0 asr_sdio_download_firmware send header of length=16 success!
+[   34.933868] c0 asr_check_scratch_status start check CRC_SUCCESS
+[   35.573486] c0 asr_sdio_download_firmware check CRC_SUCCESS ok!
+[   35.573608] c0 asr_set_log_level: asr_log_lvl is set to 1
+[   35.595458] c0 asr_check_scratch_status start check BOOT_SUCCESS
+[   35.595550] c0 asr_sdio_probe: check BOOT_SUCCESS success! read SCRATCH_1 0xc0 ret 0
+[   35.595581] c0 asr_sdio_probe: read back SCRATCH_1 0x40 ret 0
+[   35.810058] c1 mac80211_setup_vif enter, name=0 
+[   35.864227] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:2,dev.act:1,bm:wlan1,act:0
+[   36.762023] c2 mfp learner:fp_get_route_ipv4:363: Route = RTN_BROADCAST
+[   38.214324] c1 aic8800D80_fdrv 0000:01:00.0 wlan1: AP started: ch=0, bcmc_idx=32 channel=5745 bw=3
+[   42.090240] c2 asr_dbgfs_power_ctrl_write: user_buf 0xbedd2e40 count 452
+[   42.090270] c2 asrWLANControlConfigFile_ReadNVMFile nvm ok: buf 0xc248b600 len 452, complete powerctrl_complete
+[   42.091033] c0 asr_wifi_umh: umh execute ok, input cmd /etc/log/wlan_power_ctrl_cfg.sh
+[   42.091064] c0 asr_init_wlanpower: wait powerctrl_complete success!!!
+[   42.091247] c0 asr_init_oob_gpio wlan-wakeup-host gpio pin 71 found
+[   42.091308] c0 asr_init_oob_gpio success in wake-up irq, irq=127
+[   42.091339] c0 asr_enable_hw_priv use oob intr only...
+[   42.091339] c0 asr_sdio_enable_host_intmask will set mask: 0x1f
+[   42.091705] c1 asr_tx_misc_process enter: asrflag 0x40 tx_flag_set 0
+[   42.091735] c1 asr_host_to_card_mp_aggr: port 0 type 1 next_pkt_len 0 f_precopy_cur_buf 0 f_send_aggr_buf 0 f_send_cur_buf 1 f_postcopy_cur_buf 0 sdio_mpa_tx(pkt_cnt 0 ports 0x0 start_port 0)
+[   42.091766] c1 asr_host_to_card_mp_aggr f_send_cur_buf: port 0 type 1 len 256 next_pkt_len 0
+[   42.091888] c1 asr_sdio_write_data_sync: SDIO_IO success send len 256 ioport 0x10000
+[   42.092010] c0 asr_tx_msg_wait_for_result finish: cur_tx_msg 0xbf875a28 result 0 need_cfm 0 msg_seq 0 tx_msg_busy_cnt 0
+[   42.092010] c0 asr_tx_msg_wifi_open wifi_open_close ret 0 curr_rd_port=0 curr_wr_port=1 drv_tx_sn=0
+[   42.092071] c0 asr_tx_msg_wifi_feature: conn_capacity 0x20020 capa(ht=1 vht=0 he=1) he_cap(rx_mcs_80:0xfffa tx_mcs_80:0xfffa) misc_conf 0x0 dcs 0 dcxo 0 ppe_thres(0x19:0x1c:0xc7:0x71)
+[   42.092102] c1 asr_tx_misc_process enter: asrflag 0x40 tx_flag_set 0
+[   42.093688] c2 oob_intr_thread: set_cpu(nr_cpu_ids=4 cur_bind=2 ret=0) policy 1 rt_priority 81 cpu=2 pid=5242
+[   42.099884] c1 asr_host_to_card_mp_aggr: port 1 type 1 next_pkt_len 0 f_precopy_cur_buf 0 f_send_aggr_buf 0 f_send_cur_buf 1 f_postcopy_cur_buf 0 sdio_mpa_tx(pkt_cnt 0 ports 0x0 start_port 0)
+[   42.099884] c1 asr_host_to_card_mp_aggr f_send_cur_buf: port 1 type 1 len 512 next_pkt_len 0
+[   42.099975] c1 asr_sdio_write_data_sync: SDIO_IO success send len 512 ioport 0x10001
+[   42.128601] c2 asr_sdio_read_data SDIO_IO success read len 64 ioport 0x0
+[   42.128662] c2 asr_sdio_read_data SDIO_IO success read len 256 ioport 0x10000
+[   42.128692] c2 asr_sdio_card_to_host_mp_aggr 1 do_rx_cur: port=0 upld_typ=65520 rx_len=77, rx_block_len=256 mpa_rx_index=1 last_mpa_rx_index=0 mpa_rx.buf_len=256
+[   42.128723] c2 asr_sdio_card_to_host_mp_aggr f_do_rx_cur rx_agg: mpa_rx[0] will call asr_receive_rx_ports_data mpa_rx_index 1 last_mpa_rx_index 0
+[   42.128784] c2 asr_receive_rx_ports_data new:  port=0 is_amsdu=0 rx_len=256 pkt_len=77 data_len=77 pkt_type=0x0 hdr(frmlen=0 mac_pad=1 mpdu_len=77) cur_port_len=77 curr_ptr=0xc24c0000
+[   42.128784] c2 asr_receive_rx_ports_data msg: cur_pkt_port=0 pkt_len=77 cur_port_len=77 pkt_oft=77 copied_port_len=77
+[   42.128814] c2 asr_process_rx_event enter: type 0 data 0xc248b600 pdesc 0x0 mp_rd_bitmap 0x0 curr_rd_port 1
+[   42.128814] c2 asr_rx_msg_process: received msg_type 0 len 77 tx msg_seq 1 rx_msg_seq 0
+[   42.128845] c2 asr_tx_msg_check_confirm: tx_msg 0xbf875a28 msg_type 2 tx_msg_seq 1 complete! result 0 tx_msg_busy_cnt 0
+[   42.128875] c2 asr_rx_msg_wifi_feature: fw_version 1.028.000: jianzhang Jan 13 202 result 0 tx_msg confirmed 1
+[   42.128936] c0 asr_tx_msg_wait_for_result finish: cur_tx_msg 0xbf875a28 result 0 need_cfm 0 msg_seq 0 tx_msg_busy_cnt 0
+[   42.128967] c0 asr_set_sdio_highest_clk: timing=3 SDR104 mode clock=208000000
+[   42.128967] c0 asr_set_sdio_clk: new clock=208000000 input timing=3 ios_timing=6, origin host->ios.clock=52000000 busmode 2 powermode 2 cs 0 Vdd 21 width 4 timing 6
+[   42.247863] c0 mmc1: tuning pass window [11 : 161], len = 151
+[   42.255676] c0 mmc1: tuning pass window [192 : 254], len = 63
+[   42.255737] c0 mmc1: tunning passed at 86, pass window length is 151
+[   42.255798] c0 ASR read MMC2 MFPR:CLK(0xD401e300)=0x1441 CMD(0xD401e2fc)=0xd000 DATA0(0xD401e2f8)=0xd000 DATA1(0xD401e2f4)=0xd000 DATA2(0xD401e2f0)=0xd000 DATA3(0xD401e2ec)=0x1241
+[   42.255828] c0 asr_sdio_probe finish success oob 1
+[   42.255828] c0 asr_set_log_level: asr_log_lvl is set to 4
+[   42.255859] c0 ASR wireless: Driver version(MP): 1.311.000_20260714@ruizhou@sh2-iubu04
+[   42.256469] c0 mmc1: succeed to detect SDIO device
+[   42.256530] c0 asr_wlan(mmc1) set_power on end
+[   42.256530] c0 Now asr_wlan(mmc1) Device is power on
+[   42.291534] c0 mwlan start
+[   42.334411] c1 AICWFDBG(LOGERROR)	rwnx_cfg80211_stop_ap del ap_sta_tx_sched_timer fail
+[   42.334442] c1 aic8800D80_fdrv 0000:01:00.0 wlan1: AP Stopped
+[   42.335418] c1 aic8800D80_fdrv 0000:01:00.0 wlan1: CLOSE
+[   42.344573] c1 ieee80211 phy0: HT supp 1, VHT supp 1, HE supp 1
+[   42.349731] c1 br-lan: port 3(wlan1) entered disabled state
+[   42.349792] c0 NETIFD:RM dev.claimed:1,prsent:1,n_prsent:3,dev.active: 1,hotplug:1,bm:wlan1,act: 1
+[   42.352874] c0 wlan_check_nr_band on device AP0_24G
+[   42.353210] c0 init check wifi band is 2g, channel is auto
+[   42.353881] c0 wlan_check_nr_band on device AP1_5G
+[   42.354187] c0 init check wifi band is 5g, channel is auto
+[   42.355529] c0 wlan_check_nr_freq on device AP0_24G
+[   42.355651] c0 no nr/lte freq info
+[   42.356689] c0 wlan_check_nr_freq on device AP1_5G
+[   42.356872] c0 no nr/lte freq info
+[   42.358795] c0 mwlan event
+[   42.359283] c0 device wlan1 left promiscuous mode
+[   42.359436] c0 br-lan: port 3(wlan1) entered disabled state
+[   42.372894] c0 toe_port_switchdev_event dev: wlan1, event: 4, fdb: [e4:7d:eb:e9:30:96, 1, 0, 1, 0]
+[   42.372955] c0 toe_port_switchdev_event dev: wlan1, event: 4, fdb: [e4:7d:eb:e9:30:96, 0, 0, 1, 0]
+[   42.373413] c0 --Release Network device wlan1, new active count: 0
+[   42.521514] c1 drv_mac80211_teardown enter, device='AP1_5G' 
+[   42.527221] c1 mac80211_interface_cleanup enter 
+[   42.533416] c1 mac80211_vap_cleanup hostapd  wlan1 start
+[   42.533538] c1 mac80211_vap_cleanup hostapd wlan1 config_remove
+[   42.571105] c2 aic8800D80_fdrv 0000:01:00.0 wlan1: Remove Interface
+[   42.580749] c2 received netdev (wlan1) unregister, event 6, state: 0x6, flags: 0x1002, invalid: 1
+[   42.580902] c2 received netdev (wlan1) unregister, event 6, state: 0x6, flags: 0x1002, invalid: 1
+[   42.582397] c2 All entries related to wlan1 deleted
+[   42.582733] c2 device (wlan1) found and deleted
+[   42.588989] c1 mfp device:destroy_fpdev:304: device (wlan1) destroyed
+[   42.842559] c1 mac80211_vap_cleanup hostapd  wlan1 end
+[   43.204589] c0 mwlan event
+[   43.282501] c0 drv_mac80211_setup enter, device='AP1_5G' 
+[   43.287261] c2 drv_mac80211_setup enter, device='AP0_24G' 
+[   43.418823] c0 mac80211_hostapd_setup_base enter phy0 
+[   43.426849] c1 mac80211_hostapd_setup_base enter asrphy0 
+[   43.521057] c2 mac80211_prepare_iw_htmode enter 
+[   43.532409] c2 mac80211_prepare_vif enter 
+[   43.539642] c0 mac80211_prepare_iw_htmode enter 
+[   43.550018] c2 mac80211_hostapd_setup_bss enter, phy=asrphy0, ifname=wlan0 
+[   43.550506] c0 mac80211_prepare_vif enter 
+[   43.567382] c0 mac80211_hostapd_setup_bss enter, phy=phy0, ifname=wlan1 
+[   43.657653] c2 mac80211_prepare_vif NEWAPLIST: wlan0  
+[   43.657745] c2 mac80211_prepare_vif hostapd_ctrl:  
+[   43.669128] c2 drv_mac80211_setup NEWAPLIST: wlan0 ,phy:asrphy0,OLDAPLIST:
+[   43.669403] c2 mac80211_vap_cleanup hostapd   start
+[   43.669525] c2 mac80211_vap_cleanup hostapd   end
+[   43.670318] c2 drv_mac80211_setup NEW_MD5: 828e24d586415eac66aa56a9dfa05cd0  /var/run/hostapd-asrphy0.conf,phy:asrphy0,OLD_MD5:828e24d586415eac66aa56a9dfa05cd0  /var/run/hostapd-asrphy0.conf
+[   43.670593] c2 mac80211_iw_interface_add enter 
+[   43.671173] c0 mac80211_prepare_vif NEWAPLIST: wlan1  
+[   43.671234] c0 mac80211_prepare_vif hostapd_ctrl:  
+[   43.676330] c1 received netdev (wlan0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   43.676757] c1 asr_cfg80211_add_vif: band=0 vif(0) name wlan0 type(3) AP reg_state 1 params->macaddr:0x000000000000 dev_addr:0x000000000000 asr_priv->avail_idx_map 0
+[   43.677886] c3 drv_mac80211_setup hostapd_ctrl: /var/run/hostapd/wlan0,primary_ap: wlan0
+[   43.682983] c0 drv_mac80211_setup NEWAPLIST: wlan1 ,phy:phy0,OLDAPLIST:
+[   43.683197] c0 mac80211_vap_cleanup hostapd   start
+[   43.683258] c0 mac80211_vap_cleanup hostapd   end
+[   43.683380] c0 drv_mac80211_setup NEW_MD5: 0956a6b065a8340a02a54f4cb54289e7  /var/run/hostapd-phy0.conf,phy:phy0,OLD_MD5:0956a6b065a8340a02a54f4cb54289e7  /var/run/hostapd-phy0.conf
+[   43.683715] c0 mac80211_iw_interface_add enter 
+[   43.689422] c1 received netdev (wlan1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+[   43.695159] c0 drv_mac80211_setup hostapd_ctrl: /var/run/hostapd/wlan1,primary_ap: wlan1
+[   43.721221] c1 asr_open: band=0 vif(0) name wlan0 type 3 ndev 0xc35e4000 dev_addr 60:83:e2:60:81:e9 total vif_num 1
+[   43.723266] c1 br-lan: port 3(wlan0) entered blocking state
+[   43.723297] c1 br-lan: port 3(wlan0) entered disabled state
+[   43.723663] c1 device wlan0 entered promiscuous mode
+[   43.723754] c1 toe_port_switchdev_event dev: wlan0, event: 3, fdb: [60:83:e2:60:81:e9, 0, 0, 1, 0]
+[   43.723815] c1 toe_port_switchdev_event dev: wlan0, event: 3, fdb: [60:83:e2:60:81:e9, 1, 0, 1, 0]
+[   43.729217] c1 asr_cfg80211_scan: no0 chan(band:0 center_freq:2412 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   43.729248] c1 asr_cfg80211_scan: no1 chan(band:0 center_freq:2417 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   43.729248] c1 asr_cfg80211_scan: no2 chan(band:0 center_freq:2422 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   43.729248] c1 asr_cfg80211_scan: no3 chan(band:0 center_freq:2427 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   43.729278] c1 asr_cfg80211_scan: no4 chan(band:0 center_freq:2432 flags:0x180 max_power:20 max_regulatory_power:20)
+[   43.729278] c1 asr_cfg80211_scan: no5 chan(band:0 center_freq:2437 flags:0x180 max_power:20 max_regulatory_power:20)
+[   43.729309] c1 asr_cfg80211_scan: no6 chan(band:0 center_freq:2442 flags:0x180 max_power:20 max_regulatory_power:20)
+[   43.729309] c1 asr_cfg80211_scan: no7 chan(band:0 center_freq:2447 flags:0x180 max_power:20 max_regulatory_power:20)
+[   43.729339] c1 asr_cfg80211_scan: no8 chan(band:0 center_freq:2452 flags:0x180 max_power:20 max_regulatory_power:20)
+[   43.729339] c1 asr_cfg80211_scan: no9 chan(band:0 center_freq:2457 flags:0x190 max_power:20 max_regulatory_power:20)
+[   43.729370] c1 asr_cfg80211_scan: no10 chan(band:0 center_freq:2462 flags:0x190 max_power:20 max_regulatory_power:20)
+[   43.729370] c1 asr_cfg80211_scan: no11 chan(band:0 center_freq:2467 flags:0x190 max_power:20 max_regulatory_power:20)
+[   43.729370] c1 asr_cfg80211_scan: no12 chan(band:0 center_freq:2472 flags:0x190 max_power:20 max_regulatory_power:20)
+[   43.729400] c1 asr_cfg80211_scan: vif(0) n_ssids 0 n_channels 13 ie_len 0
+[   43.751983] c0 br-lan: port 4(wlan1) entered blocking state
+[   43.752014] c0 br-lan: port 4(wlan1) entered disabled state
+[   43.752685] c0 device wlan1 entered promiscuous mode
+[   43.752960] c0 toe_port_switchdev_event dev: wlan1, event: 3, fdb: [e4:7d:eb:e9:30:96, 0, 0, 1, 0]
+[   43.753021] c0 toe_port_switchdev_event dev: wlan1, event: 3, fdb: [e4:7d:eb:e9:30:96, 1, 0, 1, 0]
+[   43.753051] c0 br-lan: port 4(wlan1) entered blocking state
+[   43.753051] c0 br-lan: port 4(wlan1) entered forwarding state
+[   44.480621] c2 asr_rx_msg_wifi_scan_finish: scan_info request 0xc3222900 aborted 0
+[   44.483245] c0 asr_cfg80211_scan: no0 chan(band:0 center_freq:2412 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   44.483276] c0 asr_cfg80211_scan: no1 chan(band:0 center_freq:2417 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   44.483306] c0 asr_cfg80211_scan: no2 chan(band:0 center_freq:2422 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   44.483306] c0 asr_cfg80211_scan: no3 chan(band:0 center_freq:2427 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   44.483306] c0 asr_cfg80211_scan: no4 chan(band:0 center_freq:2432 flags:0x180 max_power:20 max_regulatory_power:20)
+[   44.483337] c0 asr_cfg80211_scan: no5 chan(band:0 center_freq:2437 flags:0x180 max_power:20 max_regulatory_power:20)
+[   44.483337] c0 asr_cfg80211_scan: no6 chan(band:0 center_freq:2442 flags:0x180 max_power:20 max_regulatory_power:20)
+[   44.483367] c0 asr_cfg80211_scan: no7 chan(band:0 center_freq:2447 flags:0x180 max_power:20 max_regulatory_power:20)
+[   44.483367] c0 asr_cfg80211_scan: no8 chan(band:0 center_freq:2452 flags:0x180 max_power:20 max_regulatory_power:20)
+[   44.483398] c0 asr_cfg80211_scan: no9 chan(band:0 center_freq:2457 flags:0x190 max_power:20 max_regulatory_power:20)
+[   44.483398] c0 asr_cfg80211_scan: no10 chan(band:0 center_freq:2462 flags:0x190 max_power:20 max_regulatory_power:20)
+[   44.483428] c0 asr_cfg80211_scan: no11 chan(band:0 center_freq:2467 flags:0x190 max_power:20 max_regulatory_power:20)
+[   44.483489] c0 asr_cfg80211_scan: no12 chan(band:0 center_freq:2472 flags:0x190 max_power:20 max_regulatory_power:20)
+[   44.483489] c0 asr_cfg80211_scan: vif(0) n_ssids 0 n_channels 13 ie_len 0
+[   44.786560] c3 mac80211_setup_vif enter, name=0 
+[   44.811523] c0 mac80211_setup_vif enter, name=0 
+[   44.846343] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:2,dev.act:1,bm:wlan0,act:0
+[   44.867919] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:3,dev.act:1,bm:wlan1,act:0
+[   45.228698] c2 asr_rx_msg_wifi_scan_finish: scan_info request 0xc2741a80 aborted 0
+[   45.231292] c0 asr_cfg80211_scan: no0 chan(band:0 center_freq:2412 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   45.231323] c0 asr_cfg80211_scan: no1 chan(band:0 center_freq:2417 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   45.231384] c0 asr_cfg80211_scan: no2 chan(band:0 center_freq:2422 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   45.231384] c0 asr_cfg80211_scan: no3 chan(band:0 center_freq:2427 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   45.231414] c0 asr_cfg80211_scan: no4 chan(band:0 center_freq:2432 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.231414] c0 asr_cfg80211_scan: no5 chan(band:0 center_freq:2437 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.231445] c0 asr_cfg80211_scan: no6 chan(band:0 center_freq:2442 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.231445] c0 asr_cfg80211_scan: no7 chan(band:0 center_freq:2447 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.231475] c0 asr_cfg80211_scan: no8 chan(band:0 center_freq:2452 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.231475] c0 asr_cfg80211_scan: no9 chan(band:0 center_freq:2457 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.231506] c0 asr_cfg80211_scan: no10 chan(band:0 center_freq:2462 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.231536] c0 asr_cfg80211_scan: no11 chan(band:0 center_freq:2467 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.231536] c0 asr_cfg80211_scan: no12 chan(band:0 center_freq:2472 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.231567] c0 asr_cfg80211_scan: vif(0) n_ssids 0 n_channels 13 ie_len 0
+[   45.978668] c2 asr_rx_msg_wifi_scan_finish: scan_info request 0xc2741600 aborted 0
+[   45.986389] c0 asr_cfg80211_scan: no0 chan(band:0 center_freq:2422 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   45.986389] c0 asr_cfg80211_scan: no1 chan(band:0 center_freq:2427 flags:0x1a0 max_power:20 max_regulatory_power:20)
+[   45.986419] c0 asr_cfg80211_scan: no2 chan(band:0 center_freq:2432 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.986419] c0 asr_cfg80211_scan: no3 chan(band:0 center_freq:2437 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.986450] c0 asr_cfg80211_scan: no4 chan(band:0 center_freq:2442 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.986450] c0 asr_cfg80211_scan: no5 chan(band:0 center_freq:2447 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.986480] c0 asr_cfg80211_scan: no6 chan(band:0 center_freq:2452 flags:0x180 max_power:20 max_regulatory_power:20)
+[   45.986480] c0 asr_cfg80211_scan: no7 chan(band:0 center_freq:2457 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.986511] c0 asr_cfg80211_scan: no8 chan(band:0 center_freq:2462 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.986511] c0 asr_cfg80211_scan: no9 chan(band:0 center_freq:2467 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.986511] c0 asr_cfg80211_scan: no10 chan(band:0 center_freq:2472 flags:0x190 max_power:20 max_regulatory_power:20)
+[   45.986541] c0 asr_cfg80211_scan: vif(0) n_ssids 0 n_channels 11 ie_len 0
+[   46.618103] c2 asr_rx_msg_wifi_scan_finish: scan_info request 0xc2741780 aborted 0
+[   46.736633] c0 aic8800D80_fdrv 0000:01:00.0 wlan1: AP started: ch=0, bcmc_idx=32 channel=5745 bw=3
+[   46.747497] c0 asr_cfg80211_del_station sta_ctrl: vif 0 params 0xc2421ce8 mac NULL subtype 12 reason_code 2
+[   46.799438] c2 ###############################################nx_set_interface_macc enter
+[   46.811523] c2 ######wifi_2g_mac=60:83:E2:60:81:E9
+[   46.818603] c2 ######wifi_2g_mac do not need to be updated
+[   46.822753] c2 ######wifi_5g_mac=E4:7D:EB:E9:30:96
+[   46.828643] c2 ######wifi_5g_mac do not need to be updated
+[   46.828704] c2 ###############################################nx_set_interface_mac out
+[   46.866271] c3 asr_cfg80211_start_ap: ssid(len:12 H3SWiFi_81E9) bw 0 2SS chan(band:0 freq:2452-2452-0 max_power:20 20) int(100 2) sta_num 0 free_sta_id 0 bcn_len 387 tim_oft 63 hidden 0
+[   46.866333] c3 asr_cfg80211_start_ap: crypto wpa_versions 2 n_ciphers_pairwise 1, ctrl_port:0-0-0x8e88 cipher_group 0x4 wps_ie_len 122
+[   46.884643] c2 asr_rx_msg_wifi_switch_channel enter , vif0, 0
+[   46.884674] c2 asr_rx_msg_wifi_switch_channel: chan_index: 0,vif_index:0,tx_disable:0
+[   46.892242] c1 br-lan: port 3(wlan0) entered blocking state
+[   46.892272] c1 br-lan: port 3(wlan0) entered forwarding state
+[   46.893218] c3 asr_cfg80211_mgmt_tx: sta_32_8 fctrl 0xc0(WLAN_FC_STYPE_DEAUTH) skb 0xc2458700 need ack: 1, len 26, da:0xffffffffffff sa:0x6083e26081e9
+[   46.895629] c3 asr_cfg80211_add_key: vif(0) key_index 1 pairwise 0 cipher 0xfac04 key_len 16 input mac_addr(0x0)  tx_msg_pld->mac ff:ff:ff:ff:ff:ff
+[   46.923065] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 0, txop 0x2f, cwmin 0x3, cwmax 0x7, aifs 0x1)
+[   46.923461] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 1, txop 0x5e, cwmin 0x7, cwmax 0xf, aifs 0x1)
+[   46.923858] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 2, txop 0x0, cwmin 0xf, cwmax 0x3f, aifs 0x3)
+[   46.924224] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 3, txop 0x0, cwmin 0xf, cwmax 0x3ff, aifs 0x7)
+[   47.118713] c3 MSOCK: binding port 9, success.
+[   47.118743] c3 MSOCK: port 9 is opened by process id:5702 ("imsd")
+[   47.151916] c2 S42services.ini (5704): drop_caches: 3
+[   47.800476] c1 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+[   47.800476] c1 ioctl : AUDIOSTUB_GET_STATUS. pcm_fsync_rate = 0, pcm_master = TRUE. 
+[   47.800506] c1 audiostub_close/537: minor=0 mode=0 audiostub_inited=1
+[   47.800537] c1 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+[   47.800567] c1 ioctl : AUDIOSTUB_PCMCTL. 
+[   47.946960] c0 DEVICE_LAN_SWITCH: switch
+[   47.947021] c0 DEVICE_PRODUCT_TYPE: CPE
+[   48.005737] c2 maxlinear-slic maxlinear-slic: slic chip reset_n set to low
+[   48.035034] c1 maxlinear-slic maxlinear-slic: slic chip reset_n set to high
+[   48.614562] c2 asr_dbgfs_wifi_version_read version: asr5811_1.028.000: jianzhang Jan 13 202
+[   48.614562] c2 asr_dbgfs_wifi_version_read version: asr5811_1.028.000: jia
+[   50.839141] c1 g_qos_enable=0 g_limit_mode=dev
+[   50.839233] c1 modified on 2026.05.11
+[   50.839355] c1 qos_enable is 0, exit!
+[   51.745971] c2 88pm80x-wdt 88pm80x-wdt: wdt_ctrl_store: wdt active timer 30 sec, slp timer: 120s
+[   51.757507] c2 simnum = 1
+[   51.851867] c0 ccidatastub_ioctl,cmd=0x4004f602
+[   51.851898] c0 CCIDATASTUB_DATAHANDLE: cid =7, type =1
+[   52.059936] c0 check nr/lte & wifi coexistence when CP reporting 1 10 10 21300 17300
+[   52.060180] c0 lte dl_bw=10, ul_bw=10, dl_freq=2130, ul_freq=1730
+[   52.078857] c0 CP triggered check wlan0 channel is 9
+[   52.088012] c0 CP triggered check wlan1 channel is 149
+[   62.447174] c0 Timestamp is: 09-16 18:16:48.723083890 UTC
+[   68.066406] c3 KERNEL-TEXT-CRC: 0x1d8c
+[   71.798980] c0 mfp learner:fp_get_route_ipv4:363: Route = RTN_BROADCAST
+[   74.539550] c0 regular check nr_band is 4
+[   74.564086] c0 regular check wlan0 channel is 9
+[   74.576293] c0 regular check wlan1 channel is 149
+[  106.897125] c0 mfp learner:fp_get_route_ipv4:363: Route = RTN_BROADCAST
+[  134.536407] c3 regular check nr_band is 4
+[  134.556274] c3 regular check wlan0 channel is 9
+[  134.568450] c3 regular check wlan1 channel is 149
+[  141.877044] c0 mfp learner:fp_get_route_ipv4:363: Route = RTN_BROADCAST
+[  177.071289] c0 mfp learner:fp_get_route_ipv4:363: Route = RTN_BROADCAST

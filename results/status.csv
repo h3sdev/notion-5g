@@ -1,0 +1,3 @@
+ts,tag,operator,act,rat,eps_reg,tac_hex,eci_hex,enb_id,cell_sector,nr_reg,bandind_raw,band_lte,wan_ip,gw,wan_dev,pci,band_zca,earfcn,bw_mhz,rsrp_dbm,rsrq_db,sinr_db,rssi_dbm,ca_secondary,nw_mode,prefer_mode,nr_mode,sim_slot,temp_c,load1,ttl_rules,modem_uptime_s
+2026-09-17T21:42:03,,TIGO,7,LTE,1,091c,00049633,1174,51,0,"0,28,7,0",28,100.123.164.248,100.123.164.249,ccinet0,130,28,9310,20,-96,-13.0,4,-62,False,9,5,0,usim1,55.0,2.00,1,20251
+2026-09-17T21:43:06,,TIGO,7,LTE,1,091c,00049633,1174,51,0,"0,28,7,0",28,100.123.164.248,100.123.164.249,ccinet0,130,28,9310,20,-96,-13.0,2,-61,False,9,5,0,usim1,55.0,2.06,1,20315

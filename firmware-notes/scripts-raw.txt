@@ -1,0 +1,254 @@
+lrwxrwxrwx    1 root     root            20 Aug 17 08:22 /etc/init.d -> ../system/etc/init.d
+lrwxrwxrwx    1 root     root            17 Aug 17 08:22 /etc/log -> ../system/etc/log
+
+/etc/hotplug.d:
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 .
+drwxr-xr-x   21 root     root          1691 Aug 17 08:22 ..
+drwxr-xr-x    2 root     root            54 Aug 17 08:22 block
+drwxr-xr-x    2 root     root            36 Aug 17 08:22 cpu
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 dhcp
+drwxr-xr-x    2 root     root            30 Aug 17 08:22 ethernet
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 ieee80211
+drwxr-xr-x    2 root     root           210 Aug 17 08:22 iface
+drwxr-xr-x    2 root     root            30 Aug 17 08:22 ipsec
+drwxr-xr-x    2 root     root            30 Aug 17 08:22 leds
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 neigh
+drwxr-xr-x    2 root     root            74 Aug 17 08:22 net
+drwxr-xr-x    2 root     root            36 Aug 17 08:22 ntp
+drwxr-xr-x    2 root     root            38 Aug 17 08:22 power_supply
+drwxr-xr-x    2 root     root            36 Aug 17 08:22 psd
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 tftp
+drwxr-xr-x    2 root     root            37 Aug 17 08:22 thermal
+drwxr-xr-x    2 root     root            28 Aug 17 08:22 tty
+drwxr-xr-x    2 root     root            35 Aug 17 08:22 usim_event
+
+/etc/hotplug.d/block:
+drwxr-xr-x    2 root     root            54 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           203 Aug 17 08:22 00-media-change
+-rw-r--r--    1 root     root           669 Aug 17 08:22 10-mount
+
+/etc/hotplug.d/cpu:
+drwxr-xr-x    2 root     root            36 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rwxr-xr-x    1 root     root           234 Aug 17 08:22 10-cpuhotplug
+
+/etc/hotplug.d/dhcp:
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+
+/etc/hotplug.d/ethernet:
+drwxr-xr-x    2 root     root            30 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rwxr-xr-x    1 root     root         12115 Aug 17 08:22 00-emac
+
+/etc/hotplug.d/ieee80211:
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+
+/etc/hotplug.d/iface:
+drwxr-xr-x    2 root     root           210 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           155 Aug 17 08:22 00-netstate
+-rw-r--r--    1 root     root          2607 Aug 17 08:22 15-mwan3
+-rw-r--r--    1 root     root           488 Aug 17 08:22 15-teql
+-rw-r--r--    1 root     root           525 Aug 17 08:22 16-mwan3-user
+-rw-r--r--    1 root     root           471 Aug 17 08:22 20-firewall
+-rw-r--r--    1 root     root          4286 Aug 17 08:22 25-dnsmasq
+-rw-r--r--    1 root     root          1345 Aug 17 08:22 50-miniupnpd
+-rw-r--r--    1 root     root           323 Aug 17 08:22 95-ddns
+-rwxr-xr-x    1 root     root           235 Aug 17 08:22 95-wanup_reloadntp
+-rwxr-xr-x    1 root     root           569 Aug 17 08:22 95-wanup_reloadvpn
+
+/etc/hotplug.d/ipsec:
+drwxr-xr-x    2 root     root            30 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root            75 Aug 17 08:22 01-user
+
+/etc/hotplug.d/leds:
+drwxr-xr-x    2 root     root            30 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root            72 Aug 17 08:22 00-init
+
+/etc/hotplug.d/neigh:
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+
+/etc/hotplug.d/net:
+drwxr-xr-x    2 root     root            74 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           236 Aug 17 08:22 00-sysctl
+-rw-r--r--    1 root     root           264 Aug 17 08:22 02-piped
+-rw-r--r--    1 root     root           150 Aug 17 08:22 5811_wifi_recovery
+
+/etc/hotplug.d/ntp:
+drwxr-xr-x    2 root     root            36 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           277 Aug 17 08:22 25-dnsmasqsec
+
+/etc/hotplug.d/power_supply:
+drwxr-xr-x    2 root     root            38 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           549 Aug 17 08:22 00-bat_throttle
+
+/etc/hotplug.d/psd:
+drwxr-xr-x    2 root     root            36 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           232 Aug 17 08:22 00-wan-prefix
+
+/etc/hotplug.d/tftp:
+drwxr-xr-x    2 root     root             3 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+
+/etc/hotplug.d/thermal:
+drwxr-xr-x    2 root     root            37 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rwxr-xr-x    1 root     root          4560 Aug 17 08:22 00-tz0throttle
+
+/etc/hotplug.d/tty:
+drwxr-xr-x    2 root     root            28 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rw-r--r--    1 root     root           753 Aug 17 08:22 30-3g
+
+/etc/hotplug.d/usim_event:
+drwxr-xr-x    2 root     root            35 Aug 17 08:22 .
+drwxr-xr-x   19 root     root           244 Aug 17 08:22 ..
+-rwxr-xr-x    1 root     root          1344 Aug 17 08:22 00-sim_state
+
+#!/bin/sh
+
+DEV_NAME0='wlan0'
+DEV_NAME1='wlan1'
+
+nr_band=$(serial_atcmd "at*bandind?" | sed -n 2p | awk -v FS=", " '{print $2}')
+echo "regular check nr_band is $nr_band" > /dev/kmsg
+
+if [ -z "$(ifconfig | grep $DEV_NAME0)" ] && [ -z "$(ifconfig | grep $DEV_NAME1)"]; then
+	echo "NO wifi exist" > /dev/kmsg
+	exit 1
+fi
+
+# Check NR & WiFi coexistence in wlan0 (2.4G band)
+if [ -n "$(ifconfig | grep $DEV_NAME0)" ]; then
+	wifi_channel0=$(hostapd_cli -i $DEV_NAME0 status | grep -w channel | awk -F= '{print $2}')
+	wifi_bssid0=$(hostapd_cli -i $DEV_NAME0 status | grep -w bssid | awk -F= '{print $2}')
+	echo "regular check $DEV_NAME0 channel is $wifi_channel0" > /dev/kmsg
+else
+	echo "$DEV_NAME0 is not up" > /dev/kmsg
+fi
+
+# Check NR & WiFi coexistence in wlan1 (5G band)
+if [ -n "$(ifconfig | grep $DEV_NAME1)" ]; then
+	wifi_channel1=$(hostapd_cli -i $DEV_NAME1 status | grep -w channel | awk -F= '{print $2}')
+	wifi_bssid1=$(hostapd_cli -i $DEV_NAME1 status | grep -w bssid | awk -F= '{print $2}')
+	echo "regular check $DEV_NAME1 channel is $wifi_channel1" > /dev/kmsg
+	if [ $nr_band == '79' -a $wifi_channel1 == '36' ]; then 
+		echo "regular switch $DEV_NAME1 from channel $wifi_channel1 to channel 149" > /dev/kmsg	
+		hostapd_cli -i $DEV_NAME1 chan_switch 5 5745 sec_channel_offset=1 center_freq1=5775 center_freq2=0 bandwidth=80 ht vht he blocktx
+	fi
+else
+	echo "$DEV_NAME1 is not up" > /dev/kmsg
+fi
+
+# Check and add neighbor list info in wlan0 (2.4G band) & wlan1 (5G band)
+# Only applicable when band steering is enabled
+bs_enable=`uci get wireless.@wifi-bandSteering[0].bs_enable 2> /dev/null`
+bss_transition=1  # May set a flag in webui or wireless
+
+if [ "$bs_enable" == "1" -a "$bss_transition" == "1" ]; then
+	if [ -n "$(ifconfig | grep $DEV_NAME0)" -a -n "$(ifconfig | grep $DEV_NAME1)" ]; then
+		echo "regular check and update neighbor list" > /dev/kmsg
+		
+		# Set neighbor list to each other
+		neighbor_own0=$(hostapd_cli -i $DEV_NAME0 show_neighbor | grep $wifi_bssid0)
+		neighbor_own1=$(hostapd_cli -i $DEV_NAME1 show_neighbor | grep $wifi_bssid1)
+		hostapd_cli -i $DEV_NAME0 set_neighbor $neighbor_own1
+		hostapd_cli -i $DEV_NAME1 set_neighbor $neighbor_own0
+		
+		# Obtain neighbor info of wlan0 for filling BSS-TM-REQ if required
+		nr0=$(echo $neighbor_own0 | awk -F= '{print $3}')
+		info0=${nr0:12:8}
+		op0=$(printf %d 0x${nr0:20:2})
+		ch0=$(printf %d 0x${nr0:22:2})
+		phy0=$(printf %d 0x${nr0:24:2})		
+		#echo "$DEV_NAME0, nr0=$nr0, bssid0=$wifi_bssid0, info0=0x$info0, op0=$op0, ch0=$ch0, phy0=$phy0" > /dev/kmsg	
+		echo -e "device=$DEV_NAME0\nbssid=$wifi_bssid0\nnr=$nr0\ninfo=0x$info0\nop=$op0\nch=$ch0\nphy=$phy0" > /tmp/neighbor_info0.txt
+
+		# Obtain neighbor info of wlan1 for filling BSS-TM-REQ if required
+		nr1=$(echo $neighbor_own1 | awk -F= '{print $3}')
+		info1=${nr1:12:8}
+		op1=$(printf %d 0x${nr1:20:2})
+		ch1=$(printf %d 0x${nr1:22:2})
+		phy1=$(printf %d 0x${nr1:24:2})		
+		#echo "$DEV_NAME1, nr1=$nr1, bssid1=$wifi_bssid1, info1=0x$info1, op1=$op1, ch1=$ch1, phy1=$phy1" > /dev/kmsg	
+		echo -e "device=$DEV_NAME1\nbssid=$wifi_bssid1\nnr=$nr1\ninfo=0x$info1\nop=$op1\nch=$ch1\nphy=$phy1" > /tmp/neighbor_info1.txt		
+	else
+		echo "$DEV_NAME0 or $DEV_NAME1 is not up" > /dev/kmsg
+	fi
+else
+	# Remove neighbor info of wlan0 if bss_transition is disabled
+	if [ -e "/tmp/neighbor_info0.txt" ]; then
+		rm /tmp/neighbor_info0.txt		
+	fi
+	
+	# Remove neighbor info of wlan1 if bss_transition is disabled
+	if [ -e "/tmp/neighbor_info1.txt" ]; then
+		rm /tmp/neighbor_info1.txt		
+	fi
+fi
+
+free_mem=`cat /proc/meminfo | grep MemFree | awk -F " " '{print $2}'`
+if [ $free_mem -lt 15360 ]; then
+	sync
+	echo 1 > /proc/sys/vm/drop_caches
+	echo "free mem is lower than 15MB, clear caches 1" > /dev/kmsg
+	echo 1 > /proc/sys/vm/compact_memory
+elif [ $free_mem -lt 8192 ]; then
+	sync
+	echo 1 > /proc/sys/vm/drop_caches
+	echo "free mem is lower than 8MB, clear caches 3" > /dev/kmsg
+	echo 3 > /proc/sys/vm/compact_memory
+fi
+
+
+#!/bin/sh
+
+#usim0_state=`cat /sys/class/usim_event/usim0/state`
+usim_name=`echo $USIM_NAME`
+usim_event=`echo $USIM_EVENT`
+
+serial_atcmd "AT*SELECTSIMSLOT?" > /dev/kmsg
+cur_simid=`serial_atcmd "AT*SELECTSIMSLOT?" | grep SELECTUSIM | awk -F " " '{print $2}'`
+
+if [[ "$cur_simid" == "0" && "$usim_name" != "usim0" ]]; then
+	echo "ignore this sim plug $usim_name" > /dev/kmsg
+	exit 0
+fi
+
+if [[ "$cur_simid" == "1" && "$usim_name" != "usim1" ]]; then
+	echo "ignore this sim plug $usim_name" > /dev/kmsg
+	exit 0
+fi
+
+
+if [ -d /sys/devices/virtual/usim_event/usim0 -o -d /sys/devices/virtual/usim_event/usim1 ]; then
+	echo "USIM_NAME=$usim_name, USIM_EVENT=$usim_event" > /dev/kmsg
+	if [ "$usim_event" == "plugin" ]; then
+		cur_cfun=`serial_atcmd "AT+CFUN?" | grep CFUN | awk -F " " '{print $2}'`
+		echo "CUR CFUN =" $cur_cfun > /dev/kmsg
+		if [ "$cur_cfun" != "0" ]; then
+			echo "serial_atcmd at+cfun=0" > /dev/kmsg
+			serial_atcmd at+cfun=0
+			sleep 5
+		fi
+		echo "serial_atcmd at+cfun=1" > /dev/kmsg
+		serial_atcmd at+cfun=1
+		ubus send "usim.event" '{"status":1}'
+	elif [ "$usim_event" == "plugout" ]; then
+		echo "serial_atcmd at+cfun=5" > /dev/kmsg
+		serial_atcmd at+cfun=5
+		ubus send "usim.event" '{"status":0}'
+	fi
+elif [ -d /sys/devices/virtual/usim_event/usimtray ]; then
+	echo "USIM_NAME=$usim_name, USIM_EVENT=$usim_event" > /dev/kmsg
+fi
