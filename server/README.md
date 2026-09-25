@@ -47,8 +47,14 @@ en `~/.config/h3s/credentials.env` en el VPS.
 | `GET /api/v1/measurements/summary` | Promedio/mediana de `down_mbps`/`up_mbps`/`rsrp_dbm` agrupado por `operator`\|`tag`\|`device_id`. |
 | `POST /api/v1/heartbeat` | Ping liviano: uptime + señal, sin prueba de velocidad. |
 | `GET /api/v1/heartbeats` | Lista heartbeats por `device_id`. |
-| `POST /api/v1/commands` | El celular pide una prueba: `{"device_id":"router-xxx","type":"run_speedtest","duration_s":10,"lat":...,"lon":...,"gps_accuracy_m":...,"gps_source":"android-fused","requested_by":"..."}`. |
-| `GET /api/v1/commands/next?device_id=` | El router hace *polling* aquí (no puede recibir conexiones entrantes por su NAT celular) y se lleva el comando pendiente más viejo, marcado `claimed`. |
+| `POST /api/v1/commands` | El celular pide una prueba: `{"device_id":"router-xxx","type":"run_speedtest","duration_s":10,"lat":...,"lon":...,"gps_accuracy_m":...,"gps_source":"android-fused","requested_by":"..."}`. Con `"runner":"probe"` la ejecuta la sonda MikroTik que tiene ese equipo en un puerto (el backend resuelve `probe_id` y `routing_table`); sin `runner` (o `"agent"`) la ejecuta el propio router. |
+| `GET /api/v1/commands/next?device_id=` | El router hace *polling* aquí (no puede recibir conexiones entrantes por su NAT celular) y se lleva el comando pendiente más viejo, marcado `claimed`. Solo recibe comandos de agente. |
+| `GET /api/v1/commands/next?probe_id=` | Igual, para una sonda: recibe los comandos de todos sus equipos, cada uno con `routing_table`. Cuenta como señal de vida de la sonda. |
+| `PUT /api/v1/probes/{probe_id}` | Configura una sonda: `{"label":"hAP","interval_s":900,"duration_s":10,"targets":[{"device_id":"router-R52...","routing_table":"to-notion"},{"device_id":"router-4g","routing_table":"to-4g","send_heartbeat":true}]}`. `interval_s` = ciclo automático (0 = apagado, mínimo 60). `send_heartbeat` solo para equipos sin agente propio. |
+| `GET /api/v1/probes`, `GET /api/v1/probes/{id}` | Sondas con sus equipos, `online` (consultó en los últimos 3 min) y `last_cycle_at`. |
+| `GET /api/v1/probes/{id}/config` | Lo que consulta la propia sonda (sus equipos y a cuáles mandar heartbeat). Cuenta como señal de vida. |
+| `POST /api/v1/probes/{id}/cycle` | Encola una prueba por equipo, en el orden de `targets` (así alternan). Se salta los que ya tienen una prueba abierta. |
+| `GET /api/v1/devices/{id}/phone_log` | Historial del celular acompañante (batería, estado de carga, red que usa) que llega con cada ubicación. |
 | `POST /api/v1/commands/{id}/complete` | El router reporta el resultado: `{"status":"done","measurement":{...}}` o `{"status":"failed","error":"..."}`. La ubicación del comando original se fusiona automáticamente en la medición (el módem no tiene GPS propio). |
 | `GET /api/v1/commands` | Lista/filtra comandos por `device_id`/`status`, para depurar. |
 | `GET /api/v1/speedtest/download?bytes=N` | Sink de descarga (por defecto 10 MB, tope 500 MB) para medir velocidad contra este mismo servidor. Devuelve `X-Speedtest-Concurrent`: cuántas pruebas están corriendo a la vez contra este backend. |
@@ -56,6 +62,27 @@ en `~/.config/h3s/credentials.env` en el VPS.
 
 Todo excepto `/healthz` requiere el header `X-API-Key` si `API_KEY` está
 definida (siempre debería estarlo fuera de desarrollo local).
+
+## Sondas (MikroTik) — modo híbrido
+
+Una sonda es un equipo aparte (hoy un MikroTik hAP ac2) con un puerto por cada
+router bajo prueba y una tabla de ruteo por puerto: mide por la tabla del
+equipo que pide cada comando, así que la ruta de salida está garantizada por
+construcción (las mediciones quedan `net_route=router`, razón
+`measured-by-probe`, `source=mikrotik-probe`, con `probe_id`/`routing_table` en
+`raw`). Es híbrido en dos sentidos:
+
+- **Quién ejecuta:** la misma cola sirve al agente del router (`runner` =
+  `agent`, o vacío en los comandos viejos) y a la sonda (`runner` = `probe`);
+  ninguno toma los del otro.
+- **Cómo se dispara:** a pedido (`POST /commands` con `runner:"probe"`, o
+  `POST /probes/{id}/cycle` para todos sus equipos) o automático: un
+  planificador del backend (cada 30 s) encola el ciclo cuando pasó
+  `interval_s` desde el anterior, **solo si la sonda está en línea y terminó el
+  ciclo anterior** (con el hAP apagado no se acumulan pruebas).
+
+Se configura todo desde el backend; el script de RouterOS solo consulta la cola
+(`?probe_id=`), mide por `routing_table` y cierra el comando.
 
 ## Agente del router (`cmd/routeragent`)
 

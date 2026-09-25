@@ -58,6 +58,7 @@ func New(st *store.Store, apiKey string) *Server {
 		netEnrich: make(chan netEnrichJob, netEnrichQueue),
 	}
 	go s.netEnrichLoop()
+	go s.probeSchedulerLoop()
 	s.routes()
 	return s
 }
@@ -88,6 +89,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/commands/next", s.auth(s.handleClaimCommand))
 	s.mux.HandleFunc("POST /api/v1/commands/{id}/complete", s.auth(s.handleCompleteCommand))
 	s.mux.HandleFunc("POST /api/v1/commands/{id}/end_location", s.auth(s.handleSetCommandEndLocation))
+
+	s.mux.HandleFunc("GET /api/v1/probes", s.auth(s.handleListProbes))
+	s.mux.HandleFunc("GET /api/v1/probes/{probe_id}", s.auth(s.handleGetProbe))
+	s.mux.HandleFunc("PUT /api/v1/probes/{probe_id}", s.auth(s.handlePutProbe))
+	s.mux.HandleFunc("GET /api/v1/probes/{probe_id}/config", s.auth(s.handleProbeConfig))
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/cycle", s.auth(s.handleProbeCycle))
 
 	s.mux.HandleFunc("GET /api/v1/netinfo", s.auth(s.handleNetInfo))
 
@@ -594,15 +601,29 @@ func (s *Server) handleCreateCommand(w http.ResponseWriter, r *http.Request) {
 // handleClaimCommand: el router hace polling aquí (no puede recibir conexiones
 // entrantes, está detrás de NAT celular). Devuelve el comando pendiente más
 // viejo para ese device_id, o {} si no hay ninguno.
+//
+// Una sonda (MikroTik) consulta con ?probe_id= en vez de ?device_id= y recibe
+// los comandos de todos sus equipos, cada uno con su routing_table.
 func (s *Server) handleClaimCommand(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.URL.Query().Get("device_id")
-	if deviceID == "" {
-		writeErr(w, http.StatusBadRequest, "falta ?device_id=")
+	probeID := r.URL.Query().Get("probe_id")
+	if deviceID == "" && probeID == "" {
+		writeErr(w, http.StatusBadRequest, "falta ?device_id= (agente) o ?probe_id= (sonda)")
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	cmd, err := s.store.ClaimNextCommand(ctx, deviceID)
+	var cmd *store.Command
+	var err error
+	if probeID != "" {
+		if err := s.store.TouchProbe(ctx, probeID); err != nil {
+			writeErr(w, http.StatusNotFound, err.Error())
+			return
+		}
+		cmd, err = s.store.ClaimNextProbeCommand(ctx, probeID)
+	} else {
+		cmd, err = s.store.ClaimNextCommand(ctx, deviceID)
+	}
 	if err != nil {
 		log.Printf("claim command: %v", err)
 		writeErr(w, http.StatusInternalServerError, "error de consulta")
@@ -630,28 +651,30 @@ func (s *Server) handleCompleteCommand(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	deviceID, _ := s.store.DeviceIDOfCommand(ctx, id)
+	route, _ := s.store.CommandRouteOf(ctx, id)
 	measurementID, err := s.store.CompleteCommand(ctx, id, body)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.noteDeviceMeasurement(ctx, r, deviceID, measurementID)
+	s.noteDeviceMeasurement(ctx, r, route.DeviceID, measurementID, route.Runner == store.RunnerProbe)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // noteDeviceMeasurement se llama al cerrar un comando: la prueba la corrió el
-// PROPIO equipo, por su propio módem, así que la ruta de salida es "router" sin
-// ambigüedad (byDevice). De paso se aprende su IP pública, igual que en el
-// heartbeat. Best-effort: nada de esto puede romper el cierre de un comando,
-// que es el momento en que se guarda una medición real de campo.
-func (s *Server) noteDeviceMeasurement(ctx context.Context, r *http.Request, deviceID string, measurementID int64) {
+// PROPIO equipo por su módem, o una sonda por la tabla de ruteo del puerto de
+// ese equipo. En los dos casos la ruta de salida es "router" sin ambigüedad.
+// De paso se aprende su IP pública, igual que en el heartbeat (la sonda sale
+// por el mismo equipo, así que su IP también es la del equipo). Best-effort:
+// nada de esto puede romper el cierre de un comando, que es el momento en que
+// se guarda una medición real de campo.
+func (s *Server) noteDeviceMeasurement(ctx context.Context, r *http.Request, deviceID string, measurementID int64, byProbe bool) {
 	if deviceID == "" {
 		return
 	}
 	ip, status := s.clientIP(r)
 	now := time.Now().UTC()
-	e := netEvidence{byDevice: true, obs: ip, obsStatus: status, obsSource: "post", obsAt: now}
+	e := netEvidence{byDevice: !byProbe, byProbe: byProbe, obs: ip, obsStatus: status, obsSource: "post", obsAt: now}
 	if !ip.IsValid() || !usableClientIP(status) {
 		e.obsSource = "none"
 	} else {

@@ -158,6 +158,7 @@ type netEvidence struct {
 	obsASN    int    // 0 = todavía desconocido (lo llena el worker)
 	refASN    int
 	byDevice  bool // la prueba la corrió el propio equipo
+	byProbe   bool // la corrió una sonda por la tabla de ruteo del puerto del equipo
 }
 
 // netMeta es lo que NO entra en la decisión pero sí se guarda como evidencia
@@ -195,6 +196,9 @@ func classify(e netEvidence) netVerdict {
 	// así que no la afecta nada de lo de abajo.
 	if e.byDevice {
 		return netVerdict{"router", "high", "measured-by-device"}
+	}
+	if e.byProbe {
+		return netVerdict{"router", "high", "measured-by-probe"}
 	}
 	v := classifySignals(e)
 	// Peer del túnel sin verificar (ver clientIP): la IP del cliente salió de

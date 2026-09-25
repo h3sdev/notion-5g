@@ -1351,6 +1351,7 @@
     "network-changed-mid-test": "⚠ la red cambió durante la prueba: el resultado no es atribuible a ninguna",
     "relay-or-vpn": "estás saliendo por un relay o VPN (iCloud Private Relay, WARP…): no se puede saber la red real",
     "measured-by-device": "la corrió el propio equipo",
+    "measured-by-probe": "la corrió la sonda MikroTik por el puerto de este equipo",
     "asn-differs": "operador de salida distinto al del equipo",
     // Caso en que la única señal fue la pista del navegador (Android diciendo
     // que la interfaz activa es la radio). El equipo bajo prueba es un AP

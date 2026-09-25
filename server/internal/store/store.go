@@ -210,7 +210,7 @@ CREATE INDEX IF NOT EXISTS idx_phone_log_device ON phone_log(device_id, id);
 			return err
 		}
 	}
-	return nil
+	return s.migrateProbes(ctx)
 }
 
 // addColumnIfMissing corre "ALTER TABLE table ADD COLUMN colDef" e ignora el
@@ -1242,6 +1242,12 @@ type Command struct {
 	GPSSource    string   `json:"gps_source,omitempty"`
 	RequestedBy  string   `json:"requested_by,omitempty"`
 	Status       string   `json:"status"`
+	// Runner: "agent" (el propio router; también los comandos viejos sin runner)
+	// o "probe" (una sonda MikroTik, ver probes.go). En los de sonda, ProbeID y
+	// RoutingTable los resuelve el backend al crearlos, no el cliente.
+	Runner       string `json:"runner,omitempty"`
+	ProbeID      string `json:"probe_id,omitempty"`
+	RoutingTable string `json:"routing_table,omitempty"`
 }
 
 // CreateCommand: `raw` es el body que manda el celular, p.ej.
@@ -1259,12 +1265,25 @@ func (s *Store) CreateCommand(ctx context.Context, raw json.RawMessage) (int64, 
 	if c.Type == "" {
 		return 0, fmt.Errorf("falta type")
 	}
+	var routingTable string
+	switch c.Runner {
+	case "", RunnerAgent:
+		c.Runner, c.ProbeID = RunnerAgent, ""
+	case RunnerProbe:
+		pid, table, err := s.resolveProbeTarget(ctx, c.DeviceID, c.ProbeID)
+		if err != nil {
+			return 0, err
+		}
+		c.ProbeID, routingTable = pid, table
+	default:
+		return 0, fmt.Errorf("runner debe ser 'agent' o 'probe'")
+	}
 	res, err := s.db.ExecContext(ctx, `
 INSERT INTO commands (created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source,
-	requested_by, status)
-VALUES (?,?,?,?,?,?,?,?,?, 'pending')`,
+	requested_by, status, runner, probe_id, routing_table)
+VALUES (?,?,?,?,?,?,?,?,?, 'pending', ?,?,?)`,
 		time.Now().UTC().Format(time.RFC3339), c.DeviceID, c.Type, c.DurationS, c.Lat, c.Lon,
-		c.GPSAccuracyM, nullStr(c.GPSSource), nullStr(c.RequestedBy))
+		c.GPSAccuracyM, nullStr(c.GPSSource), nullStr(c.RequestedBy), c.Runner, nullStr(c.ProbeID), nullStr(routingTable))
 	if err != nil {
 		return 0, fmt.Errorf("insert command: %w", err)
 	}
@@ -1283,19 +1302,30 @@ const staleClaimAfter = 3 * time.Minute
 // 'claimed' de nuevo. Devuelve (nil, nil) si no hay ninguno disponible.
 // SetMaxOpenConns(1) en Open() serializa esto: no hay carrera real entre
 // selección y marcado aunque no use una transacción explícita.
+//
+// Solo comandos del agente: los de sonda (runner="probe") son para el MikroTik
+// que tiene ese equipo en un puerto, y el agente no los puede ejecutar.
 func (s *Store) ClaimNextCommand(ctx context.Context, deviceID string) (*Command, error) {
 	staleBefore := time.Now().UTC().Add(-staleClaimAfter).Format(time.RFC3339)
+	return s.claimWhere(ctx, `device_id = ? AND (runner IS NULL OR runner = 'agent')
+AND (status = 'pending' OR (status = 'claimed' AND claimed_at < ?))`, deviceID, staleBefore)
+}
+
+// claimWhere toma el comando más viejo que cumpla `where` y lo marca claimed.
+func (s *Store) claimWhere(ctx context.Context, where string, args ...any) (*Command, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by
+SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by,
+	runner, probe_id, routing_table
 FROM commands
-WHERE device_id = ? AND (status = 'pending' OR (status = 'claimed' AND claimed_at < ?))
-ORDER BY id ASC LIMIT 1`, deviceID, staleBefore)
+WHERE `+where+`
+ORDER BY id ASC LIMIT 1`, args...)
 
 	var c Command
 	var durationS sql.NullInt64
 	var lat, lon, acc sql.NullFloat64
-	var gpsSource, requestedBy sql.NullString
-	err := row.Scan(&c.ID, &c.CreatedAt, &c.DeviceID, &c.Type, &durationS, &lat, &lon, &acc, &gpsSource, &requestedBy)
+	var gpsSource, requestedBy, runner, probeID, table sql.NullString
+	err := row.Scan(&c.ID, &c.CreatedAt, &c.DeviceID, &c.Type, &durationS, &lat, &lon, &acc, &gpsSource, &requestedBy,
+		&runner, &probeID, &table)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1317,6 +1347,7 @@ ORDER BY id ASC LIMIT 1`, deviceID, staleBefore)
 	}
 	c.GPSSource = gpsSource.String
 	c.RequestedBy = requestedBy.String
+	c.Runner, c.ProbeID, c.RoutingTable = runner.String, probeID.String, table.String
 	c.Status = "claimed"
 
 	if _, err := s.db.ExecContext(ctx, `UPDATE commands SET status='claimed', claimed_at=? WHERE id=? AND status IN ('pending','claimed')`,
@@ -1345,10 +1376,10 @@ func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessa
 		return 0, fmt.Errorf("status debe ser 'done' o 'failed'")
 	}
 
-	row := s.db.QueryRowContext(ctx, `SELECT lat, lon, gps_accuracy_m, gps_source FROM commands WHERE id = ?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT lat, lon, gps_accuracy_m, gps_source, runner, probe_id, routing_table FROM commands WHERE id = ?`, id)
 	var lat, lon, acc sql.NullFloat64
-	var gpsSource sql.NullString
-	if err := row.Scan(&lat, &lon, &acc, &gpsSource); err != nil {
+	var gpsSource, runner, probeID, routingTable sql.NullString
+	if err := row.Scan(&lat, &lon, &acc, &gpsSource, &runner, &probeID, &routingTable); err != nil {
 		if err == sql.ErrNoRows {
 			return 0, fmt.Errorf("comando %d no existe", id)
 		}
@@ -1367,6 +1398,11 @@ func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessa
 		}
 		if acc.Valid {
 			merge["gps_accuracy_m"] = acc.Float64
+		}
+		if runner.String == RunnerProbe {
+			merge["probe_id"] = probeID.String
+			merge["routing_table"] = routingTable.String
+			merge["source"] = "mikrotik-probe"
 		}
 		// Sin clasificar: la medición la corrió el propio equipo, pero eso lo
 		// decide el servidor en noteDeviceMeasurement (que además aprende la
@@ -1388,24 +1424,13 @@ UPDATE commands SET status=?, completed_at=?, error=?, measurement_id=? WHERE id
 	return insertedID, nil
 }
 
-// DeviceIDOfCommand dice a qué equipo pertenece un comando. Se usa al cerrarlo
-// para anotar desde qué IP pública se vio salir a ese equipo (el cuerpo del
-// POST /complete no trae device_id: el agente solo manda el resultado).
-func (s *Store) DeviceIDOfCommand(ctx context.Context, id int64) (string, bool) {
-	var deviceID string
-	if err := s.db.QueryRowContext(ctx, `SELECT device_id FROM commands WHERE id = ?`, id).Scan(&deviceID); err != nil {
-		return "", false
-	}
-	return deviceID, deviceID != ""
-}
-
 // ListCommands: para depurar/verificar desde fuera qué comandos hay (todos, o
 // filtrados por device_id/status), más reciente primero.
 func (s *Store) ListCommands(ctx context.Context, deviceID, status string, limit int) ([]Command, error) {
 	if limit <= 0 || limit > 2000 {
 		limit = 100
 	}
-	q := "SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by, status FROM commands WHERE 1=1"
+	q := "SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by, status, runner, probe_id, routing_table FROM commands WHERE 1=1"
 	var args []any
 	if deviceID != "" {
 		q += " AND device_id = ?"
@@ -1429,10 +1454,14 @@ func (s *Store) ListCommands(ctx context.Context, deviceID, status string, limit
 		var c Command
 		var durationS sql.NullInt64
 		var lat, lon, acc sql.NullFloat64
-		var gpsSource, requestedBy sql.NullString
+		var gpsSource, requestedBy, runner, probeID, table sql.NullString
 		if err := rows.Scan(&c.ID, &c.CreatedAt, &c.DeviceID, &c.Type, &durationS, &lat, &lon, &acc,
-			&gpsSource, &requestedBy, &c.Status); err != nil {
+			&gpsSource, &requestedBy, &c.Status, &runner, &probeID, &table); err != nil {
 			return nil, err
+		}
+		c.Runner, c.ProbeID, c.RoutingTable = runner.String, probeID.String, table.String
+		if c.Runner == "" {
+			c.Runner = RunnerAgent
 		}
 		if durationS.Valid {
 			v := int(durationS.Int64)
