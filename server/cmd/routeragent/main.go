@@ -431,6 +431,45 @@ func readLocalStatus() (map[string]any, error) {
 		if v, ok := toFloat(lte["s_status"]); ok {
 			st["ca_secondary"] = v != 0
 		}
+
+		// Bloque NR. Hasta 2026-09-24 el agente leía SOLO el sub-objeto "lte",
+		// así que nr_band llegaba siempre nulo al backend (0 de 74 mediciones
+		// en producción lo tenían) y el dashboard no podía mostrar la
+		// combinación NSA -- que es el dato que importa en campo, porque en
+		// Colombia el 5G es siempre ENDC: ancla LTE + portadora NR a la vez.
+		//
+		// No hay documentación del firmware para este equipo y no se pudo
+		// inspeccionar un get_zcainfo con NR activo (el router venía midiendo
+		// en LTE), así que en vez de adivinar un nombre de campo se prueban los
+		// candidatos plausibles y, si no aparece ninguno, se adjunta el bloque
+		// crudo para descubrir los nombres reales con la primera medición que
+		// enganche 5G. Cuando se sepan, esto se reemplaza por los nombres
+		// exactos y se borra el volcado.
+		nr := firstMap(zca, "nr", "nr5g", "NR", "endc", "sa", "nsa")
+		if nr != nil {
+			if v, ok := firstVal(nr, "n_band", "band", "nr_band", "p_band"); ok {
+				st["nr_band"] = v
+			}
+			if v, ok := firstVal(nr, "n_pci", "pci", "p_pci"); ok {
+				st["nr_pci"] = v
+			}
+			if v, ok := firstVal(nr, "n_arfcn", "nrarfcn", "arfcn", "p_dlEuArfcn"); ok {
+				st["nr_arfcn"] = v
+			}
+			if v, ok := toFloat(firstAny(nr, "n_rsrp", "rsrp", "p_rsrp")); ok {
+				st["nr_rsrp_dbm"] = v
+			}
+			if v, ok := toFloat(firstAny(nr, "n_sinr", "sinr", "p_sinr")); ok {
+				st["nr_sinr_db"] = v
+			}
+		}
+		// Volcado de diagnóstico: solo cuando hay indicio de NR y no se pudo
+		// sacar la banda. Es chico (el propio objeto ubus) y va a parar a la
+		// columna raw del backend, que ya guarda el JSON completo. No se manda
+		// siempre para no inflar cada heartbeat del equipo.
+		if _, tieneBanda := st["nr_band"]; !tieneBanda && nr != nil {
+			st["zcainfo_nr_raw"] = nr
+		}
 	}
 	if mode, err := ubusCall("util_wan", "get_network_mode"); err == nil {
 		if nm, ok := mode["net_mode"].(map[string]any); ok {
@@ -525,6 +564,42 @@ func ubusCall(obj, method string) (map[string]any, error) {
 		return nil, fmt.Errorf("ubus %s %s: JSON inválido: %w", obj, method, err)
 	}
 	return m, nil
+}
+
+// firstMap devuelve el primer sub-objeto que exista entre los nombres dados.
+// Los firmwares de estos equipos no comparten nomenclatura entre versiones, y
+// el agente no puede fallar por eso: si no está ninguno, devuelve nil.
+func firstMap(m map[string]any, keys ...string) map[string]any {
+	for _, k := range keys {
+		if sub, ok := m[k].(map[string]any); ok && len(sub) > 0 {
+			return sub
+		}
+	}
+	return nil
+}
+
+// firstAny devuelve el valor del primer campo presente y no vacío.
+func firstAny(m map[string]any, keys ...string) any {
+	for _, k := range keys {
+		if v, ok := m[k]; ok && v != nil && v != "" {
+			return v
+		}
+	}
+	return nil
+}
+
+// firstVal es firstAny pero descartando además los valores que el firmware usa
+// como "sin dato" (0 y -1 en los campos de banda/PCI/ARFCN): mandar un 0 sería
+// peor que no mandar nada, porque el dashboard lo mostraría como banda 0.
+func firstVal(m map[string]any, keys ...string) (any, bool) {
+	v := firstAny(m, keys...)
+	if v == nil {
+		return nil, false
+	}
+	if f, ok := toFloat(v); ok && (f == 0 || f == -1) {
+		return nil, false
+	}
+	return v, true
 }
 
 func toFloat(v any) (float64, bool) {

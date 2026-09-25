@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS measurements (
 	lon_end        REAL,
 	gps_accuracy_m_end REAL,
 	gps_source_end TEXT,
+	net_route     TEXT,
+	net_asn       INTEGER,
+	net_confidence TEXT,
 	raw           TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_meas_device_ts ON measurements(device_id, ts);
@@ -131,6 +134,26 @@ CREATE TABLE IF NOT EXISTS device_locations (
 	gps_source     TEXT,
 	updated_at     TEXT NOT NULL
 );
+
+-- Última IP pública desde la que se vio salir a cada equipo, observada por el
+-- backend en las peticiones que el propio agente ya hace por el túnel
+-- (heartbeat y cierre de comando). Es la REFERENCIA contra la que se compara
+-- la IP del navegador que corre una prueba: si coinciden, esa prueba salió por
+-- el router; si no, salió por otra red (la SIM del celular, otro WiFi).
+-- No requiere ningún cambio en el agente del router.
+--
+-- Tabla NUEVA, así que acá "CREATE TABLE IF NOT EXISTS" sí alcanza: el gotcha
+-- de más abajo (columnas que no se agregan solas) aplica a tablas que ya
+-- existían en producción, no a una que se crea entera por primera vez.
+CREATE TABLE IF NOT EXISTS device_egress (
+	device_id   TEXT PRIMARY KEY,
+	ip          TEXT NOT NULL,
+	ip_family   TEXT NOT NULL,   -- "v4" | "v6"
+	asn         INTEGER,
+	asn_name    TEXT,
+	country     TEXT,
+	updated_at  TEXT NOT NULL
+);
 `)
 	if err != nil {
 		return err
@@ -153,8 +176,14 @@ CREATE TABLE IF NOT EXISTS device_locations (
 	// lat/lon/gps_accuracy_m/gps_source, sin tocar esas columnas ni los datos
 	// ya guardados -- ver SetMeasurementEndLocation). Mismo idiom que arriba:
 	// la tabla measurements ya existía en producción antes de este cambio.
+	//
+	// net_route/net_asn/net_confidence (ruta de salida por la que se midió y
+	// qué tan seguro está el servidor de eso) entran por el mismo camino y por
+	// la misma razón: la tabla measurements ya existe en producción, así que el
+	// CREATE TABLE de arriba NO las agrega.
 	for _, col := range []string{
 		"lat_end REAL", "lon_end REAL", "gps_accuracy_m_end REAL", "gps_source_end TEXT",
+		"net_route TEXT", "net_asn INTEGER", "net_confidence TEXT",
 	} {
 		if err := s.addColumnIfMissing(ctx, "measurements", col); err != nil {
 			return err
@@ -212,6 +241,48 @@ type Measurement struct {
 	LonEnd          *float64 `json:"lon_end,omitempty"`
 	GPSAccuracyMEnd *float64 `json:"gps_accuracy_m_end,omitempty"`
 	GPSSourceEnd    string   `json:"gps_source_end,omitempty"`
+	// OJO: net_route / net_asn / net_confidence NO están en este struct A
+	// PROPÓSITO. Este struct se desserializa del JSON que manda el cliente, y
+	// la ruta de salida la decide SIEMPRE el servidor: tenerla acá hacía que
+	// bastara con mandar {"net_route":"router"} en el POST para que la columna
+	// quedara escrita con lo que dijo el cliente (y la X-API-Key está en el JS
+	// del dashboard, así que alcanza con tener el link). Esas tres columnas
+	// entran por NetClassification, que es un argumento explícito de
+	// insertMeasurement, no un campo del payload. Ver InsertClassified.
+}
+
+// NetClassification es lo que el SERVIDOR decidió sobre la ruta de salida de
+// una medición. Va como argumento explícito justamente para que no pueda venir
+// del JSON del cliente: el único camino a estas columnas es el clasificador
+// (internal/api/netclass.go) o SetMeasurementNet.
+type NetClassification struct {
+	Route      string // "" (sin clasificar) | "router" | "other-network" | "unknown"
+	Confidence string // "" | "high" | "medium" | "low"
+	ASN        *int
+}
+
+// netRoutes / netConfidences: valores aceptados en las columnas. Segunda
+// barrera, además de borrarle las claves reservadas al payload: si algún día
+// otro camino llega hasta acá con basura (o con un "router" inventado en un
+// backfill), la columna queda NULL en vez de mentir. Una fila sin clasificar
+// es un dato honesto; una fila que dice "router" sin que nadie lo haya
+// verificado, no.
+var netRoutes = map[string]bool{"router": true, "other-network": true, "unknown": true}
+var netConfidences = map[string]bool{"high": true, "medium": true, "low": true}
+
+// clean deja la clasificación en valores conocidos. Una ruta inválida anula
+// también la confianza: "alta" sin ruta no significa nada.
+func (nc NetClassification) clean() NetClassification {
+	if !netRoutes[nc.Route] {
+		return NetClassification{}
+	}
+	if !netConfidences[nc.Confidence] {
+		nc.Confidence = ""
+	}
+	if nc.ASN != nil && *nc.ASN <= 0 {
+		nc.ASN = nil
+	}
+	return nc
 }
 
 // maxLocationAge: qué tan vieja puede ser la última ubicación reportada por el
@@ -258,6 +329,143 @@ func (s *Store) cachedLocation(ctx context.Context, deviceID string) (lat, lon f
 		accuracyM = &acc.Float64
 	}
 	return lat, lon, accuracyM, src.String, true
+}
+
+// ------------------------------------------------------------------ ruta de salida
+//
+// Para saber si una prueba corrida desde el navegador salió por el router o por
+// otra red (la SIM del celular, otro WiFi) hace falta una REFERENCIA: desde qué
+// IP pública se ve salir al equipo. Se aprende sola, de las peticiones que el
+// agente del router ya hace por el túnel (heartbeat y cierre de comando), sin
+// tocar nada en el equipo de campo.
+
+// maxEgressAge: qué tan vieja puede ser la última IP pública vista de un equipo
+// para seguir usándola como referencia. Mismo criterio que maxLocationAge: el
+// agente reporta cada 60s, así que 10 min ya significa que el equipo dejó de
+// reportar y la IP pudo haber rotado (CGNAT móvil). Comparar contra una IP
+// vieja daría "otra red" para una prueba que sí salió por el router.
+const maxEgressAge = 10 * time.Minute
+
+// MaxEgressAge expone maxEgressAge al paquete api, que necesita exactamente la
+// misma frontera para decidir si la referencia sirve o ya está vieja (y para
+// poder reportar la edad, por eso DeviceEgressOf no filtra por frescura).
+const MaxEgressAge = maxEgressAge
+
+// DeviceEgress es la última IP pública desde la que se vio salir a un equipo.
+// A diferencia de lo que se guarda de un celular (solo el prefijo), acá va la
+// dirección exacta a propósito: es la IP del CPE bajo prueba, no la de una
+// persona, es el discriminador de toda la clasificación, y es un último-valor
+// que se sobreescribe cada minuto, no un archivo histórico.
+type DeviceEgress struct {
+	DeviceID  string
+	IP        string // dirección exacta ya normalizada (Unmap, sin zona)
+	Family    string // "v4" | "v6"
+	ASN       *int
+	ASNName   string
+	Country   string
+	UpdatedAt time.Time
+}
+
+// SetDeviceEgress guarda la última IP pública desde la que se vio salir al
+// equipo. Si la IP cambió respecto de la guardada, invalida asn/asn_name: el
+// ASN viejo puede no corresponder a la IP nueva (rotación de CGNAT), y un ASN
+// equivocado en la referencia es peor que no tenerlo -- haría que una prueba
+// hecha por el router se marque como "otra red".
+func (s *Store) SetDeviceEgress(ctx context.Context, deviceID, ip, family, country string) error {
+	if deviceID == "" {
+		return fmt.Errorf("falta device_id")
+	}
+	if ip == "" || family == "" {
+		return fmt.Errorf("falta ip/familia")
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO device_egress (device_id, ip, ip_family, asn, asn_name, country, updated_at)
+VALUES (?,?,?,NULL,NULL,?,?)
+ON CONFLICT(device_id) DO UPDATE SET
+	ip=excluded.ip, ip_family=excluded.ip_family, country=excluded.country,
+	updated_at=excluded.updated_at,
+	asn      = CASE WHEN excluded.ip <> device_egress.ip THEN NULL ELSE device_egress.asn END,
+	asn_name = CASE WHEN excluded.ip <> device_egress.ip THEN NULL ELSE device_egress.asn_name END`,
+		deviceID, ip, family, nullStr(country), time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("guardar ip de salida: %w", err)
+	}
+	return nil
+}
+
+// DeviceEgressOf devuelve la referencia guardada; ok=false si no hay ninguna.
+// La frescura NO se decide acá a propósito: el llamador necesita la edad para
+// poder reportarla ("el equipo no reporta hace más de 10 minutos" es un
+// diagnóstico útil, "no hay referencia" no lo es).
+func (s *Store) DeviceEgressOf(ctx context.Context, deviceID string) (DeviceEgress, bool) {
+	if deviceID == "" {
+		return DeviceEgress{}, false
+	}
+	row := s.db.QueryRowContext(ctx, `
+SELECT ip, ip_family, asn, asn_name, country, updated_at FROM device_egress WHERE device_id = ?`, deviceID)
+	var e DeviceEgress
+	var asn sql.NullInt64
+	var asnName, country sql.NullString
+	var updatedAt string
+	if err := row.Scan(&e.IP, &e.Family, &asn, &asnName, &country, &updatedAt); err != nil {
+		return DeviceEgress{}, false
+	}
+	t, err := time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return DeviceEgress{}, false
+	}
+	e.DeviceID = deviceID
+	if asn.Valid && asn.Int64 > 0 {
+		v := int(asn.Int64)
+		e.ASN = &v
+	}
+	e.ASNName = asnName.String
+	e.Country = country.String
+	e.UpdatedAt = t
+	return e, true
+}
+
+// SetDeviceEgressASN completa el ASN de la referencia, solo si la IP guardada
+// sigue siendo la misma que se resolvió. Si rotó mientras corría la consulta
+// DNS, el resultado ya no aplica y escribirlo sería peor que no escribir nada.
+func (s *Store) SetDeviceEgressASN(ctx context.Context, deviceID, ip string, asn int, name string) error {
+	if deviceID == "" || ip == "" || asn <= 0 {
+		return fmt.Errorf("faltan datos para guardar el asn de salida")
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE device_egress SET asn=?, asn_name=? WHERE device_id=? AND ip=?`,
+		asn, nullStr(name), deviceID, ip)
+	if err != nil {
+		return fmt.Errorf("guardar asn de salida: %w", err)
+	}
+	return nil
+}
+
+// SetMeasurementNet reescribe la clasificación de una medición ya insertada.
+// La llama SOLO el worker asíncrono de ASN (y el cierre de comando), nunca el
+// camino del POST: resolver un ASN es un round trip de DNS y la ingesta no
+// puede depender de eso.
+//
+// Usa overwriteRawFields, no mergeIntoRaw: estos campos los pone SIEMPRE el
+// servidor (al cliente se le borran del payload antes de insertar), así que
+// pisar lo que haya es lo correcto -- lo que hay es la clasificación previa,
+// hecha con una señal menos.
+func (s *Store) SetMeasurementNet(ctx context.Context, id int64, nc NetClassification, rawFields map[string]any) error {
+	nc = nc.clean()
+	var raw string
+	if err := s.db.QueryRowContext(ctx, `SELECT raw FROM measurements WHERE id = ?`, id).Scan(&raw); err != nil {
+		return fmt.Errorf("leer medición %d: %w", id, err)
+	}
+	merged, err := overwriteRawFields(json.RawMessage(raw), rawFields)
+	if err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`UPDATE measurements SET net_route=?, net_asn=?, net_confidence=?, raw=? WHERE id=?`,
+		nullStr(nc.Route), nc.ASN, nullStr(nc.Confidence), string(merged), id); err != nil {
+		return fmt.Errorf("guardar clasificación de red: %w", err)
+	}
+	return nil
 }
 
 // mergeIntoRaw agrega/completa campos en un JSON crudo sin pisar los que ya
@@ -347,15 +555,27 @@ UPDATE measurements SET lat_end=?, lon_end=?, gps_accuracy_m_end=?, gps_source_e
 }
 
 // InsertRaw guarda un payload JSON arbitrario: extrae los campos conocidos a
-// columnas indexadas y conserva el objeto completo en raw.
+// columnas indexadas y conserva el objeto completo en raw. La fila queda SIN
+// clasificar (net_route NULL), que es lo correcto para todo lo que no pasó por
+// el clasificador: notion5g.py, el agente del router y las mediciones que
+// entran al cerrar un comando (esas las clasifica después noteDeviceMeasurement).
 func (s *Store) InsertRaw(ctx context.Context, raw json.RawMessage) (int64, error) {
-	return s.insertMeasurement(ctx, raw, nil)
+	return s.insertMeasurement(ctx, raw, nil, NetClassification{})
+}
+
+// InsertClassified es InsertRaw con la ruta de salida que calculó el servidor.
+// Es el ÚNICO camino por el que se escriben net_route/net_asn/net_confidence en
+// un insert, y el valor llega por parámetro, nunca desde el JSON del cliente.
+func (s *Store) InsertClassified(ctx context.Context, raw json.RawMessage, nc NetClassification) (int64, error) {
+	return s.insertMeasurement(ctx, raw, nil, nc)
 }
 
 // insertMeasurement es InsertRaw con un merge opcional de campos (usado por
 // CompleteCommand para inyectar la ubicación que mandó el celular en una
-// medición que reportó el router, que no tiene GPS propio).
-func (s *Store) insertMeasurement(ctx context.Context, raw json.RawMessage, mergeFields map[string]any) (int64, error) {
+// medición que reportó el router, que no tiene GPS propio) y con la
+// clasificación de red que decidió el servidor.
+func (s *Store) insertMeasurement(ctx context.Context, raw json.RawMessage, mergeFields map[string]any, nc NetClassification) (int64, error) {
+	nc = nc.clean()
 	if len(mergeFields) > 0 {
 		merged, err := mergeIntoRaw(raw, mergeFields)
 		if err != nil {
@@ -387,13 +607,15 @@ func (s *Store) insertMeasurement(ctx context.Context, raw json.RawMessage, merg
 	res, err := s.db.ExecContext(ctx, `
 INSERT INTO measurements (received_at, device_id, source, tag, ts, operator, rat, band_lte, nr_band, pci,
 	rsrp_dbm, rsrq_db, sinr_db, rssi_dbm, eps_reg, nr_reg, lat, lon, gps_accuracy_m, gps_source, uptime_s,
-	down_mbps, up_mbps, ping_ms, jitter_ms, via_modem, note, lat_end, lon_end, gps_accuracy_m_end, gps_source_end, raw)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	down_mbps, up_mbps, ping_ms, jitter_ms, via_modem, note, lat_end, lon_end, gps_accuracy_m_end, gps_source_end,
+	net_route, net_asn, net_confidence, raw)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		time.Now().UTC().Format(time.RFC3339), m.DeviceID, nullStr(m.Source), nullStr(m.Tag), nullStr(m.TS),
 		nullStr(m.Operator), nullStr(m.RAT), m.BandLTE, m.NRBand, m.PCI, m.RSRPDbm, m.RSRQDb, m.SINRDb, m.RSSIDbm,
 		m.EPSReg, m.NRReg, m.Lat, m.Lon, m.GPSAccuracyM, nullStr(m.GPSSource), m.UptimeS, m.DownMbps, m.UpMbps,
 		m.PingMs, m.JitterMs, boolToInt(m.ViaModem), nullStr(m.Note),
-		m.LatEnd, m.LonEnd, m.GPSAccuracyMEnd, nullStr(m.GPSSourceEnd), string(raw))
+		m.LatEnd, m.LonEnd, m.GPSAccuracyMEnd, nullStr(m.GPSSourceEnd),
+		nullStr(nc.Route), nc.ASN, nullStr(nc.Confidence), string(raw))
 	if err != nil {
 		return 0, fmt.Errorf("insert: %w", err)
 	}
@@ -456,6 +678,11 @@ type ListFilter struct {
 	Tag      string
 	Operator string
 	Since    string // RFC3339; vacío = sin filtro
+	// NetRoute filtra por ruta de salida: "router" | "other-network" |
+	// "unknown", o "none" para ver SOLO las que no tienen clasificación
+	// (todo lo anterior a esta función, útil para auditar el histórico).
+	// Vacío = sin filtro.
+	NetRoute string
 	Limit    int
 }
 
@@ -482,6 +709,13 @@ func (s *Store) ListRaw(ctx context.Context, f ListFilter) ([]json.RawMessage, e
 	if f.Since != "" {
 		q += " AND ts >= ?"
 		args = append(args, f.Since)
+	}
+	// "none" = solo las viejas/sin clasificar; útil para auditar el histórico.
+	if f.NetRoute == "none" {
+		q += " AND net_route IS NULL"
+	} else if f.NetRoute != "" {
+		q += " AND net_route = ?"
+		args = append(args, f.NetRoute)
 	}
 	q += " ORDER BY id DESC LIMIT ?"
 	args = append(args, f.Limit)
@@ -580,7 +814,12 @@ type GroupSummary struct {
 
 // Summary agrupa por operator|tag|device_id y calcula promedio + mediana de
 // down/up_mbps (sqlite no trae MEDIAN, así que se calcula en Go).
-func (s *Store) Summary(ctx context.Context, groupBy string, since string) ([]GroupSummary, error) {
+//
+// netRoute vacío = sin filtro, o sea exactamente el comportamiento de siempre.
+// Existe porque group_by=device_id y group_by=tag hoy mezclan mediciones hechas
+// por otra red con las del equipo; group_by=operator no, porque ya filtra
+// "operator IS NOT NULL" y la prueba del navegador no manda operator.
+func (s *Store) Summary(ctx context.Context, groupBy string, since string, netRoute string) ([]GroupSummary, error) {
 	col := map[string]string{"operator": "operator", "tag": "tag", "device_id": "device_id"}[groupBy]
 	if col == "" {
 		col = "operator"
@@ -590,6 +829,12 @@ func (s *Store) Summary(ctx context.Context, groupBy string, since string) ([]Gr
 	if since != "" {
 		q += " AND ts >= ?"
 		args = append(args, since)
+	}
+	if netRoute == "none" {
+		q += " AND net_route IS NULL"
+	} else if netRoute != "" {
+		q += " AND net_route = ?"
+		args = append(args, netRoute)
 	}
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -790,10 +1035,23 @@ FROM heartbeats WHERE device_id = ? AND received_at = ? ORDER BY id DESC LIMIT 1
 			ds.LossPct = &lossPct.Float64
 		}
 
+		// La velocidad titular del equipo NO puede salir de una prueba que se
+		// midió por otra red (la SIM del celular, otro WiFi): sería el número
+		// grande del dashboard mintiendo. Las filas viejas (net_route NULL) se
+		// siguen aceptando para no esconder todo el histórico de un saque.
+		//
+		// Tampoco puede salir de un "router" de confianza BAJA: esos son los
+		// casos en que la única evidencia es que la IP pública coincide con la
+		// del equipo, y bajo el CGNAT móvil eso también pasa cuando el celular
+		// mide por su propia SIM y le toca la misma IP del pool del operador
+		// (ver ipSignal en internal/api/netclass.go). La medición se guarda y se
+		// muestra etiquetada, pero no asciende al número grande.
 		var down, up sql.NullFloat64
 		srow := s.db.QueryRowContext(ctx, `
 SELECT down_mbps, up_mbps FROM measurements
 WHERE device_id = ? AND down_mbps IS NOT NULL
+  AND (net_route IS NULL
+       OR (net_route = 'router' AND net_confidence IN ('high','medium')))
 ORDER BY id DESC LIMIT 1`, d.deviceID)
 		if err := srow.Scan(&down, &up); err != nil && err != sql.ErrNoRows {
 			return nil, fmt.Errorf("leer velocidad de %s: %w", d.deviceID, err)
@@ -968,17 +1226,20 @@ ORDER BY id ASC LIMIT 1`, deviceID, staleBefore)
 // CompleteCommand cierra un comando: guarda éxito/error y, si viene una
 // medición, la inserta fusionándole la ubicación que traía el comando
 // original (el router no la conoce; se la puso el celular al crearlo).
-func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessage) error {
+// Devuelve el id de la medición insertada (0 si el comando no trajo ninguna),
+// para que la capa HTTP pueda clasificarle la ruta de salida: una medición que
+// llega por acá la corrió el propio equipo, o sea que salió por su módem.
+func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessage) (int64, error) {
 	var body struct {
 		Status      string          `json:"status"` // "done" | "failed"
 		Error       string          `json:"error,omitempty"`
 		Measurement json.RawMessage `json:"measurement,omitempty"`
 	}
 	if err := json.Unmarshal(raw, &body); err != nil {
-		return fmt.Errorf("payload inválido: %w", err)
+		return 0, fmt.Errorf("payload inválido: %w", err)
 	}
 	if body.Status != "done" && body.Status != "failed" {
-		return fmt.Errorf("status debe ser 'done' o 'failed'")
+		return 0, fmt.Errorf("status debe ser 'done' o 'failed'")
 	}
 
 	row := s.db.QueryRowContext(ctx, `SELECT lat, lon, gps_accuracy_m, gps_source FROM commands WHERE id = ?`, id)
@@ -986,11 +1247,12 @@ func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessa
 	var gpsSource sql.NullString
 	if err := row.Scan(&lat, &lon, &acc, &gpsSource); err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("comando %d no existe", id)
+			return 0, fmt.Errorf("comando %d no existe", id)
 		}
-		return fmt.Errorf("leer comando: %w", err)
+		return 0, fmt.Errorf("leer comando: %w", err)
 	}
 
+	var insertedID int64
 	var measurementID any
 	if len(body.Measurement) > 0 {
 		merge := map[string]any{"gps_source": gpsSource.String}
@@ -1003,20 +1265,35 @@ func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessa
 		if acc.Valid {
 			merge["gps_accuracy_m"] = acc.Float64
 		}
-		mid, err := s.insertMeasurement(ctx, body.Measurement, merge)
+		// Sin clasificar: la medición la corrió el propio equipo, pero eso lo
+		// decide el servidor en noteDeviceMeasurement (que además aprende la
+		// IP pública del equipo), no el JSON que mandó el agente.
+		mid, err := s.insertMeasurement(ctx, body.Measurement, merge, NetClassification{})
 		if err != nil {
-			return fmt.Errorf("insertar medición del comando: %w", err)
+			return 0, fmt.Errorf("insertar medición del comando: %w", err)
 		}
 		measurementID = mid
+		insertedID = mid
 	}
 
 	_, err := s.db.ExecContext(ctx, `
 UPDATE commands SET status=?, completed_at=?, error=?, measurement_id=? WHERE id=?`,
 		body.Status, time.Now().UTC().Format(time.RFC3339), nullStr(body.Error), measurementID, id)
 	if err != nil {
-		return fmt.Errorf("cerrar comando: %w", err)
+		return 0, fmt.Errorf("cerrar comando: %w", err)
 	}
-	return nil
+	return insertedID, nil
+}
+
+// DeviceIDOfCommand dice a qué equipo pertenece un comando. Se usa al cerrarlo
+// para anotar desde qué IP pública se vio salir a ese equipo (el cuerpo del
+// POST /complete no trae device_id: el agente solo manda el resultado).
+func (s *Store) DeviceIDOfCommand(ctx context.Context, id int64) (string, bool) {
+	var deviceID string
+	if err := s.db.QueryRowContext(ctx, `SELECT device_id FROM commands WHERE id = ?`, id).Scan(&deviceID); err != nil {
+		return "", false
+	}
+	return deviceID, deviceID != ""
 }
 
 // ListCommands: para depurar/verificar desde fuera qué comandos hay (todos, o

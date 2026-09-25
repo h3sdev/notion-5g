@@ -200,6 +200,26 @@ main {
 .rat-4g { background: rgba(79,140,255,0.18); color: var(--accent); }
 .rat-other { background: rgba(139,147,184,0.18); color: var(--muted); }
 
+/* Ruta de salida por la que se midió (la calcula el servidor, ver
+   routeBadge() en app.js). Sin font-weight:700 a propósito: no compite
+   visualmente con la etiqueta de red/banda, que es el dato del equipo.
+   white-space:nowrap para que "⚠ otra red Telmex Colombia S.A." no se parta
+   en dos renglones dentro de la celda. */
+.route-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; white-space:nowrap; }
+.route-router  { background: rgba(55,201,116,0.18); color: var(--ok); }
+.route-other   { background: rgba(255,93,108,0.15); color: var(--err); }
+.route-unknown { background: rgba(139,147,184,0.18); color: var(--muted); }
+/* "vía router" con confianza baja: la única evidencia es que la IP pública
+   coincide, y bajo el CGNAT móvil eso también pasa cuando el celular mide por
+   su propia SIM. No se pinta de verde: verde es "confirmado". */
+.route-maybe   { background: rgba(255,184,79,0.16); color: var(--warn); }
+
+/* La caja "Red de salida" acompaña al badge con el borde: en campo, con sol en
+   la pantalla, hay que poder ver de reojo que se está por medir por otra red
+   sin leer el detalle. */
+#net-box.net-router { border-color: var(--ok); }
+#net-box.net-other { border-color: var(--err); }
+
 .online-badge {
   display: inline-flex;
   align-items: center;

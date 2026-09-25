@@ -230,6 +230,116 @@ docker: `notion5g`. Volumen de datos: `notion-5g-server_notion5g_data` (persiste
   con `limit` alto y procesar a mano.
 - La app Flutter (`mobile/`) quedó completa pero sin uso; si más adelante se necesita background real
   (pantalla apagada), ese es el punto de partida — ver su propio README para lo que falta
-  (`flutter_foreground_task`/`workmanager`, `FOREGROUND_SERVICE_LOCATION`).
+  (`flutter_foreground_task`/`workmanager`, `FOREGROUND_SERVICE_LOCATION`). **Ojo: ese directorio no
+  está en el checkout del VPS ni en la máquina de Diego, solo el backend.** Antes de retomarlo, leer
+  `docs/PLAN-APP-MOVIL.md` (2026-09-19): la conclusión es que iOS no expone señal celular por ninguna
+  API pública, y que el camino de mejor relación costo/beneficio no es la app sino dejar de tirar los
+  datos que el agente del router YA lee (ver `readLocalStatus` vs `sendHeartbeat`).
 - Considerar mover `DEFAULT_API_KEY` (§5.4) a algo menos expuesto si el link del dashboard se
   comparte más ampliamente.
+
+## Addendum 2026-09-19 — pruebas de dos equipos en paralelo
+
+Revisión disparada por la pregunta de campo: "¿qué pasa si quiero probar dos equipos a la vez?".
+
+**Lo que ya funcionaba:** el backend es multi-equipo de nacimiento — comandos, heartbeats y
+mediciones van por `device_id`, y cada router hace su propio polling de `/commands/next`, así que
+dos routers reportando en simultáneo no se pisan ni compiten por nada.
+
+**Lo que no:**
+
+1. El dashboard mantiene un solo `state.selectedDeviceId` y no tenía URL por equipo, así que no
+   había forma de fijar una pestaña a un equipo (un refresh volvía a la lista). Se agregó ruteo por
+   hash: `/#/device/<device_id>`. Dos equipos = dos pestañas (o dos celulares, uno por router, que
+   es lo que hace falta igual: un navegador está conectado a un solo router a la vez).
+2. Dos pruebas de velocidad simultáneas contra `/api/v1/speedtest/*` se reparten el enlace del VPS
+   y las dos salen bajas, sin ninguna señal de que pasó. Ahora el servidor cuenta las pruebas en
+   vuelo (`Server.speedInFlight`) y lo publica en `X-Speedtest-Concurrent` (descarga) y en el JSON
+   de `/upload`. El dashboard toma el máximo de los dos — el contador de la descarga se lee al
+   empezar, así que el primero de los dos equipos vería 1 si el otro entra después — lo avisa en
+   pantalla y lo guarda en la medición como `concurrent_tests`.
+3. Se agregó el botón **"Prueba contra Internet (Cloudflare)"** (`speed.cloudflare.com`), que es la
+   forma correcta de medir dos equipos en paralelo: cada navegador llega a un edge distinto del CDN,
+   no topea por el enlace del VPS y da además ping/jitter. Se guarda con
+   `tag=browser-speedtest-cloudflare`.
+
+**fast.com quedó descartado, no pendiente:** sus endpoints no mandan cabeceras CORS (verificado con
+`curl -H Origin:` el 2026-09-19), así que el navegador no deja leer la respuesta. Proxearlo por el
+backend mediría el enlace del VPS contra Netflix, no el del equipo — no responde la pregunta.
+
+## Addendum 2026-09-24 — combinaciones NSA en el resumen de bandas
+
+Diego reportó que el resumen de bandas no muestra qué combinaciones NSA se midieron. Eran dos
+problemas distintos, uno de UI y uno de fondo:
+
+1. **UI:** `renderBandSummary` aplanaba `band_lte` y `nr_band` en dos conjuntos independientes, así
+   que el emparejamiento se perdía. Ahora cuenta además cada PAR observado en las mediciones cuyo
+   `rat` es NSA/ENDC y lo muestra como "Combinaciones NSA medidas" (`B2 + n78 ×4`). De paso, las
+   bandas ahora se ordenan por número: antes el orden alfabético daba B2, B28, B4, B7.
+
+2. **De fondo — por esto estaba vacío:** el agente leía SOLO el sub-objeto `lte` de `get_zcainfo`
+   (`cmd/routeragent/main.go:415`), así que `nr_band` llegaba **siempre** nulo. Verificado contra
+   producción: 0 de 74 mediciones tenían `nr_band`, y había 4 marcadas `5G-NSA` con `band_lte=2` y
+   NR nulo. El agente ahora lee también el bloque NR.
+
+**Ojo con el bloque NR:** no hay documentación del firmware de este equipo y no se pudo inspeccionar
+un `get_zcainfo` con NR activo (el router venía midiendo en LTE), así que **los nombres de los campos
+NR son candidatos, no están confirmados**. El código prueba varios (`n_band`/`band`/`nr_band`/`p_band`
+dentro de `nr`/`nr5g`/`endc`/...) y, si no encuentra la banda pero sí el bloque, adjunta el objeto
+crudo en `zcainfo_nr_raw` — que termina en la columna `raw` del backend. Con la primera medición que
+enganche 5G se ven los nombres reales; ahí se reemplaza por los exactos y se borra el volcado.
+
+Hasta que eso pase, el dashboard muestra honestamente `B2 + NR sin identificar` y explica por qué,
+en vez de omitir la combinación o inventar una banda.
+
+**Esto requiere reinstalar el agente en el router** (no alcanza con redesplegar el backend):
+
+```bash
+cd ~/notion-5g-server
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w" \
+    -o routeragent-arm ./cmd/routeragent
+# copiar a /data/routeragent-arm en el equipo (cron ya lo invoca cada 5 min)
+```
+
+## Addendum 2026-09-25 — estado del despliegue y pendientes
+
+**Desplegado en producción el 2026-09-24** (`docker compose up -d --build server` + purga de
+Cloudflare), con copia previa de la base en el scratchpad de esa sesión
+(`backup-prod-20260924-022439/`, con WAL; 74 mediciones / 1505 heartbeats / 43 comandos):
+
+- Ruteo por hash, aviso de pruebas concurrentes y prueba contra Cloudflare (addendum 2026-09-19).
+- **Identificación de la red de salida** (`internal/api/clientip.go`, `netclass.go`, `asn.go`):
+  el servidor cruza la IP de `CF-Connecting-IP` contra la IP pública del router (de sus heartbeats,
+  tabla `device_egress`), el ASN por DNS de Team Cymru y `navigator.connection.type`, y guarda
+  `net_route`/`net_asn` con confianza `high`/`medium`/`unknown` (nunca `router` por defecto; CGNAT y
+  mismo /48 IPv6 cuentan como señal débil). Lo que manda el cliente en `net_route`/`net_asn` se
+  ignora. El ASN del router se resuelve **perezosamente** (no en la ingesta del heartbeat): que salga
+  `null` al principio es esperado. Diagnóstico: `GET /api/v1/netinfo?debug=1`.
+  Gate verificado en vivo: `cf_connecting_ip` llega por el túnel, `trusted_proxy: true`.
+- Combinaciones NSA en el resumen de bandas (UI, addendum 2026-09-24).
+
+Migración limpia (sin `no such column`), sin pérdida de datos.
+
+**Pendientes, en orden:**
+
+1. **Reinstalar el agente del router — NO está hecho.** Comprobado el 2026-09-25: 0 de 75
+   mediciones traen `nr_band` o `zcainfo_nr_raw`, así que el equipo sigue con el binario viejo. El
+   módem está detrás de NAT celular y no es alcanzable desde el VPS; hay que copiarlo con el equipo a
+   mano. El binario quedó compilado en un scratchpad de `/tmp` (volátil, no confiar en que siga):
+   recompilar con el comando de arriba y copiar a `/data/routeragent-arm`.
+2. **Con el agente nuevo y el router en 5G**, leer `zcainfo_nr_raw` en la columna `raw`, reemplazar
+   los nombres candidatos del bloque NR por los reales y borrar el volcado. Esto además responde el
+   gate de la fase 0 de `docs/PLAN-APP-MOVIL.md` (¿el router expone banda/PCI NR?), que decide si la
+   app Android vale la pena.
+3. **Probar la identificación de red desde el celular en campo:** `netinfo?debug=1` una vez por datos
+   móviles y otra por el WiFi del router. Si salen la misma IP, es CGNAT compartido o se está saliendo
+   por el router sin querer — cambia la confianza que se va a ver.
+4. **Fuente de verdad desincronizada.** Desde el 2026-09-19 se viene editando **directo en este
+   VPS** (no por rsync desde el repo `notion-5g` de la WSL de Diego), así que el repo quedó atrás:
+   falta todo lo de identificación de red, NSA, paralelismo y `docs/PLAN-APP-MOVIL.md`. Este
+   directorio no es un repo git. Antes del próximo `rsync` desde el repo hay que traer estos cambios
+   de vuelta (rsync en sentido inverso, excluyendo `data`/`.env`/`docker-compose.yml`/`cf-tunnel.sh`)
+   y commitearlos allá, o el rsync de §6 los borra.
+5. Aclarar la frecuencia real del cron del agente en el router: §3/§4 dicen cada 1 minuto y el
+   addendum 2026-09-24 dice cada 5. Verificar con `crontab -l` en el equipo.
+6. Siguen abiertos los de §7 (exportación CSV, `DEFAULT_API_KEY` expuesta).

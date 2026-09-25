@@ -75,6 +75,48 @@
       </p>
 
       <div class="detail-actions" style="margin-top:10px">
+        <button id="run-cf-speedtest" type="button" class="btn-primary">Prueba contra Internet (Cloudflare)</button>
+        <span id="cf-speedtest-status" class="muted"></span>
+      </div>
+      <p class="muted" style="margin-top:-6px">
+        Igual que la de arriba, pero midiendo contra un CDN público en vez de contra este servidor.
+        Es la que hay que usar para <strong>probar dos equipos en paralelo</strong>: si los dos miden
+        contra este backend al mismo tiempo se reparten el enlace del VPS y las dos mediciones salen
+        bajas (cuando eso pasa, la prueba de arriba ahora lo avisa y lo deja anotado en la medición).
+        No se usa fast.com porque sus endpoints no permiten leerse desde otra página (sin CORS);
+        Cloudflare sí, y da además ping y jitter.
+      </p>
+
+      <p class="muted">
+        Para seguir dos equipos a la vez: abrí esta página en un celular conectado a cada router y
+        entrá al equipo que le corresponde — el link queda como
+        <code>/#/device/&lt;device_id&gt;</code>, así que se puede guardar y recargar sin perder el
+        equipo seleccionado. Cada pestaña maneja su propio modo en movimiento y sus propias pruebas.
+      </p>
+
+      <div id="net-box" class="summary-box" style="margin-top:10px">
+        <span class="summary-label">Red de salida:</span>
+        <span id="net-badge" class="rat-badge rat-other">detectando...</span>
+        <span id="net-detail" class="muted"></span>
+        <button id="net-refresh" type="button" class="btn-link">Volver a detectar</button>
+      </div>
+      <div class="filter-row" style="margin-top:6px">
+        <label for="net-declared">Voy a medir</label>
+        <select id="net-declared">
+          <option value="">Detectar sola (recomendado)</option>
+          <option value="router">Por el router (WiFi o cable)</option>
+          <option value="phone-cellular">Por los datos móviles de este celular</option>
+          <option value="other-wifi">Por otra red WiFi</option>
+        </select>
+      </div>
+      <p class="muted" style="margin-top:4px">
+        Lo que se guarda es la red que el servidor <strong>detecta</strong>, no la que elijas acá: lo
+        declarado queda anotado al lado para poder revisar después si no coincidieron. Podés medir por
+        los datos del celular a propósito — la prueba se guarda igual, marcada como otra red, y no
+        ensucia la velocidad del equipo.
+      </p>
+
+      <div class="detail-actions" style="margin-top:10px">
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
           <input type="checkbox" id="movement-toggle" />
           <span>Modo en movimiento (manda la ubicación del navegador cada 15s)</span>
@@ -96,6 +138,14 @@
         <select id="operator-filter">
           <option value="">Todos los operadores</option>
         </select>
+        <label for="route-filter">Filtrar por salida</label>
+        <select id="route-filter">
+          <option value="">Todas las salidas</option>
+          <option value="router">Solo por el router</option>
+          <option value="other-network">Solo por otra red</option>
+          <option value="unknown">Sin determinar</option>
+          <option value="none">Sin clasificar (anteriores)</option>
+        </select>
       </div>
 
       <div id="band-summary" class="summary-box"></div>
@@ -113,6 +163,7 @@
             <tr>
               <th>Fecha</th>
               <th>Operador</th>
+              <th>Salida</th>
               <th>Banda</th>
               <th>RSRP / RSRQ / SINR</th>
               <th>↓ Mbps</th>

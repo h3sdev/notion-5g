@@ -51,8 +51,8 @@ en `~/.config/h3s/credentials.env` en el VPS.
 | `GET /api/v1/commands/next?device_id=` | El router hace *polling* aquí (no puede recibir conexiones entrantes por su NAT celular) y se lleva el comando pendiente más viejo, marcado `claimed`. |
 | `POST /api/v1/commands/{id}/complete` | El router reporta el resultado: `{"status":"done","measurement":{...}}` o `{"status":"failed","error":"..."}`. La ubicación del comando original se fusiona automáticamente en la medición (el módem no tiene GPS propio). |
 | `GET /api/v1/commands` | Lista/filtra comandos por `device_id`/`status`, para depurar. |
-| `GET /api/v1/speedtest/download?bytes=N` | Sink de descarga (por defecto 10 MB, tope 500 MB) para medir velocidad contra este mismo servidor. |
-| `POST /api/v1/speedtest/upload` | Sink de subida: lee y descarta el body, devuelve `received_bytes`. |
+| `GET /api/v1/speedtest/download?bytes=N` | Sink de descarga (por defecto 10 MB, tope 500 MB) para medir velocidad contra este mismo servidor. Devuelve `X-Speedtest-Concurrent`: cuántas pruebas están corriendo a la vez contra este backend. |
+| `POST /api/v1/speedtest/upload` | Sink de subida: lee y descarta el body, devuelve `received_bytes` y `concurrent`. |
 
 Todo excepto `/healthz` requiere el header `X-API-Key` si `API_KEY` está
 definida (siempre debería estarlo fuera de desarrollo local).
@@ -112,3 +112,36 @@ cada 5 min en `/etc/crontabs/root` (persiste reinicios: esa ruta es symlink a
   en Colombia; para medir el **techo real** de velocidad (que puede superar la
   capacidad de subida del servidor de oficina) se sigue recomendando un
   servidor Ookla público de alta capacidad, como ya hace `notion5g.py speed`.
+
+## Probar dos equipos en paralelo
+
+El backend nunca fue el problema: comandos, heartbeats y mediciones están
+indexados por `device_id` y cada router hace su propio polling, así que dos (o
+diez) equipos reportando al mismo tiempo no se pisan. Lo que sí hay que tener
+en cuenta en campo:
+
+- **El dashboard maneja un equipo por pestaña.** `state.selectedDeviceId` es
+  uno solo, y entrar a otro equipo apaga el modo en movimiento del anterior.
+  Para seguir dos equipos a la vez hay que abrir **dos pestañas o dos
+  celulares** — uno conectado al WiFi de cada router. Desde 2026-09-19 la
+  vista de detalle tiene URL propia (`/#/device/<device_id>`), así que ese link
+  se guarda, se comparte y sobrevive a un refresh sin volver a la lista.
+- **Dos pruebas contra `/api/v1/speedtest/*` al mismo tiempo se reparten el
+  enlace del VPS**, y las dos mediciones salen bajas sin que se note. El
+  servidor ahora cuenta las pruebas en vuelo y lo devuelve en el header
+  `X-Speedtest-Concurrent` (y en el JSON de `/upload`); el dashboard lo lee, lo
+  avisa en pantalla y lo deja anotado en la medición (`concurrent_tests`).
+- Para medir en paralelo de verdad está el botón **"Prueba contra Internet
+  (Cloudflare)"**: mide contra `speed.cloudflare.com` (CDN global), así que ni
+  topea por el enlace del VPS ni compite con el otro equipo. Guarda la medición
+  igual, con `tag=browser-speedtest-cloudflare` y además `ping_ms`/`jitter_ms`.
+
+### ¿Y fast.com?
+
+No se puede desde el navegador: los endpoints de Netflix (`api.fast.com` y sus
+CDN) **no mandan cabeceras CORS** (verificado 2026-09-19: la respuesta no trae
+`Access-Control-Allow-Origin`), así que el navegador bloquea la lectura desde
+esta página. Proxearlo por el backend tampoco sirve: mediría el enlace del VPS
+contra Netflix, no el del equipo. `speed.cloudflare.com` es el equivalente que
+sí permite CORS (`Access-Control-Allow-Origin: *` en `__down` y en `__up`) y es
+lo que se usa en su lugar.
