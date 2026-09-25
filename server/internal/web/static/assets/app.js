@@ -532,22 +532,35 @@
     return "—";
   }
 
-  // drainPerHour: %/h en el tramo más reciente en que la batería estuvo
-  // descargándose sin interrupción. Con menos de 20 min de tramo el número es
-  // ruido (la batería se reporta en pasos de 1%), así que no se muestra.
-  function drainPerHour(rows) {
-    var newest = null;
-    var oldest = null;
+  // batteryTrend: pendiente real del % de batería (regresión lineal) en la
+  // última hora de datos, sin mirar si Android dice "cargando": un cargador
+  // inalámbrico flojo reporta "charging" mientras la batería igual baja, y eso
+  // es justo lo que hay que ver. rate > 0 = baja (%/h), < 0 = sube. Con menos
+  // de 20 min de datos el número es ruido (la batería va en pasos de 1%).
+  var TREND_WINDOW_H = 1;
+  function batteryTrend(rows) {
+    if (rows.length < 3) return null;
+    var t0 = new Date(rows[0].received_at).getTime();
+    var pts = [];
     for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      if (r.battery_pct === null || r.battery_pct === undefined || r.battery_status !== "discharging") break;
-      if (!newest) newest = r;
-      oldest = r;
+      var h = (t0 - new Date(rows[i].received_at).getTime()) / 3600000;
+      if (isNaN(h) || h > TREND_WINDOW_H) break;
+      pts.push([-h, rows[i].battery_pct]);
     }
-    if (!newest || oldest === newest) return null;
-    var hours = (new Date(newest.received_at) - new Date(oldest.received_at)) / 3600000;
-    if (hours < 20 / 60) return null;
-    return { rate: (oldest.battery_pct - newest.battery_pct) / hours, hours: hours };
+    if (pts.length < 3) return null;
+    var span = -pts[pts.length - 1][0];
+    if (span < 20 / 60) return null;
+    var mx = 0, my = 0;
+    pts.forEach(function (p) { mx += p[0]; my += p[1]; });
+    mx /= pts.length;
+    my /= pts.length;
+    var num = 0, den = 0;
+    pts.forEach(function (p) {
+      num += (p[0] - mx) * (p[1] - my);
+      den += (p[0] - mx) * (p[0] - mx);
+    });
+    if (!den) return null;
+    return { rate: -num / den, hours: span };
   }
 
   function renderPhoneLog(rows) {
@@ -569,21 +582,40 @@
       if (last.net_type) html += ' · <span class="summary-label">red:</span> ' + escapeHtml(NET_ES[last.net_type] || last.net_type);
       if (last.battery_temp_c !== null && last.battery_temp_c !== undefined) html += " · " + fmtNum(last.battery_temp_c, " °C", 1);
       html += ' · <span class="muted">' + fmtDate(last.received_at) + "</span>";
-      var d = drainPerHour(withBattery);
+      var d = batteryTrend(withBattery);
       if (d) {
-        html +=
-          '<br><span class="summary-label">Consumo:</span> ' +
-          fmtNum(d.rate, " %/h", 1) +
-          ' <span class="muted">(últimas ' +
-          fmtNum(d.hours, " h", 1) +
-          " descargándose" +
-          (d.rate > 0 ? ", unas " + fmtNum(last.battery_pct / d.rate, " h", 1) + " hasta agotarse" : "") +
-          ")</span>";
+        var trendNote = ' <span class="muted">(tendencia de los últimos ' + Math.round(d.hours * 60) + " min";
+        if (Math.abs(d.rate) < 0.5) {
+          html += '<br><span class="summary-label">Tendencia:</span> estable' + trendNote + ")</span>";
+        } else if (d.rate > 0) {
+          html +=
+            '<br><span class="summary-label">Consumo:</span> baja ' +
+            fmtNum(d.rate, " %/h", 1) +
+            trendNote +
+            ", unas " +
+            fmtNum(last.battery_pct / d.rate, " h", 1) +
+            " hasta agotarse)</span>";
+        } else {
+          html +=
+            '<br><span class="summary-label">Tendencia:</span> sube ' +
+            fmtNum(-d.rate, " %/h", 1) +
+            trendNote +
+            (last.battery_pct < 100 ? ", unas " + fmtNum((100 - last.battery_pct) / -d.rate, " h", 1) + " hasta llenarse" : "") +
+            ")</span>";
+        }
+        var charging = last.battery_status === "charging" || (last.plugged && last.plugged !== "none");
+        if (d.rate >= 1 && charging) {
+          html +=
+            '<br><span class="muted">⚠ Figura conectado a ' +
+            escapeHtml(PLUGGED_ES[last.plugged] || "un cargador") +
+            " pero la batería igual baja: ese cargador no alcanza (mal alineado, de poca potencia, o el celular " +
+            "consume más de lo que entrega).</span>";
+        }
       }
-      if (last.battery_status === "discharging" && last.plugged === "usb") {
+      if (last.net_type === "ethernet" && (!last.plugged || last.plugged === "none")) {
         html +=
-          '<br><span class="muted">⚠ Está conectado por USB pero descargándose: el celular alimenta el ' +
-          "adaptador (p. ej. USB-Ethernet) en vez de cargarse.</span>";
+          '<br><span class="muted">El adaptador USB-Ethernet se alimenta de la batería del celular (no hay nada ' +
+          "cargándolo).</span>";
       }
       phoneSummaryEl.innerHTML = html;
     }
