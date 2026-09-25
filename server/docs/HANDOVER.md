@@ -322,11 +322,16 @@ Migración limpia (sin `no such column`), sin pérdida de datos.
 
 **Pendientes, en orden:**
 
-1. **Reinstalar el agente del router — NO está hecho.** Comprobado el 2026-09-25: 0 de 75
-   mediciones traen `nr_band` o `zcainfo_nr_raw`, así que el equipo sigue con el binario viejo. El
-   módem está detrás de NAT celular y no es alcanzable desde el VPS; hay que copiarlo con el equipo a
-   mano. El binario quedó compilado en un scratchpad de `/tmp` (volátil, no confiar en que siga):
-   recompilar con el comando de arriba y copiar a `/data/routeragent-arm`.
+1. ~~**Reinstalar el agente del router.**~~ **Hecho el 2026-09-25.** Recompilado
+   `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w"` desde el repo ya
+   sincronizado (ver punto 4), copiado a `/data/routeragent-arm.new` por scp con los mismos parámetros
+   legacy de `scripts/rsh.sh`, checksum MD5 verificado idéntico contra el binario local antes de
+   instalarlo. Swap atómico en el equipo: binario viejo → `/data/routeragent-arm.bak` (queda de
+   respaldo para rollback), nuevo → `/data/routeragent-arm`. Corrido a mano en el propio equipo:
+   sale con código 0 y sin salida por stderr (el agente solo imprime en error; silencio = éxito,
+   mismo comportamiento que el binario viejo). El cron no se tocó. `/data` quedó con 6.1 MB libres
+   con los dos binarios presentes. Falta la confirmación de fondo: recién se ve `nr_band` real
+   cuando el equipo enganche 5G (ver punto 2, sigue abierto).
 2. **Con el agente nuevo y el router en 5G**, leer `zcainfo_nr_raw` en la columna `raw`, reemplazar
    los nombres candidatos del bloque NR por los reales y borrar el volcado. Esto además responde el
    gate de la fase 0 de `docs/PLAN-APP-MOVIL.md` (¿el router expone banda/PCI NR?), que decide si la
@@ -334,12 +339,14 @@ Migración limpia (sin `no such column`), sin pérdida de datos.
 3. **Probar la identificación de red desde el celular en campo:** `netinfo?debug=1` una vez por datos
    móviles y otra por el WiFi del router. Si salen la misma IP, es CGNAT compartido o se está saliendo
    por el router sin querer — cambia la confianza que se va a ver.
-4. **Fuente de verdad desincronizada.** Desde el 2026-09-19 se viene editando **directo en este
-   VPS** (no por rsync desde el repo `notion-5g` de la WSL de Diego), así que el repo quedó atrás:
-   falta todo lo de identificación de red, NSA, paralelismo y `docs/PLAN-APP-MOVIL.md`. Este
-   directorio no es un repo git. Antes del próximo `rsync` desde el repo hay que traer estos cambios
-   de vuelta (rsync en sentido inverso, excluyendo `data`/`.env`/`docker-compose.yml`/`cf-tunnel.sh`)
-   y commitearlos allá, o el rsync de §6 los borra.
-5. Aclarar la frecuencia real del cron del agente en el router: §3/§4 dicen cada 1 minuto y el
-   addendum 2026-09-24 dice cada 5. Verificar con `crontab -l` en el equipo.
+4. ~~**Fuente de verdad desincronizada.**~~ **Resuelto el 2026-09-25.** Los cambios hechos directo en
+   este VPS desde el 2026-09-19 (identificación de red, NSA, paralelismo, `docs/PLAN-APP-MOVIL.md`) se
+   trajeron de vuelta al repo `notion-5g` de la WSL de Diego con el rsync en sentido inverso descrito
+   acá (excluyendo `data`/`.env`/`docker-compose.yml`/`cf-tunnel.sh`), revisados a mano (`go build`,
+   `go vet`, `go test ./...` en verde, sin secretos en los archivos nuevos) y commiteados/pusheados a
+   `origin/main` (`9d21dd3`). Sigue habiendo un solo sentido de verdad real: la próxima vez que se edite
+   algo directo acá hay que repetir este mismo procedimiento antes del próximo despliegue.
+5. ~~Aclarar la frecuencia real del cron del agente en el router.~~ **Resuelto el 2026-09-25:**
+   `crontab -l` (`/etc/crontabs/root`) en el equipo confirma `*/1 * * * *` — es cada 1 minuto, el
+   addendum 2026-09-24 que decía cada 5 estaba desactualizado.
 6. Siguen abiertos los de §7 (exportación CSV, `DEFAULT_API_KEY` expuesta).
