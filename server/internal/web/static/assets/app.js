@@ -181,6 +181,7 @@
         renderDeviceList();
         clearBanner(listErrorEl);
         startDeviceAutoRefresh();
+        refreshProbes();
         applyHash(); // #/device/<id> -> abre ese equipo directo (dos equipos = dos pestañas)
       })
       .catch(function (err) {
@@ -366,6 +367,8 @@
         clearBanner(listErrorEl);
         if (state.view === "list") renderDeviceList();
         else listUpdatedEl.textContent = "actualizado " + new Date().toLocaleTimeString();
+        // Sin re-render mientras se edita una sonda: pisaría lo que se está escribiendo.
+        if (state.probeEditing === null) refreshProbes();
       })
       .catch(function (err) {
         showListError(err.message);
@@ -429,6 +432,7 @@
 
   function goToList(fromHash) {
     stopSpeedtestPoll();
+    stopProbeTestPoll();
     stopMovementBeacon();
     showView("list");
     renderDeviceList(); // lo que ya había, al instante
@@ -456,6 +460,10 @@
     cfSpeedtestStatusEl.textContent = "";
     runBrowserSpeedtestBtn.disabled = false;
     runCfSpeedtestBtn.disabled = false;
+    stopProbeTestPoll();
+    runProbeSpeedtestBtn.disabled = false;
+    probeSpeedtestStatusEl.textContent = "";
+    updateProbeActions(deviceId);
     showView("detail");
     if (!fromHash) location.hash = "#/device/" + encodeURIComponent(deviceId);
     loadDetail(deviceId);
@@ -1180,6 +1188,9 @@
         fmtDate(c.created_at) +
         '</td><td data-label="Tipo">' +
         escapeHtml(c.type) +
+        (c.runner === "probe"
+          ? ' <span class="muted">vía sonda ' + escapeHtml(c.probe_id || "") + " (" + escapeHtml(c.routing_table || "") + ")</span>"
+          : "") +
         '</td><td data-label="Estado">' +
         escapeHtml(c.status) +
         '</td><td data-label="Pedido por">' +
@@ -1787,6 +1798,504 @@
       .catch(function () {
         // error de red pasajero durante el polling: se reintenta en el
         // próximo tick, no se corta el timeout por un solo fallo.
+      });
+  }
+
+  // ---------------------------------------------------------------- sondas (MikroTik)
+  //
+  // Una sonda mide cada equipo por la tabla de ruteo de su puerto. El backend
+  // guarda la configuración y la cola; la sonda solo consulta y ejecuta. Acá se
+  // configura, se prende/apaga el ciclo automático y se piden pruebas.
+
+  var probesListEl = document.getElementById("probes-list");
+  var probeErrorEl = document.getElementById("probe-error");
+  var probeNewBtn = document.getElementById("probe-new");
+  var probeEditorEl = document.getElementById("probe-editor");
+  var probeEditorTitle = document.getElementById("probe-editor-title");
+  var peId = document.getElementById("pe-id");
+  var peLabel = document.getElementById("pe-label");
+  var peDuration = document.getElementById("pe-duration");
+  var peTargets = document.getElementById("pe-targets");
+  var peDeviceOptions = document.getElementById("pe-device-options");
+  var peStatus = document.getElementById("pe-status");
+  var probeActionsEl = document.getElementById("probe-actions");
+  var probeActionsInfo = document.getElementById("probe-actions-info");
+  var runProbeSpeedtestBtn = document.getElementById("run-probe-speedtest");
+  var probeSpeedtestStatusEl = document.getElementById("probe-speedtest-status");
+
+  var PROBE_INTERVALS = [
+    [0, "Apagado"],
+    [300, "cada 5 min"],
+    [600, "cada 10 min"],
+    [900, "cada 15 min"],
+    [1800, "cada 30 min"],
+    [3600, "cada 1 h"],
+  ];
+  // La sonda consulta la cola cada ~30-60 s y puede tener otras pruebas del
+  // ciclo delante: se espera bastante más que la prueba del agente.
+  var PROBE_TEST_TIMEOUT_MS = 5 * 60 * 1000;
+  var PROBE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+  state.probes = [];
+  state.probeEditing = null; // probe_id que se edita, o "" si es nueva
+  state.probeTest = null; // {commandId, timer}
+  state.probeMsg = {}; // probe_id -> último mensaje de estado de su tarjeta
+
+  function secondsSince(iso) {
+    var t = new Date(iso).getTime();
+    return isNaN(t) ? null : (Date.now() - t) / 1000;
+  }
+
+  function probeName(p) {
+    return p.label ? p.label + " (" + p.probe_id + ")" : p.probe_id;
+  }
+
+  function refreshProbes() {
+    if (!state.apiKey) return Promise.resolve();
+    return apiFetch("/api/v1/probes")
+      .then(function (probes) {
+        state.probes = probes || [];
+        clearBanner(probeErrorEl);
+        renderProbes();
+        if (state.view === "detail") updateProbeActions(state.selectedDeviceId);
+      })
+      .catch(function (err) {
+        // backend sin el endpoint todavía, o red caída: no rompe la lista de equipos
+        showBanner(probeErrorEl, "No se pudieron leer las sondas: " + err.message);
+      });
+  }
+
+  // Lo que el backend acepta en PUT: la config actual con los cambios encima.
+  function probePayload(p, changes) {
+    var body = {
+      label: p.label || "",
+      interval_s: p.interval_s || 0,
+      duration_s: p.duration_s || null,
+      enabled: p.enabled !== false,
+      targets: (p.targets || []).map(function (t) {
+        return {
+          device_id: t.device_id,
+          routing_table: t.routing_table,
+          label: t.label || "",
+          send_heartbeat: !!t.send_heartbeat,
+          enabled: t.enabled !== false,
+        };
+      }),
+    };
+    Object.keys(changes || {}).forEach(function (k) {
+      body[k] = changes[k];
+    });
+    return body;
+  }
+
+  function putProbe(probeId, body) {
+    return apiFetch("/api/v1/probes/" + encodeURIComponent(probeId), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function deviceById(id) {
+    return (state.devices || []).filter(function (d) {
+      return d.device_id === id;
+    })[0];
+  }
+
+  function renderProbes() {
+    probesListEl.innerHTML = "";
+    if (!state.probes.length) {
+      probesListEl.innerHTML =
+        '<div class="summary-box muted">Todavía no hay ninguna sonda configurada. Tocá "+ Configurar sonda" para ' +
+        "registrar el MikroTik y qué equipo va en cada puerto.</div>";
+      return;
+    }
+    state.probes.forEach(function (p) {
+      var card = document.createElement("div");
+      card.className = "summary-box probe-card";
+
+      var head = document.createElement("div");
+      head.className = "probe-card-head";
+      head.innerHTML =
+        '<span class="probe-name">' +
+        escapeHtml(probeName(p)) +
+        "</span>" +
+        (p.last_seen
+          ? onlineBadge({ online: p.online, last_seen_seconds_ago: secondsSince(p.last_seen) })
+          : '<span class="online-badge online-no"><span class="dot"></span>nunca se conectó</span>') +
+        (p.enabled === false ? '<span class="rat-badge rat-other">desactivada</span>' : "");
+      card.appendChild(head);
+
+      var controls = document.createElement("div");
+      controls.className = "probe-controls";
+      var sel = document.createElement("select");
+      sel.setAttribute("aria-label", "Ciclo automático de " + p.probe_id);
+      var known = false;
+      PROBE_INTERVALS.forEach(function (opt) {
+        var o = document.createElement("option");
+        o.value = String(opt[0]);
+        o.textContent = opt[1];
+        if (opt[0] === (p.interval_s || 0)) known = true;
+        sel.appendChild(o);
+      });
+      if (!known) {
+        var o = document.createElement("option");
+        o.value = String(p.interval_s);
+        o.textContent = "cada " + Math.round(p.interval_s / 60) + " min";
+        sel.appendChild(o);
+      }
+      sel.value = String(p.interval_s || 0);
+      var label = document.createElement("span");
+      label.className = "summary-label";
+      label.textContent = "Ciclo automático:";
+      var cycleBtn = document.createElement("button");
+      cycleBtn.type = "button";
+      cycleBtn.className = "btn-primary";
+      cycleBtn.textContent = "Ciclo ahora";
+      var editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn-link";
+      editBtn.textContent = "Editar";
+      var status = document.createElement("span");
+      status.className = "muted";
+      // El mensaje vive en state: cada acción termina refrescando la lista, y
+      // el redibujo de la tarjeta lo borraría antes de que se alcance a leer.
+      status.textContent = state.probeMsg[p.probe_id] || "";
+      function say(text) {
+        state.probeMsg[p.probe_id] = text;
+        status.textContent = text;
+      }
+      controls.appendChild(label);
+      controls.appendChild(sel);
+      controls.appendChild(cycleBtn);
+      controls.appendChild(editBtn);
+      controls.appendChild(status);
+      card.appendChild(controls);
+
+      sel.addEventListener("change", function () {
+        var v = parseInt(sel.value, 10) || 0;
+        sel.disabled = true;
+        say("guardando...");
+        putProbe(p.probe_id, probePayload(p, { interval_s: v }))
+          .then(function () {
+            say(v ? "ciclo automático " + sel.options[sel.selectedIndex].text : "ciclo automático apagado");
+            return refreshProbes();
+          })
+          .catch(function (err) {
+            say("");
+            sel.value = String(p.interval_s || 0);
+            showBanner(probeErrorEl, "No se pudo cambiar el intervalo: " + err.message);
+          })
+          .then(function () {
+            sel.disabled = false;
+          });
+      });
+
+      cycleBtn.addEventListener("click", function () {
+        cycleBtn.disabled = true;
+        say("encolando...");
+        apiFetch("/api/v1/probes/" + encodeURIComponent(p.probe_id) + "/cycle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requested_by: "dashboard" }),
+        })
+          .then(function (res) {
+            var n = res && res.command_ids ? res.command_ids.length : 0;
+            say(
+              n
+                ? n + " prueba(s) en cola" + (p.online ? "" : " — la sonda no está en línea, se ejecutan cuando vuelva")
+                : "todos los equipos ya tenían una prueba en curso"
+            );
+            refreshProbes();
+          })
+          .catch(function (err) {
+            say("");
+            showBanner(probeErrorEl, "No se pudo encolar el ciclo: " + err.message);
+          })
+          .then(function () {
+            cycleBtn.disabled = false;
+          });
+      });
+
+      editBtn.addEventListener("click", function () {
+        openProbeEditor(p);
+      });
+
+      var info = document.createElement("div");
+      info.className = "muted";
+      info.innerHTML =
+        "Último ciclo: " +
+        (p.last_cycle_at ? fmtDate(p.last_cycle_at) : "nunca") +
+        (p.duration_s ? " · pruebas de " + p.duration_s + " s" : "");
+      card.appendChild(info);
+
+      var ul = document.createElement("ul");
+      ul.className = "probe-targets";
+      if (!(p.targets || []).length) {
+        ul.innerHTML = '<li class="muted">⚠ sin equipos: editala para agregar qué equipo va en cada puerto</li>';
+      }
+      (p.targets || []).forEach(function (t, i) {
+        var d = deviceById(t.device_id);
+        var li = document.createElement("li");
+        li.innerHTML =
+          i +
+          1 +
+          ". <strong>" +
+          escapeHtml(t.label || t.device_id) +
+          "</strong>" +
+          (t.label ? ' <span class="muted">' + escapeHtml(t.device_id) + "</span>" : "") +
+          ' <span class="muted">→ tabla</span> <code>' +
+          escapeHtml(t.routing_table) +
+          "</code>" +
+          (t.send_heartbeat ? ' <span class="band-chip">heartbeat</span>' : "") +
+          (t.enabled === false ? ' <span class="rat-badge rat-other">desactivado</span>' : "") +
+          " " +
+          (d ? onlineBadge(d) : '<span class="muted">(todavía no reportó)</span>');
+        ul.appendChild(li);
+      });
+      card.appendChild(ul);
+      probesListEl.appendChild(card);
+    });
+  }
+
+  // ---- editor
+
+  function addTargetRow(t) {
+    var row = document.createElement("div");
+    row.className = "probe-target-row";
+    row.innerHTML =
+      '<input type="text" class="pe-device" list="pe-device-options" placeholder="device_id del equipo" autocomplete="off" />' +
+      '<input type="text" class="pe-table" placeholder="tabla de ruteo (p. ej. to-notion)" autocomplete="off" />' +
+      '<label><input type="checkbox" class="pe-hb" /> heartbeat</label>' +
+      '<button type="button" class="btn-link btn-danger">quitar</button>';
+    row.querySelector(".pe-device").value = t ? t.device_id : "";
+    row.querySelector(".pe-table").value = t ? t.routing_table : "";
+    row.querySelector(".pe-hb").checked = !!(t && t.send_heartbeat);
+    row.dataset.label = t && t.label ? t.label : "";
+    row.dataset.enabled = t && t.enabled === false ? "0" : "1";
+    row.querySelector("button").addEventListener("click", function () {
+      row.remove();
+    });
+    peTargets.appendChild(row);
+  }
+
+  function openProbeEditor(p) {
+    state.probeEditing = p ? p.probe_id : "";
+    probeEditorTitle.textContent = p ? "Editar sonda " + p.probe_id : "Configurar sonda nueva";
+    peId.value = p ? p.probe_id : "";
+    peId.disabled = !!p;
+    peLabel.value = p ? p.label || "" : "";
+    peDuration.value = p && p.duration_s ? p.duration_s : 10;
+    peStatus.textContent = "";
+    peTargets.innerHTML = "";
+    peDeviceOptions.innerHTML = "";
+    (state.devices || []).forEach(function (d) {
+      var o = document.createElement("option");
+      o.value = d.device_id;
+      peDeviceOptions.appendChild(o);
+    });
+    var targets = p && p.targets && p.targets.length ? p.targets : [null, null];
+    targets.forEach(addTargetRow);
+    probeEditorEl.hidden = false;
+    probeEditorEl.scrollIntoView({ behavior: "smooth", block: "start" });
+    (p ? peLabel : peId).focus();
+  }
+
+  function closeProbeEditor() {
+    probeEditorEl.hidden = true;
+    state.probeEditing = null;
+  }
+
+  probeNewBtn.addEventListener("click", function () {
+    openProbeEditor(null);
+  });
+  document.getElementById("pe-add-target").addEventListener("click", function () {
+    addTargetRow(null);
+  });
+  document.getElementById("pe-cancel").addEventListener("click", closeProbeEditor);
+
+  document.getElementById("pe-save").addEventListener("click", function () {
+    var id = peId.value.trim();
+    if (!PROBE_ID_RE.test(id)) {
+      peStatus.textContent = "El ID solo puede tener letras, números, - y _ (máx. 64).";
+      return;
+    }
+    var targets = [];
+    var problem = "";
+    Array.prototype.forEach.call(peTargets.querySelectorAll(".probe-target-row"), function (row) {
+      var dev = row.querySelector(".pe-device").value.trim();
+      var table = row.querySelector(".pe-table").value.trim();
+      if (!dev && !table) return; // fila vacía: se ignora
+      if (!dev || !table) problem = "Cada equipo necesita device_id y tabla de ruteo.";
+      targets.push({
+        device_id: dev,
+        routing_table: table,
+        label: row.dataset.label || "",
+        send_heartbeat: row.querySelector(".pe-hb").checked,
+        enabled: row.dataset.enabled !== "0",
+      });
+    });
+    if (problem) {
+      peStatus.textContent = problem;
+      return;
+    }
+    var existing = state.probes.filter(function (p) {
+      return p.probe_id === id;
+    })[0];
+    if (!state.probeEditing && existing) {
+      peStatus.textContent = "Ya existe una sonda con ese ID: usá Editar en su tarjeta.";
+      return;
+    }
+    var dur = parseInt(peDuration.value, 10);
+    var body = probePayload(existing || { interval_s: 0 }, {
+      label: peLabel.value.trim(),
+      duration_s: isNaN(dur) ? null : dur,
+      targets: targets,
+    });
+    peStatus.textContent = "guardando...";
+    putProbe(id, body)
+      .then(function () {
+        closeProbeEditor();
+        return refreshProbes();
+      })
+      .catch(function (err) {
+        peStatus.textContent = "No se pudo guardar: " + err.message;
+      });
+  });
+
+  // ---- detalle: prueba de ESTE equipo vía su sonda
+
+  function probeForDevice(deviceId) {
+    for (var i = 0; i < state.probes.length; i++) {
+      var p = state.probes[i];
+      if (p.enabled === false) continue;
+      var t = (p.targets || []).filter(function (x) {
+        return x.device_id === deviceId && x.enabled !== false;
+      })[0];
+      if (t) return { probe: p, target: t };
+    }
+    return null;
+  }
+
+  function updateProbeActions(deviceId) {
+    var m = deviceId ? probeForDevice(deviceId) : null;
+    probeActionsEl.hidden = !m;
+    if (!m) return;
+    var p = m.probe;
+    probeActionsInfo.innerHTML =
+      "Mide este equipo desde " +
+      escapeHtml(probeName(p)) +
+      " por la tabla <code>" +
+      escapeHtml(m.target.routing_table) +
+      "</code>: la salida por este equipo está garantizada por el cable, no depende de detectarla. " +
+      (p.online
+        ? "Sonda en línea."
+        : "⚠ La sonda no está en línea: la prueba queda en cola hasta que vuelva a consultar.");
+  }
+
+  function stopProbeTestPoll() {
+    if (state.probeTest && state.probeTest.timer) clearInterval(state.probeTest.timer);
+    state.probeTest = null;
+  }
+
+  runProbeSpeedtestBtn.addEventListener("click", function () {
+    var deviceId = state.selectedDeviceId;
+    var m = deviceId ? probeForDevice(deviceId) : null;
+    if (!m) return;
+    runProbeSpeedtestBtn.disabled = true;
+    clearBanner(detailErrorEl);
+    probeSpeedtestStatusEl.textContent = "obteniendo ubicación del navegador...";
+    getBrowserLocation()
+      .catch(function () {
+        return null; // sin ubicación se mide igual
+      })
+      .then(function (loc) {
+        probeSpeedtestStatusEl.textContent = "creando comando...";
+        var body = {
+          device_id: deviceId,
+          type: "run_speedtest",
+          runner: "probe",
+          probe_id: m.probe.probe_id,
+          duration_s: m.probe.duration_s || 10,
+          requested_by: "dashboard",
+        };
+        if (loc) {
+          body.lat = loc.lat;
+          body.lon = loc.lon;
+          body.gps_accuracy_m = loc.accuracy;
+          body.gps_source = "browser-geolocation";
+        }
+        return apiFetch("/api/v1/commands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      })
+      .then(function (res) {
+        if (!res || res.id === undefined) throw { message: "El backend no devolvió el id del comando." };
+        var commandId = res.id;
+        var startedAt = Date.now();
+        stopProbeTestPoll();
+        state.probeTest = { commandId: commandId };
+        probeSpeedtestStatusEl.textContent = "en cola, esperando a la sonda...";
+        state.probeTest.timer = setInterval(function () {
+          pollProbeTest(deviceId, commandId, startedAt);
+        }, 3000);
+      })
+      .catch(function (err) {
+        runProbeSpeedtestBtn.disabled = false;
+        probeSpeedtestStatusEl.textContent = "";
+        showBanner(detailErrorEl, "No se pudo pedir la prueba a la sonda: " + err.message);
+      });
+  });
+
+  function pollProbeTest(deviceId, commandId, startedAt) {
+    if (!state.probeTest || state.probeTest.commandId !== commandId || state.selectedDeviceId !== deviceId) return;
+    var elapsed = Math.round((Date.now() - startedAt) / 1000);
+    if (Date.now() - startedAt > PROBE_TEST_TIMEOUT_MS) {
+      stopProbeTestPoll();
+      runProbeSpeedtestBtn.disabled = false;
+      probeSpeedtestStatusEl.textContent =
+        "la sonda no la ejecutó en " + PROBE_TEST_TIMEOUT_MS / 60000 + " min (sigue en cola; se va a ejecutar cuando la sonda consulte)";
+      return;
+    }
+    apiFetch("/api/v1/commands?device_id=" + encodeURIComponent(deviceId) + "&limit=30")
+      .then(function (cmds) {
+        var c = (cmds || []).filter(function (x) {
+          return x.id === commandId;
+        })[0];
+        if (!c) return;
+        if (c.status === "pending") {
+          probeSpeedtestStatusEl.textContent = "en cola, esperando a la sonda... " + elapsed + "s";
+          return;
+        }
+        if (c.status === "claimed") {
+          probeSpeedtestStatusEl.textContent = "la sonda está midiendo... " + elapsed + "s";
+          return;
+        }
+        stopProbeTestPoll();
+        runProbeSpeedtestBtn.disabled = false;
+        if (c.status === "failed") {
+          probeSpeedtestStatusEl.textContent = "prueba fallida" + (c.error ? ": " + c.error : "");
+        } else {
+          probeSpeedtestStatusEl.textContent = "prueba completada";
+          apiFetch("/api/v1/measurements?device_id=" + encodeURIComponent(deviceId) + "&limit=1")
+            .then(function (rows) {
+              var r = (rows || [])[0];
+              if (r && r.source === "mikrotik-probe") {
+                probeSpeedtestStatusEl.textContent =
+                  "listo: ↓" + fmtNum(r.down_mbps) + " Mbps ↑" + fmtNum(r.up_mbps) + " Mbps" +
+                  (r.ping_ms !== undefined && r.ping_ms !== null ? " · ping " + fmtNum(r.ping_ms, " ms", 0) : "");
+              }
+            })
+            .catch(function () {});
+          sendSpeedtestEndLocation(deviceId, commandId);
+        }
+        loadDetail(deviceId);
+        refreshDevices();
+      })
+      .catch(function () {
+        // error de red pasajero: se reintenta en el próximo tick
       });
   }
 

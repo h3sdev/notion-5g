@@ -46,6 +46,43 @@
           <tbody id="devices-tbody"></tbody>
         </table>
       </div>
+
+      <div class="view-head" style="margin-top:28px">
+        <h2>Sondas (MikroTik)</h2>
+        <button id="probe-new" type="button" class="btn-link">+ Configurar sonda</button>
+      </div>
+      <p class="muted" style="margin-top:-6px">
+        Un MikroTik con un puerto por equipo: mide por la tabla de ruteo de cada uno, así que la salida está
+        garantizada. Las pruebas se piden acá o las dispara solo el backend cada cierto tiempo, alternando equipos,
+        mientras la sonda esté en línea.
+      </p>
+      <div id="probe-error" class="banner banner-error" hidden></div>
+      <div id="probes-list"></div>
+
+      <div id="probe-editor" class="summary-box probe-editor" hidden>
+        <h3 id="probe-editor-title" style="margin-top:0">Configurar sonda</h3>
+        <div class="probe-form-grid">
+          <label for="pe-id">ID de la sonda</label>
+          <input id="pe-id" type="text" placeholder="hap-oficina" autocomplete="off" />
+          <label for="pe-label">Nombre</label>
+          <input id="pe-label" type="text" placeholder="hAP ac2 oficina" autocomplete="off" />
+          <label for="pe-duration">Duración de cada prueba (s)</label>
+          <input id="pe-duration" type="number" min="3" max="60" step="1" value="10" />
+        </div>
+        <p class="summary-label" style="margin:12px 0 4px">Equipos conectados (en el orden en que se prueban)</p>
+        <p class="muted" style="margin:0 0 6px">
+          La tabla de ruteo es la que se creó en el MikroTik para el puerto de ese equipo. "Heartbeat" solo para
+          equipos sin agente propio (el Notion ya manda los suyos).
+        </p>
+        <div id="pe-targets"></div>
+        <datalist id="pe-device-options"></datalist>
+        <button id="pe-add-target" type="button" class="btn-link">+ Agregar equipo</button>
+        <div class="detail-actions" style="margin:14px 0 0">
+          <button id="pe-save" type="button" class="btn-primary">Guardar</button>
+          <button id="pe-cancel" type="button" class="btn-link">Cancelar</button>
+          <span id="pe-status" class="muted"></span>
+        </div>
+      </div>
     </section>
 
     <section id="view-detail" class="view" hidden>
@@ -63,6 +100,14 @@
         acelerado de NAT del equipo, así que en 5G queda muy por debajo de la velocidad real
         (misma limitación que ya teníamos con el <code>wget</code> interno en LTE).
       </p>
+
+      <div id="probe-actions" hidden>
+        <div class="detail-actions" style="margin-top:10px">
+          <button id="run-probe-speedtest" type="button" class="btn-primary">Prueba vía sonda</button>
+          <span id="probe-speedtest-status" class="muted"></span>
+        </div>
+        <p id="probe-actions-info" class="muted" style="margin-top:-6px"></p>
+      </div>
 
       <div class="detail-actions" style="margin-top:10px">
         <button id="run-browser-speedtest" type="button" class="btn-primary">Prueba real desde este navegador</button>
