@@ -126,12 +126,11 @@ en este entorno):
 - La UI completa corriendo en pantalla (botones, navegación a Ajustes,
   refresco de listas) — el smoke test solo verifica que el árbol de widgets
   se construya, no interacción real de usuario.
-- Segundo plano: el modo en movimiento ya corre como servicio en primer plano
-  (ver arriba), pero **todavía no se probó en un teléfono real** cuánto
-  aguanta con la pantalla apagada ni si el ahorro de batería de Samsung lo
-  cierra aun con "Sin restricciones". Verificarlo en el primer uso: apagar la
-  pantalla varios minutos y revisar en el dashboard que la ubicación del
-  equipo se siga actualizando.</br>
+- Segundo plano: **probado el 2026-09-25 en un Galaxy S20+** (Android con
+  One UI, app exenta de Doze): 14 min con la pantalla apagada (`mWakefulness=Dozing`),
+  todos los heartbeats del router llegaron con ubicación `android-fused` y 7
+  coordenadas distintas (una cada 2 min, quieto), y el servicio seguía en
+  primer plano al final. Falta probarlo en movimiento real y por varias horas.</br>
   Tampoco implementado: que `createSpeedtestCommand` se repita solo cada N
   minutos (la prueba de velocidad completa sigue siendo manual, por el
   botón); el modo en movimiento solo automatiza la ubicación del perfil de
