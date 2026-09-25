@@ -81,6 +81,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/heartbeats", s.auth(s.handleListHeartbeats))
 	s.mux.HandleFunc("GET /api/v1/devices", s.auth(s.handleListDevices))
 	s.mux.HandleFunc("POST /api/v1/devices/{device_id}/location", s.auth(s.handleSetDeviceLocation))
+	s.mux.HandleFunc("GET /api/v1/devices/{device_id}/phone_log", s.auth(s.handleListPhoneLog))
 
 	s.mux.HandleFunc("POST /api/v1/commands", s.auth(s.handleCreateCommand))
 	s.mux.HandleFunc("GET /api/v1/commands", s.auth(s.handleListCommands))
@@ -499,6 +500,13 @@ func (s *Server) handleSetDeviceLocation(w http.ResponseWriter, r *http.Request)
 		Lon          *float64 `json:"lon"`
 		GPSAccuracyM *float64 `json:"gps_accuracy_m"`
 		GPSSource    string   `json:"gps_source"`
+		// Estado del celular acompañante; opcional (una app vieja no lo manda).
+		BatteryPct    *int     `json:"battery_pct"`
+		Charging      *bool    `json:"charging"`
+		BatteryStatus string   `json:"battery_status"`
+		Plugged       string   `json:"plugged"`
+		BatteryTempC  *float64 `json:"battery_temp_c"`
+		NetType       string   `json:"net_type"`
 	}
 	if err := json.Unmarshal(body, &loc); err != nil {
 		writeErr(w, http.StatusBadRequest, "JSON inválido: "+err.Error())
@@ -514,7 +522,33 @@ func (s *Server) handleSetDeviceLocation(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// El historial es secundario: si falla, la ubicación ya quedó guardada.
+	if err := s.store.AppendPhoneLog(ctx, store.PhoneLogEntry{
+		DeviceID: deviceID, Lat: loc.Lat, Lon: loc.Lon, GPSAccuracyM: loc.GPSAccuracyM,
+		BatteryPct: loc.BatteryPct, Charging: loc.Charging, BatteryStatus: loc.BatteryStatus,
+		Plugged: loc.Plugged, BatteryTempC: loc.BatteryTempC, NetType: loc.NetType,
+	}); err != nil {
+		log.Printf("location: %v", err)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleListPhoneLog(w http.ResponseWriter, r *http.Request) {
+	limit := 200
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := parseIntSafe(v); err == nil {
+			limit = n
+		}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	rows, err := s.store.ListPhoneLog(ctx, r.PathValue("device_id"), limit)
+	if err != nil {
+		log.Printf("phone_log: %v", err)
+		writeErr(w, http.StatusInternalServerError, "error de consulta")
+		return
+	}
+	writeJSON(w, http.StatusOK, rows)
 }
 
 func (s *Server) handleSummary(w http.ResponseWriter, r *http.Request) {

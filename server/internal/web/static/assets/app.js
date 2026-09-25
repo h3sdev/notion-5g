@@ -449,6 +449,8 @@
     operatorFilterEl.value = "";
     routeFilterEl.value = "";
     bandSummaryEl.innerHTML = "";
+    phoneSummaryEl.innerHTML = "";
+    phoneLogTbody.innerHTML = "";
     clearBanner(detailErrorEl);
     browserSpeedtestStatusEl.textContent = "";
     cfSpeedtestStatusEl.textContent = "";
@@ -482,6 +484,127 @@
       .catch(function (err) {
         showBanner(detailErrorEl, err.message);
       });
+    loadPhoneLog(deviceId);
+  }
+
+  // ---------------------------------------------------------------- celular acompañante (batería y red)
+
+  var phoneSummaryEl = document.getElementById("phone-summary");
+  var phoneLogTbody = document.getElementById("phone-log-tbody");
+  var PHONE_LOG_LIMIT = 300;
+
+  // Aparte de loadDetail a propósito: es información de apoyo, y si falla (un
+  // backend viejo sin el endpoint) no puede tumbar el resto del detalle.
+  function loadPhoneLog(deviceId) {
+    apiFetch("/api/v1/devices/" + encodeURIComponent(deviceId) + "/phone_log?limit=" + PHONE_LOG_LIMIT)
+      .then(function (rows) {
+        if (state.selectedDeviceId !== deviceId) return;
+        renderPhoneLog(rows || []);
+      })
+      .catch(function () {
+        if (state.selectedDeviceId !== deviceId) return;
+        phoneSummaryEl.innerHTML = '<span class="muted">No se pudo leer el historial del celular.</span>';
+        phoneLogTbody.innerHTML = "";
+      });
+  }
+
+  var BATTERY_STATUS_ES = {
+    charging: "cargando",
+    discharging: "descargando",
+    full: "llena",
+    not_charging: "conectado, sin cargar",
+  };
+  var PLUGGED_ES = { ac: "cargador", usb: "USB", wireless: "inalámbrico", dock: "base", none: "nada" };
+  var NET_ES = { ethernet: "cable (Ethernet)", wifi: "WiFi", cellular: "datos móviles", vpn: "VPN", none: "sin red" };
+
+  function batteryStatusEs(r) {
+    if (r.battery_status) return BATTERY_STATUS_ES[r.battery_status] || r.battery_status;
+    if (r.charging === true) return "cargando";
+    if (r.charging === false) return "descargando";
+    return "—";
+  }
+
+  // drainPerHour: %/h en el tramo más reciente en que la batería estuvo
+  // descargándose sin interrupción. Con menos de 20 min de tramo el número es
+  // ruido (la batería se reporta en pasos de 1%), así que no se muestra.
+  function drainPerHour(rows) {
+    var newest = null;
+    var oldest = null;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r.battery_pct === null || r.battery_pct === undefined || r.battery_status !== "discharging") break;
+      if (!newest) newest = r;
+      oldest = r;
+    }
+    if (!newest || oldest === newest) return null;
+    var hours = (new Date(newest.received_at) - new Date(oldest.received_at)) / 3600000;
+    if (hours < 20 / 60) return null;
+    return { rate: (oldest.battery_pct - newest.battery_pct) / hours, hours: hours };
+  }
+
+  function renderPhoneLog(rows) {
+    var withBattery = rows.filter(function (r) {
+      return r.battery_pct !== null && r.battery_pct !== undefined;
+    });
+    if (!withBattery.length) {
+      phoneSummaryEl.innerHTML = rows.length
+        ? '<span class="muted">El celular manda ubicación pero no batería: actualizá la app en el celular.</span>'
+        : '<span class="muted">Todavía no hay datos del celular (activá el modo en movimiento en la app).</span>';
+    } else {
+      var last = withBattery[0];
+      var html =
+        '<span class="summary-label">Batería:</span> <strong>' +
+        last.battery_pct +
+        "%</strong> · " +
+        escapeHtml(batteryStatusEs(last));
+      if (last.plugged && last.plugged !== "none") html += " (conectado a " + escapeHtml(PLUGGED_ES[last.plugged] || last.plugged) + ")";
+      if (last.net_type) html += ' · <span class="summary-label">red:</span> ' + escapeHtml(NET_ES[last.net_type] || last.net_type);
+      if (last.battery_temp_c !== null && last.battery_temp_c !== undefined) html += " · " + fmtNum(last.battery_temp_c, " °C", 1);
+      html += ' · <span class="muted">' + fmtDate(last.received_at) + "</span>";
+      var d = drainPerHour(withBattery);
+      if (d) {
+        html +=
+          '<br><span class="summary-label">Consumo:</span> ' +
+          fmtNum(d.rate, " %/h", 1) +
+          ' <span class="muted">(últimas ' +
+          fmtNum(d.hours, " h", 1) +
+          " descargándose" +
+          (d.rate > 0 ? ", unas " + fmtNum(last.battery_pct / d.rate, " h", 1) + " hasta agotarse" : "") +
+          ")</span>";
+      }
+      if (last.battery_status === "discharging" && last.plugged === "usb") {
+        html +=
+          '<br><span class="muted">⚠ Está conectado por USB pero descargándose: el celular alimenta el ' +
+          "adaptador (p. ej. USB-Ethernet) en vez de cargarse.</span>";
+      }
+      phoneSummaryEl.innerHTML = html;
+    }
+
+    phoneLogTbody.innerHTML = "";
+    if (!rows.length) {
+      phoneLogTbody.innerHTML = '<tr><td colspan="7" class="muted">Sin datos del celular todavía.</td></tr>';
+      return;
+    }
+    rows.forEach(function (r) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td data-label="Fecha">' +
+        fmtDate(r.received_at) +
+        '</td><td data-label="Batería">' +
+        (r.battery_pct !== null && r.battery_pct !== undefined ? r.battery_pct + "%" : "—") +
+        '</td><td data-label="Estado">' +
+        escapeHtml(batteryStatusEs(r)) +
+        '</td><td data-label="Conectado a">' +
+        escapeHtml(r.plugged ? PLUGGED_ES[r.plugged] || r.plugged : "—") +
+        '</td><td data-label="Red del celular">' +
+        escapeHtml(r.net_type ? NET_ES[r.net_type] || r.net_type : "—") +
+        '</td><td data-label="Temp.">' +
+        fmtNum(r.battery_temp_c, " °C", 1) +
+        '</td><td data-label="Ubicación">' +
+        mapsLink(r.lat, r.lon, r.gps_accuracy_m) +
+        "</td>";
+      phoneLogTbody.appendChild(tr);
+    });
   }
 
   // El operador se guarda por medición/heartbeat (puede cambiar a mitad de

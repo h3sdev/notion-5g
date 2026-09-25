@@ -154,6 +154,27 @@ CREATE TABLE IF NOT EXISTS device_egress (
 	country     TEXT,
 	updated_at  TEXT NOT NULL
 );
+
+-- Historial de lo que manda el celular acompañante junto con cada ubicación
+-- (batería, carga, red que usa). device_locations guarda solo el último valor;
+-- esto es append-only para poder ver el consumo de batería en el tiempo.
+CREATE TABLE IF NOT EXISTS phone_log (
+	id             INTEGER PRIMARY KEY AUTOINCREMENT,
+	device_id      TEXT NOT NULL,
+	received_at    TEXT NOT NULL,
+	lat            REAL,
+	lon            REAL,
+	gps_accuracy_m REAL,
+	battery_pct    INTEGER,
+	charging       INTEGER,
+	-- estado real que reporta Android, independiente de si hay algo enchufado:
+	-- con un adaptador USB-Ethernet el teléfono puede estar "usb" y descargándose
+	battery_status TEXT,     -- "charging" | "discharging" | "full" | "not_charging" | "unknown"
+	plugged        TEXT,     -- "ac" | "usb" | "wireless" | "dock" | "none"
+	battery_temp_c REAL,
+	net_type       TEXT      -- "ethernet" | "wifi" | "cellular" | "none" | ...
+);
+CREATE INDEX IF NOT EXISTS idx_phone_log_device ON phone_log(device_id, id);
 `)
 	if err != nil {
 		return err
@@ -308,6 +329,88 @@ ON CONFLICT(device_id) DO UPDATE SET
 		return fmt.Errorf("guardar ubicación: %w", err)
 	}
 	return nil
+}
+
+// PhoneLogEntry es una fila de phone_log: el estado del celular acompañante
+// en el momento en que mandó una ubicación. Todo es opcional salvo device_id:
+// una app vieja manda solo la ubicación.
+type PhoneLogEntry struct {
+	ID            int64    `json:"id"`
+	DeviceID      string   `json:"device_id"`
+	ReceivedAt    string   `json:"received_at"`
+	Lat           *float64 `json:"lat"`
+	Lon           *float64 `json:"lon"`
+	GPSAccuracyM  *float64 `json:"gps_accuracy_m"`
+	BatteryPct    *int     `json:"battery_pct"`
+	Charging      *bool    `json:"charging"`
+	BatteryStatus string   `json:"battery_status,omitempty"`
+	Plugged       string   `json:"plugged,omitempty"`
+	BatteryTempC  *float64 `json:"battery_temp_c"`
+	NetType       string   `json:"net_type,omitempty"`
+}
+
+func (s *Store) AppendPhoneLog(ctx context.Context, e PhoneLogEntry) error {
+	if e.DeviceID == "" {
+		return fmt.Errorf("falta device_id")
+	}
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO phone_log (device_id, received_at, lat, lon, gps_accuracy_m, battery_pct, charging, battery_status, plugged, battery_temp_c, net_type)
+VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		e.DeviceID, time.Now().UTC().Format(time.RFC3339), e.Lat, e.Lon, e.GPSAccuracyM,
+		e.BatteryPct, boolToInt(e.Charging), nullStr(e.BatteryStatus), nullStr(e.Plugged), e.BatteryTempC, nullStr(e.NetType))
+	if err != nil {
+		return fmt.Errorf("guardar log del celular: %w", err)
+	}
+	return nil
+}
+
+// ListPhoneLog devuelve las últimas filas del celular de deviceID, más nuevas primero.
+func (s *Store) ListPhoneLog(ctx context.Context, deviceID string, limit int) ([]PhoneLogEntry, error) {
+	if limit <= 0 || limit > 5000 {
+		limit = 200
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, device_id, received_at, lat, lon, gps_accuracy_m, battery_pct, charging, battery_status, plugged, battery_temp_c, net_type
+FROM phone_log WHERE device_id = ? ORDER BY id DESC LIMIT ?`, deviceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PhoneLogEntry{}
+	for rows.Next() {
+		var e PhoneLogEntry
+		var lat, lon, acc, temp sql.NullFloat64
+		var batt, charging sql.NullInt64
+		var status, plugged, netType sql.NullString
+		if err := rows.Scan(&e.ID, &e.DeviceID, &e.ReceivedAt, &lat, &lon, &acc, &batt, &charging, &status, &plugged, &temp, &netType); err != nil {
+			return nil, err
+		}
+		if lat.Valid {
+			e.Lat = &lat.Float64
+		}
+		if lon.Valid {
+			e.Lon = &lon.Float64
+		}
+		if acc.Valid {
+			e.GPSAccuracyM = &acc.Float64
+		}
+		if batt.Valid {
+			v := int(batt.Int64)
+			e.BatteryPct = &v
+		}
+		if charging.Valid {
+			v := charging.Int64 != 0
+			e.Charging = &v
+		}
+		if temp.Valid {
+			e.BatteryTempC = &temp.Float64
+		}
+		e.BatteryStatus = status.String
+		e.Plugged = plugged.String
+		e.NetType = netType.String
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // cachedLocation devuelve la última ubicación conocida de deviceID si no está
