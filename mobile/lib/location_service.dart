@@ -16,6 +16,24 @@ class LocationService {
   /// Lanza LocationException con un mensaje presentable si el usuario niega
   /// el permiso, el GPS está apagado, o hay timeout.
   Future<Position> getCurrentFusedLocation() async {
+    await ensurePermission();
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best, // fused: GPS + red, lo más preciso que da Android
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
+    } catch (e) {
+      throw LocationException('No se pudo obtener la ubicación: $e');
+    }
+  }
+
+  /// Verifica que la ubicación esté encendida y que haya permiso (lo pide si
+  /// hace falta). Alcanza con el permiso "mientras se usa la app": el modo en
+  /// movimiento arranca su servicio en primer plano con la app abierta, y así
+  /// Android le sigue dando ubicación con la pantalla apagada.
+  Future<void> ensurePermission() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       throw LocationException('La ubicación del teléfono está apagada. Actívala e intenta de nuevo.');
@@ -31,17 +49,6 @@ class LocationService {
     if (permission == LocationPermission.deniedForever) {
       throw LocationException(
           'El permiso de ubicación está bloqueado permanentemente. Actívalo desde Ajustes del sistema > Apps.');
-    }
-
-    try {
-      return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.best, // fused: GPS + red, lo más preciso que da Android
-          timeLimit: Duration(seconds: 20),
-        ),
-      );
-    } catch (e) {
-      throw LocationException('No se pudo obtener la ubicación: $e');
     }
   }
 }

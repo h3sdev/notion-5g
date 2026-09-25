@@ -53,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _toggleBeacon(bool on) {
+  Future<void> _toggleBeacon(bool on) async {
     if (!_settings.isConfigured) {
       _showSnack('Primero configura el backend y el router en Ajustes.');
       return;
@@ -74,10 +74,20 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
     setState(() => _beaconOn = on);
-    if (on) {
-      _beacon!.start();
-    } else {
-      _beacon!.stop();
+    if (!on) {
+      await _beacon!.stop();
+      return;
+    }
+    setState(() {
+      _lastBeaconTick = null;
+      _lastBeaconError = null;
+    });
+    try {
+      await _beacon!.start();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _beaconOn = false);
+      _showSnack(e.toString());
     }
   }
 
@@ -292,9 +302,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             Text(
-              'Manda tu ubicación cada 15s mientras esté activo, para que el '
-              'perfil de ping del router (un heartbeat por minuto) tenga con '
-              'qué correlacionar posición. Déjalo prendido durante la prueba en carretera.',
+              'Manda tu ubicación al backend para que el perfil de ping del router '
+              '(un heartbeat por minuto) tenga con qué correlacionar posición. '
+              'Sigue funcionando con la pantalla apagada mientras se vea la '
+              'notificación "Notion 5G: modo en movimiento". Envía cuando te '
+              'mueves más de 50 m, y cada 2 min si estás quieto.\n'
+              'Para que Samsung no la cierre: Ajustes > Apps > notion5g_field > '
+              'Batería > "Sin restricciones".',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (_beaconOn) ...[

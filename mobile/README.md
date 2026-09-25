@@ -52,22 +52,35 @@ antes de compilar, o el próximo `rsync` en este sentido lo pisa.
   objetivo, duración de la prueba, y un botón "Probar conexión"
   (`GET /healthz`). Todo persistido con `shared_preferences`.
 - **Modo en movimiento** (interruptor en la pantalla principal): mientras esté
-  activo, manda la ubicación fused cada 15s a
+  activo, manda la ubicación fused a
   `POST /api/v1/devices/{device_id}/location` (`ApiClient.postLocation`,
   `lib/location_beacon.dart`). El backend la guarda como "última ubicación
   conocida" de ese router y la usa para completar sus heartbeats (uno por
   minuto, con ping — ver `server/cmd/routeragent`), que no traen GPS propio.
-  Esto es lo que le da sentido al perfil de ping+ubicación cuando el equipo
-  va en el carro: cada tick del celular es independiente, un error de GPS o
-  de red en un tick no detiene el beacon ni tumba la app, solo se muestra y
-  se reintenta en el siguiente. **Ojo:** si cambias algo en Ajustes con el
-  modo activo, se apaga solo (para no seguir mandando datos a la config
-  vieja) y hay que volver a prenderlo.
+  **Funciona con la pantalla apagada** (desde 2026-09-25): corre como servicio
+  en primer plano de `geolocator` (`AndroidSettings.foregroundNotificationConfig`,
+  notificación fija "Notion 5G: modo en movimiento" + wake lock parcial). Toma
+  un punto cada 15 s y lo envía solo si hubo desplazamiento de más de 50 m (y
+  más que la precisión del propio punto, para que el ruido del GPS quieto no
+  cuente) o si pasaron 2 min desde el último envío. Un error de GPS o de red
+  no detiene el beacon, el punto siguiente reintenta. **Ojo:** si cambias algo
+  en Ajustes con el modo activo, se apaga solo (para no seguir mandando datos
+  a la config vieja) y hay que volver a prenderlo.
+  - Alcanza con el permiso de ubicación "mientras se usa la app": el servicio
+    se arranca con la app en pantalla, y Android le sigue dando ubicación con
+    la pantalla apagada. No hace falta "Permitir todo el tiempo".
+  - En Samsung (y Xiaomi/Huawei) hay que poner la app en **Batería → "Sin
+    restricciones"**, o el ahorro de energía del fabricante la cierra igual.
+  - Si se desliza la app fuera de "recientes", el servicio se detiene.
 
 ## Permisos Android agregados
 
 En `android/app/src/main/AndroidManifest.xml`: `INTERNET`,
-`ACCESS_NETWORK_STATE`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`.
+`ACCESS_NETWORK_STATE`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, y
+para el modo en movimiento con pantalla apagada `FOREGROUND_SERVICE`,
+`FOREGROUND_SERVICE_LOCATION`, `WAKE_LOCK` y `POST_NOTIFICATIONS` (este último
+se pide al abrir la app desde `MainActivity.kt` en Android 13+; sin él el
+servicio corre igual pero la notificación no se ve).
 
 ## Qué está probado y qué no
 
@@ -113,20 +126,12 @@ en este entorno):
 - La UI completa corriendo en pantalla (botones, navegación a Ajustes,
   refresco de listas) — el smoke test solo verifica que el árbol de widgets
   se construya, no interacción real de usuario.
-- Background/segundo plano: **sigue sin implementarse de verdad**. El "modo
-  en movimiento" usa un `Timer.periodic` de Dart, que solo corre mientras la
-  app está en primer plano y el proceso vivo — Android puede pausarlo o
-  matarlo si la pantalla se apaga o el usuario cambia de app, sobre todo con
-  ahorro de batería agresivo (bastante común en Xiaomi/Huawei/Samsung). Para
-  que el beacon sobreviva con la pantalla apagada durante todo el trayecto
-  haría falta un foreground service real (`flutter_foreground_task` o
-  `workmanager`, con `FOREGROUND_SERVICE_LOCATION` en Android 14+) — se dejó
-  fuera de este alcance por lo mismo que antes: cambia el ciclo de vida de la
-  app y merece su propia revisión. **Para la prueba en carretera, mientras
-  tanto: dejar la pantalla del celular encendida y la app en primer plano.**
-  No se pudo probar en un dispositivo real si el Timer efectivamente aguanta
-  con la pantalla apagada por unos segundos (comportamiento normal de
-  Android) ni por cuánto.</br>
+- Segundo plano: el modo en movimiento ya corre como servicio en primer plano
+  (ver arriba), pero **todavía no se probó en un teléfono real** cuánto
+  aguanta con la pantalla apagada ni si el ahorro de batería de Samsung lo
+  cierra aun con "Sin restricciones". Verificarlo en el primer uso: apagar la
+  pantalla varios minutos y revisar en el dashboard que la ubicación del
+  equipo se siga actualizando.</br>
   Tampoco implementado: que `createSpeedtestCommand` se repita solo cada N
   minutos (la prueba de velocidad completa sigue siendo manual, por el
   botón); el modo en movimiento solo automatiza la ubicación del perfil de
