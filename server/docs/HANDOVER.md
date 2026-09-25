@@ -350,3 +350,133 @@ Migración limpia (sin `no such column`), sin pérdida de datos.
    `crontab -l` (`/etc/crontabs/root`) en el equipo confirma `*/1 * * * *` — es cada 1 minuto, el
    addendum 2026-09-24 que decía cada 5 estaba desactualizado.
 6. Siguen abiertos los de §7 (exportación CSV, `DEFAULT_API_KEY` expuesta).
+
+## Addendum 2026-09-25 (segunda parte) — app con pantalla apagada, batería del celular, sondas MikroTik
+
+Sesión larga desde la WSL de Diego. Todo quedó **commiteado en `origin/main`** y **desplegado en el VPS**
+(cada despliegue con respaldo previo de la base y purga de Cloudflare). El repo es otra vez la fuente de
+verdad: el VPS quedó idéntico al último commit (verificado por md5 antes de cada despliegue).
+
+| Commit | Qué |
+|---|---|
+| `9d21dd3` | Traer al repo lo editado directo en el VPS desde el 19 (ver punto 4 de arriba) |
+| `598f482`, `2017d6d` | App: modo en movimiento **funciona con la pantalla apagada** |
+| `c7686c7`, `f6d23f5` | Historial de **batería y red del celular** (`phone_log`) |
+| `dd87bfa` | Backend: **sondas MikroTik** en la cola de comandos (modo híbrido) |
+| `95ee74a` | Dashboard: controles de sondas |
+| `9e844d3`, `7c630b4` | Dashboard: consumo de batería por tendencia real; ignora la falsa carga inalámbrica |
+
+### 1. Agente del router reinstalado (NR)
+
+Hecho (ver punto 1 de la lista de arriba). Binario viejo de respaldo en el equipo:
+`/data/routeragent-arm.bak` (para volver atrás: `mv` de vuelta). Sigue pendiente ver `nr_band` real con el
+equipo en 5G.
+
+### 2. App móvil (`mobile/`): pantalla apagada + batería
+
+- **Pantalla apagada:** `lib/location_beacon.dart` ya no usa `Timer.periodic`; usa
+  `Geolocator.getPositionStream` con `AndroidSettings.foregroundNotificationConfig` (servicio en primer
+  plano de geolocator, notificación fija "Notion 5G: modo en movimiento", wake lock parcial). Toma un punto
+  cada 15 s y **envía solo si se movió >50 m (y más que la precisión del punto) o si pasaron 2 min**.
+  Alcanza con el permiso de ubicación "mientras se usa la app" (el servicio arranca con la app en
+  pantalla); no hace falta "Permitir todo el tiempo". Permisos nuevos en el manifiesto:
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `WAKE_LOCK`, `POST_NOTIFICATIONS` (este se pide en
+  `MainActivity.onCreate`). **Probado:** 14 min con la pantalla apagada (`Dozing`), todos los heartbeats del
+  router con ubicación nueva. Falta probar en movimiento y por varias horas. Si se desliza la app fuera de
+  "recientes", el servicio se detiene.
+- **Batería/red:** canal `notion5g/device` en `MainActivity.kt` (APIs de Android, sin dependencias) +
+  `lib/device_status.dart`; cada envío de ubicación lleva `battery_pct`, `battery_status`
+  (charging/discharging/full/not_charging), `plugged`, `battery_temp_c`, `net_type`
+  (ethernet/wifi/cellular). Backend: tabla nueva **`phone_log`** (append-only),
+  `GET /api/v1/devices/{id}/phone_log`. Dashboard, detalle del equipo → "Celular acompañante": estado,
+  **consumo por regresión lineal de la última hora** (no por el flag de carga) y horas restantes.
+- **Compilar:** con el Flutter de **Windows** (`C:\development\flutter\bin\flutter.bat build apk --release`
+  desde `C:\dev\notion5g_mobile`, vía `powershell.exe`). Desde WSL el script `flutter` falla por finales de
+  línea CRLF. APK release: ~46 MB (el debug pesa 160 MB y se corta al instalar). **`C:\dev\notion5g_mobile`
+  y `mobile/` del repo quedaron idénticos**; si se edita en uno, copiar al otro.
+- **Instalada en un Samsung Galaxy S20+ ("S20+ de betty", `SM-G985F`, serial `R58N65V3FKA`)**, no en el
+  Motorola. App configurada con `https://notion.h3s-iot.com` + `router-R524260829000001` + la API key del
+  dashboard.
+
+**Cómo llegar al celular con adb (lo que funcionó, después de varios intentos que no):**
+- USB hacia WSL con `usbipd` **se corta** a mitad de transferencias grandes. El adb de WSL es v28, muy viejo
+  para depuración inalámbrica.
+- El adb de Windows (`C:\Users\diego\AppData\Local\Android\Sdk\platform-tools\adb.exe`, v36) **no puede
+  usar el puerto 5037** (algo lo tiene tomado con la red WSL en modo *mirrored*): arrancarlo con **`-P 5039`**
+  (`Start-Process ... -ArgumentList '-P','5039','start-server'`, para que no muera con la consola).
+- Por USB el teléfono nunca aceptó la llave del adb de Windows. **Se usó depuración inalámbrica**: quedó
+  **vinculado** (`adb -P 5039 pair`) y se conecta con
+  `adb -P 5039 connect <ip>:<puerto>` (puerto de `adb -P 5039 mdns services`, cambia al reactivar la
+  depuración inalámbrica). Tiene que estar en la misma WiFi que el PC (ese día `192.168.2.92`).
+
+### 3. Hallazgos de campo con el celular (2026-09-24/25)
+
+- **Consumo del S20+ con el modo en movimiento:** ~11–12 %/h por WiFi, **~15 %/h por cable Ethernet**
+  (adaptador USB-C **AX88179A** alimentado por el propio teléfono; `plugged: none`).
+- **El adaptador se reinicia en bucle** (se desconecta y reconecta cada 2–5 s) cuando está mal asentado o el
+  cable hace palanca. Se estabilizó al reconectarlo firme. Se ve con
+  `adb shell logcat -d -s EthernetTracker:I`.
+- **El teléfono reporta "carga inalámbrica" (`Wireless powered: true`) aunque no esté en el cargador**, aun
+  en la mano. El dashboard lo ignora cuando la batería baja ≥1 %/h (`falseWireless` en `app.js`). Mientras
+  estuvo de verdad en un cargador inalámbrico, igual bajaba ~11 %/h y el Ethernet no levantaba.
+- **Se "murió" con 36 %:** último registro en `phone_log` a las **02:13 hora de Colombia (07:13 UTC) del
+  25**, con 36 % y por Ethernet. Después no mandó nada más; el router siguió reportando toda la noche sin
+  cortes (sin ubicación desde las 02:24). Hipótesis: batería degradada que se apaga antes de tiempo bajo
+  carga, o Samsung cerró la app. **Pendiente:** al prenderlo, leer el motivo del último apagado:
+  `adb shell getprop sys.boot.reason; adb shell getprop persist.sys.boot.reason.history`.
+- **Conclusión práctica:** con cable no contar con más de ~4 h desde carga completa. Para pruebas más
+  largas: adaptador USB-C con Ethernet **y entrada de carga (PD passthrough)** + power bank.
+
+### 4. Sondas MikroTik (modo híbrido) — backend y dashboard listos, falta el script
+
+Idea (decidida con Diego): un **hAP ac2** con un puerto por equipo bajo prueba y una tabla de ruteo por
+puerto (`to-notion`, `to-4g`...), alimentado con un mini UPS/power bank (**entra por jack de 10–28 V**, no
+por USB). La ruta de salida queda garantizada por el cable. **Al segundo equipo hay que cambiarle la subred
+LAN** (los dos traen 192.168.1.1). Se descartó que el celular cambie de WiFi solo (Android 10+ no lo deja
+sin tocar la pantalla) y el mAP 2 (puertos de 100 Mbps, WiFi solo en 2.4 GHz).
+
+- **Backend (`internal/store/probes.go`, `internal/api/probes.go`):** tablas `probes` y `probe_targets`;
+  `commands` tiene ahora `runner` (`agent`/`probe`, NULL = agent en los viejos), `probe_id`, `routing_table`
+  (agregadas con `addColumnIfMissing`; migración probada contra una copia de la base real). **El agente del
+  router solo toma comandos de agente**; la sonda consulta `GET /api/v1/commands/next?probe_id=` y recibe
+  `routing_table`. `POST /api/v1/probes/{id}/cycle` encola una prueba por equipo en orden (así alternan, sin
+  duplicar); un planificador cada 30 s encola el ciclo cuando pasó `interval_s`, **solo si la sonda está en
+  línea (consultó en los últimos 3 min) y terminó el ciclo anterior**. Mediciones de sonda:
+  `net_route=router`, razón `measured-by-probe`, `source=mikrotik-probe`. Endpoints en `server/README.md`.
+- **Dashboard:** sección "Sondas (MikroTik)" en la lista (configurar/editar, ciclo automático
+  apagado/5 min…1 h, "Ciclo ahora", estado de cada equipo) y botón **"Prueba vía sonda"** en el detalle del
+  equipo (solo si está en una sonda). Probado con Playwright contra un servidor local (15 verificaciones).
+- **En producción no hay ninguna sonda configurada** (no se crearon datos de prueba en la base real).
+- **Falta el script de RouterOS** (necesita **RouterOS v7**, confirmar la versión del hAP): consultar la
+  cola con `?probe_id=`, medir descarga (`/tool fetch` a `/api/v1/speedtest/download` por la tabla) y ping
+  (`/ping routing-table=`), cerrar con `POST /commands/{id}/complete`, y heartbeats para los equipos con
+  `send_heartbeat`. Validar antes el techo de CPU del hAP con `fetch` por TLS: en 5G puede quedar corto. La
+  subida es el punto débil de RouterOS (`fetch` no genera cuerpos grandes): btest o un cliente en otro
+  puerto.
+
+### 5. Cómo se desplegó (el procedimiento de §6 sigue valiendo, con estos agregados)
+
+1. Comprobar que el VPS es igual al último commit (md5 de los archivos contra `git show HEAD:server/...`).
+   Si difiere, alguien editó allá: traerlo antes.
+2. Respaldo: `docker cp notion5g-server:/data/notion5g.db{,-wal,-shm}` a `~/notion5g-backups/<nombre>/`.
+   Respaldos de esta sesión: `pre-phonelog-20260925-0233`, `pre-probes-20260925-031525`,
+   `pre-probe-ui-20260925-040212`.
+3. `rsync` excluyendo `.env`, `.env.example`, `docker-compose.yml`, `cf-tunnel.sh`, `data/`, `.git/`;
+   `docker compose up -d --build server`.
+4. Purga de Cloudflare de `/`, `/index.html`, `/assets/app.js`, `/assets/style.css` con el token de
+   `~/.config/h3s/credentials.env` del VPS, **leído desde un script Python en el propio VPS** (el token nunca
+   sale de ahí).
+
+Al cerrar la sesión el VPS no respondía desde la WSL ("No route to host", probablemente cambió la red del
+PC). Este addendum quedó en git; si no está en `~/notion-5g-server/docs/`, copiarlo en el próximo
+despliegue (el rsync normal lo lleva).
+
+### Pendientes, en orden
+
+1. **Script RouterOS para el hAP ac2** (arriba). Antes: versión de RouterOS y techo de CPU con `fetch`.
+2. **Motivo del apagado del S20+ con 36 %** (`sys.boot.reason`) apenas se prenda.
+3. **Adaptador Ethernet con PD passthrough** para pruebas de más de ~4 h con cable.
+4. Ver `nr_band` real con el router en 5G y reemplazar los nombres candidatos del bloque NR (punto 2 de la
+   lista anterior).
+5. Probar el modo en movimiento de la app en carretera, varias horas.
+6. Siguen los de §7 (exportación CSV, `DEFAULT_API_KEY` expuesta en `app.js`).
