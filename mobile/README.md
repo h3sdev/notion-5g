@@ -72,6 +72,14 @@ antes de compilar, o el próximo `rsync` en este sentido lo pisa.
   - En Samsung (y Xiaomi/Huawei) hay que poner la app en **Batería → "Sin
     restricciones"**, o el ahorro de energía del fabricante la cierra igual.
   - Si se desliza la app fuera de "recientes", el servicio se detiene.
+  - Cada envío lleva además el estado del celular (`lib/device_status.dart` +
+    canal `notion5g/device` en `MainActivity.kt`, APIs de Android sin
+    dependencias): `battery_pct`, `battery_status` (charging/discharging/full/
+    not_charging, el estado real aunque haya algo enchufado), `plugged`,
+    `battery_temp_c` y `net_type` (ethernet/wifi/cellular). El backend lo
+    guarda como historial en `phone_log` y el dashboard muestra el consumo en
+    %/h. Con un adaptador USB-Ethernet OTG el teléfono reporta `plugged: none`
+    y `discharging`: es él quien alimenta el adaptador.
 
 ## Permisos Android agregados
 

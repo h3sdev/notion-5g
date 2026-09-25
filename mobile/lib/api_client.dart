@@ -94,6 +94,7 @@ class ApiClient {
     required double lat,
     required double lon,
     required double accuracyM,
+    Map<String, dynamic> extra = const {},
   }) {
     return _guard(() async {
       final deviceId = settings.routerDeviceId.trim();
@@ -105,6 +106,7 @@ class ApiClient {
             _uri('/api/v1/devices/${Uri.encodeComponent(deviceId)}/location'),
             headers: _headers,
             body: jsonEncode({
+              ...extra, // batería/red del celular (ver DeviceStatus); lo de abajo no se puede pisar
               'lat': lat,
               'lon': lon,
               'gps_accuracy_m': accuracyM,

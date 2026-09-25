@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
 
 import 'api_client.dart';
+import 'device_status.dart';
 import 'location_service.dart';
 
 /// Modo "en movimiento": manda la ubicación fused al backend mientras esté
@@ -100,7 +101,10 @@ class LocationBeacon {
   Future<void> _send(Position pos) async {
     _sendInFlight = true;
     try {
-      await _api.postLocation(lat: pos.latitude, lon: pos.longitude, accuracyM: pos.accuracy);
+      // Batería y red del celular viajan con la ubicación: el backend las
+      // guarda como historial (phone_log) para ver el consumo en el tiempo.
+      final status = await DeviceStatus.read();
+      await _api.postLocation(lat: pos.latitude, lon: pos.longitude, accuracyM: pos.accuracy, extra: status);
       // Solo cuenta como enviado si llegó: si falló, el siguiente punto reintenta.
       _lastSent = pos;
       _lastSentAt = DateTime.now();
