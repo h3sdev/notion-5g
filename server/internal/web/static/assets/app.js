@@ -573,16 +573,23 @@
         : '<span class="muted">Todavía no hay datos del celular (activá el modo en movimiento en la app).</span>';
     } else {
       var last = withBattery[0];
+      var d = batteryTrend(withBattery);
+      // El S20+ sigue reportando "carga inalámbrica" después de sacarlo del
+      // cargador (visto en campo: lo mantenía en la mano, sin nada cerca).
+      // Si la batería baja, ese reporte no se cree: se muestra y se trata como
+      // descargando. Un cargador por cable sí se respeta (dato confiable).
+      var falseWireless = last.plugged === "wireless" && d && d.rate >= 1;
+      var plugged = falseWireless ? "none" : last.plugged;
       var html =
         '<span class="summary-label">Batería:</span> <strong>' +
         last.battery_pct +
         "%</strong> · " +
-        escapeHtml(batteryStatusEs(last));
-      if (last.plugged && last.plugged !== "none") html += " (conectado a " + escapeHtml(PLUGGED_ES[last.plugged] || last.plugged) + ")";
+        escapeHtml(falseWireless ? "descargando" : batteryStatusEs(last));
+      if (plugged && plugged !== "none") html += " (conectado a " + escapeHtml(PLUGGED_ES[plugged] || plugged) + ")";
+      if (falseWireless) html += ' <span class="muted">(reporta carga inalámbrica pero la batería baja: se ignora)</span>';
       if (last.net_type) html += ' · <span class="summary-label">red:</span> ' + escapeHtml(NET_ES[last.net_type] || last.net_type);
       if (last.battery_temp_c !== null && last.battery_temp_c !== undefined) html += " · " + fmtNum(last.battery_temp_c, " °C", 1);
       html += ' · <span class="muted">' + fmtDate(last.received_at) + "</span>";
-      var d = batteryTrend(withBattery);
       if (d) {
         var trendNote = ' <span class="muted">(tendencia de los últimos ' + Math.round(d.hours * 60) + " min";
         if (Math.abs(d.rate) < 0.5) {
@@ -603,16 +610,16 @@
             (last.battery_pct < 100 ? ", unas " + fmtNum((100 - last.battery_pct) / -d.rate, " h", 1) + " hasta llenarse" : "") +
             ")</span>";
         }
-        var charging = last.battery_status === "charging" || (last.plugged && last.plugged !== "none");
-        if (d.rate >= 1 && charging) {
+        // Solo cargadores por cable: el reporte de inalámbrica no es confiable (ver falseWireless).
+        if (d.rate >= 1 && (plugged === "usb" || plugged === "ac" || plugged === "dock")) {
           html +=
             '<br><span class="muted">⚠ Figura conectado a ' +
-            escapeHtml(PLUGGED_ES[last.plugged] || "un cargador") +
+            escapeHtml(PLUGGED_ES[plugged]) +
             " pero la batería igual baja: ese cargador no alcanza (mal alineado, de poca potencia, o el celular " +
             "consume más de lo que entrega).</span>";
         }
       }
-      if (last.net_type === "ethernet" && (!last.plugged || last.plugged === "none")) {
+      if (last.net_type === "ethernet" && (!plugged || plugged === "none")) {
         html +=
           '<br><span class="muted">El adaptador USB-Ethernet se alimenta de la batería del celular (no hay nada ' +
           "cargándolo).</span>";
