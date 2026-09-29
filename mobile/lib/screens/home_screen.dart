@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
@@ -34,61 +36,61 @@ class _HomeScreenState extends State<HomeScreen> {
   List<CommandStatus> _commands = [];
   bool _loadingHistory = false;
 
-  // Modo "en movimiento": manda la ubicación cada 15s mientras esté
-  // activo, para el perfil de ping+ubicación del router (ver LocationBeacon).
-  LocationBeacon? _beacon;
-  bool _beaconOn = false;
-  DateTime? _lastBeaconTick;
-  String? _lastBeaconError;
+  // Modo "en movimiento": lo corre un servicio nativo que sigue vivo sin la
+  // app (ver LocationBeacon); aquí solo se refleja su estado.
+  BeaconStatus _beacon = const BeaconStatus();
+  bool _backgroundLocation = true;
+  Timer? _beaconPoll;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _refreshBeacon();
+    _beaconPoll = Timer.periodic(const Duration(seconds: 5), (_) => _refreshBeacon());
   }
 
   @override
   void dispose() {
-    _beacon?.stop();
+    _beaconPoll?.cancel(); // el servicio sigue: apagarlo es solo con el interruptor
     super.dispose();
   }
 
+  Future<void> _refreshBeacon() async {
+    final st = await LocationBeacon.status();
+    final perm = await Geolocator.checkPermission();
+    if (!mounted) return;
+    setState(() {
+      _beacon = st;
+      _backgroundLocation = perm == LocationPermission.always;
+    });
+  }
+
   Future<void> _toggleBeacon(bool on) async {
+    if (!on) {
+      await LocationBeacon.stop();
+      await _refreshBeacon();
+      return;
+    }
     if (!_settings.isConfigured) {
       _showSnack('Primero configura el backend y el router en Ajustes.');
       return;
     }
-    _beacon ??= LocationBeacon(
-      ApiClient(_settings),
-      _location,
-      onTick: () {
-        if (!mounted) return;
-        setState(() {
-          _lastBeaconTick = DateTime.now();
-          _lastBeaconError = null;
-        });
-      },
-      onError: (msg) {
-        if (!mounted) return;
-        setState(() => _lastBeaconError = msg);
-      },
-    );
-    setState(() => _beaconOn = on);
-    if (!on) {
-      await _beacon!.stop();
-      return;
-    }
-    setState(() {
-      _lastBeaconTick = null;
-      _lastBeaconError = null;
-    });
     try {
-      await _beacon!.start();
+      await _location.ensurePermission();
+      await LocationBeacon.start(_settings);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _beaconOn = false);
       _showSnack(e.toString());
     }
+    await _refreshBeacon();
+  }
+
+  /// Sin "Permitir todo el tiempo" el servicio no recibe ubicación cuando
+  /// Android lo relanza solo (tras matar la app o al reiniciar el teléfono).
+  /// En Android 11+ esto abre la pantalla de permisos de la app.
+  Future<void> _requestBackgroundLocation() async {
+    await Geolocator.requestPermission();
+    await _refreshBeacon();
   }
 
   Future<void> _loadSettings() async {
@@ -105,18 +107,10 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(builder: (_) => SettingsScreen(initial: _settings)),
     );
     if (updated != null) {
-      // El ApiClient del beacon quedó armado con la config vieja (backend_url/
-      // device_id/api_key); más seguro apagarlo y que el usuario lo prenda de
-      // nuevo (así se reconstruye con la config actual) que dejarlo mandando
-      // datos a la URL/router equivocado sin avisar.
-      final wasOn = _beaconOn;
-      _beacon?.stop();
-      _beacon = null;
-      setState(() {
-        _settings = updated;
-        _beaconOn = false;
-      });
-      if (wasOn) _showSnack('Ajustes cambiados: vuelve a activar "modo en movimiento".');
+      setState(() => _settings = updated);
+      // El servicio guarda su propia copia de la config: si está activo, se le
+      // pasa la nueva para que no siga mandando al backend/router anterior.
+      if (_beacon.enabled && updated.isConfigured) await LocationBeacon.start(updated);
       _refreshHistory();
     }
   }
@@ -298,25 +292,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                Switch(value: _beaconOn, onChanged: _toggleBeacon),
+                Switch(value: _beacon.enabled, onChanged: _toggleBeacon),
               ],
             ),
             Text(
               'Manda tu ubicación al backend para que el perfil de ping del router '
               '(un heartbeat por minuto) tenga con qué correlacionar posición. '
               'Sigue funcionando con la pantalla apagada mientras se vea la '
-              'notificación "Notion 5G: modo en movimiento". Envía cuando te '
+              'notificación "Notion 5G: modo en movimiento", y vuelve solo si '
+              'Android cierra la app o se reinicia el teléfono. Envía cuando te '
               'mueves más de 50 m, y cada 2 min si estás quieto.\n'
               'Para que Samsung no la cierre: Ajustes > Apps > notion5g_field > '
               'Batería > "Sin restricciones".',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (_beaconOn) ...[
+            if (_beacon.enabled) ...[
               const SizedBox(height: 8),
-              if (_lastBeaconError != null)
-                Text('Último intento falló: $_lastBeaconError', style: const TextStyle(color: Colors.red))
-              else if (_lastBeaconTick != null)
-                Text('Última ubicación mandada: ${_formatTs(_lastBeaconTick!.toIso8601String())}',
+              if (!_backgroundLocation) ...[
+                const Text(
+                  'Falta el permiso de ubicación "Permitir todo el tiempo": sin él no '
+                  'vuelve solo si Android cierra la app.',
+                  style: TextStyle(color: Colors.orange),
+                ),
+                TextButton(onPressed: _requestBackgroundLocation, child: const Text('Dar permiso')),
+              ],
+              if (!_beacon.running)
+                const Text('El servicio no está corriendo; se relanza solo en unos minutos.',
+                    style: TextStyle(color: Colors.orange)),
+              if (_beacon.currentError != null)
+                Text('Último intento falló: ${_beacon.currentError}', style: const TextStyle(color: Colors.red))
+              else if (_beacon.lastOk != null)
+                Text('Última ubicación mandada: ${_formatTs(_beacon.lastOk!.toIso8601String())}',
                     style: Theme.of(context).textTheme.bodySmall)
               else
                 const Text('Mandando la primera ubicación...'),

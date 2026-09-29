@@ -3,10 +3,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <!-- Modo en movimiento con la pantalla apagada: geolocator corre un servicio
-         en primer plano de tipo "location" (declarado en su propio manifiesto).
-         No hace falta ACCESS_BACKGROUND_LOCATION porque el servicio se arranca
-         con la app en pantalla. -->
+    <!-- Modo en movimiento con la pantalla apagada: BeaconService, servicio nativo
+         en primer plano de tipo "location". Cuando Android lo relanza solo (tras
+         matar el proceso, al reiniciar el teléfono o desde BeaconWatchdog) arranca
+         en segundo plano, y ahí solo recibe ubicación con "Permitir todo el
+         tiempo" (ACCESS_BACKGROUND_LOCATION). -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -37,6 +40,22 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service
+            android:name=".BeaconService"
+            android:exported="false"
+            android:foregroundServiceType="location"/>
+        <service
+            android:name=".BeaconWatchdog"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
