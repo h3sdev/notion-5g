@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -95,6 +96,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/v1/probes/{probe_id}", s.auth(s.handlePutProbe))
 	s.mux.HandleFunc("GET /api/v1/probes/{probe_id}/config", s.auth(s.handleProbeConfig))
 	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/cycle", s.auth(s.handleProbeCycle))
+
+	// Sonda A/B con celular por cable (phoneprobe.go).
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/orders", s.auth(s.handleCreateOrders))
+	s.mux.HandleFunc("GET /api/v1/probes/{probe_id}/orders", s.auth(s.handleListOrders))
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/orders/ack", s.auth(s.handleAckOrders))
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/orders/cancel", s.auth(s.handleCancelOrders))
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/orders/{order_id}/state", s.auth(s.handleOrderState))
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/results", s.auth(s.handlePostResults))
+	s.mux.HandleFunc("POST /api/v1/probes/{probe_id}/status", s.auth(s.handlePostProbeStatus))
+	s.mux.HandleFunc("GET /api/v1/probes/{probe_id}/status", s.auth(s.handleGetProbeStatus))
 
 	s.mux.HandleFunc("GET /api/v1/netinfo", s.auth(s.handleNetInfo))
 
@@ -426,6 +437,7 @@ func (s *Server) handleListMeasurements(w http.ResponseWriter, r *http.Request) 
 		Operator: q.Get("operator"),
 		Since:    q.Get("since"),
 		NetRoute: q.Get("net_route"),
+		ProbeID:  q.Get("probe_id"),
 		Limit:    limit,
 	})
 	if err != nil {
@@ -590,12 +602,18 @@ func (s *Server) handleCreateCommand(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	id, err := s.store.CreateCommand(ctx, body)
+	// Con runner "probe" sobre una sonda de celular se crea una orden de
+	// celular y la respuesta agrega su order_id.
+	id, orderID, err := s.store.CreateCommandOrOrder(ctx, body)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"id": id, "status": "pending"})
+	resp := map[string]any{"id": id, "status": "pending"}
+	if orderID != "" {
+		resp["order_id"] = orderID
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleClaimCommand: el router hace polling aquí (no puede recibir conexiones
@@ -653,6 +671,11 @@ func (s *Server) handleCompleteCommand(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	route, _ := s.store.CommandRouteOf(ctx, id)
 	measurementID, err := s.store.CompleteCommand(ctx, id, body)
+	if errors.Is(err, store.ErrCommandClosed) {
+		// Reintento sobre un comando ya cerrado: no se inserta otra medición.
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "ignored": true})
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -741,6 +764,12 @@ func (s *Server) handleSetCommandEndLocation(w http.ResponseWriter, r *http.Requ
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	// Una orden de celular tiene su propio fix: la ubicación del navegador no
+	// se escribe como fin de esa medición.
+	if route, ok := s.store.CommandRouteOf(ctx, id); ok && route.Runner == store.RunnerPhone {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "ignored": true})
+		return
+	}
 	if err := s.store.SetMeasurementEndLocation(ctx, id, *loc.Lat, *loc.Lon, loc.GPSAccuracyM, loc.GPSSource); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return

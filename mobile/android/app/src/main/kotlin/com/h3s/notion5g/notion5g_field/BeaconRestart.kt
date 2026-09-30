@@ -6,14 +6,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/// Relanza el modo en movimiento al prender el teléfono o al instalar una
-/// versión nueva de la app, si estaba activo (ver BeaconService).
+/// Relanza el modo en movimiento y la sonda A/B al prender el teléfono o al
+/// instalar una versión nueva de la app, si estaban activos (ver BeaconService
+/// y ProbeService).
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 if (BeaconService.Prefs(context).enabled) BeaconService.scheduleWatchdog(context)
                 BeaconService.startIfEnabled(context, intent.action ?: "boot")
+                // Sonda A/B: misma receta (BOOT_COMPLETED y MY_PACKAGE_REPLACED
+                // están exentos de la restricción de arranque en segundo plano).
+                if (ProbePrefs(context).enabled) ProbeService.scheduleWatchdog(context)
+                ProbeService.startIfEnabled(context, intent.action ?: "boot")
             }
         }
     }

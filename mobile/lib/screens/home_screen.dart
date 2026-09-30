@@ -8,7 +8,9 @@ import '../api_client.dart';
 import '../location_beacon.dart';
 import '../location_service.dart';
 import '../models.dart';
+import '../probe_channel.dart';
 import '../settings_store.dart';
+import 'probe_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -42,17 +44,54 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _backgroundLocation = true;
   Timer? _beaconPoll;
 
+  // Sonda A/B: color del punto del icono de la AppBar (null = detenida).
+  Color? _probeDot;
+  Timer? _probePoll;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
     _refreshBeacon();
     _beaconPoll = Timer.periodic(const Duration(seconds: 5), (_) => _refreshBeacon());
+    _refreshProbe();
+    _probePoll = Timer.periodic(const Duration(seconds: 10), (_) => _refreshProbe());
+  }
+
+  /// Verde = midiendo, azul = en espera, ámbar = alertas warn, rojo = alertas
+  /// error, sin punto = detenida.
+  Future<void> _refreshProbe() async {
+    final st = await ProbeChannel.status();
+    if (!mounted) return;
+    Color? dot;
+    if (st != null && st['running'] == true) {
+      final alerts = (st['alerts'] as List?) ?? const [];
+      final phase = st['phase'] as String?;
+      if (alerts.any((a) => a is Map && a['level'] == 'error')) {
+        dot = Colors.red;
+      } else if (alerts.any((a) => a is Map && a['level'] == 'warn')) {
+        dot = Colors.amber;
+      } else if (phase == 'idle' || phase == 'backoff' || phase == 'waiting_ethernet') {
+        dot = Colors.blue;
+      } else {
+        dot = Colors.green;
+      }
+    }
+    setState(() => _probeDot = dot);
+  }
+
+  Future<void> _openProbe() async {
+    _probePoll?.cancel();
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProbeScreen(general: _settings)));
+    if (!mounted) return;
+    _refreshProbe();
+    _probePoll = Timer.periodic(const Duration(seconds: 10), (_) => _refreshProbe());
   }
 
   @override
   void dispose() {
     _beaconPoll?.cancel(); // el servicio sigue: apagarlo es solo con el interruptor
+    _probePoll?.cancel();
     super.dispose();
   }
 
@@ -195,6 +234,30 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Notion 5G — pruebas de campo'),
         actions: [
+          IconButton(
+            tooltip: 'Sonda A/B',
+            onPressed: _openProbe,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.compare_arrows),
+                if (_probeDot != null)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: _probeDot,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           IconButton(icon: const Icon(Icons.settings), onPressed: _openSettings),
         ],
       ),

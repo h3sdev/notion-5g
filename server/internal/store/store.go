@@ -15,6 +15,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -22,6 +23,11 @@ import (
 
 type Store struct {
 	db *sql.DB
+
+	// completeMu serializa CompleteCommand: el chequeo "¿ya estaba cerrado?"
+	// y el INSERT de la medición son pasos separados, y dos reintentos del
+	// agente a la vez podrían pasar los dos el chequeo.
+	completeMu sync.Mutex
 }
 
 func Open(path string) (*Store, error) {
@@ -786,7 +792,9 @@ type ListFilter struct {
 	// (todo lo anterior a esta función, útil para auditar el histórico).
 	// Vacío = sin filtro.
 	NetRoute string
-	Limit    int
+	// ProbeID: solo las mediciones de esa sonda (resultados del celular).
+	ProbeID string
+	Limit   int
 }
 
 // ListRaw devuelve las filas como el JSON crudo que se guardó (más id/received_at),
@@ -812,6 +820,10 @@ func (s *Store) ListRaw(ctx context.Context, f ListFilter) ([]json.RawMessage, e
 	if f.Since != "" {
 		q += " AND ts >= ?"
 		args = append(args, f.Since)
+	}
+	if f.ProbeID != "" {
+		q += " AND probe_id = ?"
+		args = append(args, f.ProbeID)
 	}
 	// "none" = solo las viejas/sin clasificar; útil para auditar el histórico.
 	if f.NetRoute == "none" {
@@ -1248,6 +1260,29 @@ type Command struct {
 	Runner       string `json:"runner,omitempty"`
 	ProbeID      string `json:"probe_id,omitempty"`
 	RoutingTable string `json:"routing_table,omitempty"`
+	// Solo de salida (órdenes de celular, runner "phone"; ver phoneprobe.go).
+	// CreateCommand los limpia después del Unmarshal: un POST /commands no
+	// puede fijar order_id ni estados.
+	OrderID         string `json:"order_id,omitempty"`
+	BatchID         string `json:"batch_id,omitempty"`
+	Target          string `json:"target,omitempty"`
+	Slot            string `json:"slot,omitempty"`
+	ExecuteAt       string `json:"execute_at,omitempty"`
+	NotAfter        string `json:"not_after,omitempty"`
+	SelectionReason string `json:"selection_reason,omitempty"`
+	DeliveredAt     string `json:"delivered_at,omitempty"`
+	StartedAt       string `json:"started_at,omitempty"`
+	ResultID        string `json:"result_id,omitempty"`
+	ClosedBy        string `json:"closed_by,omitempty"`
+	UpdatedAt       string `json:"updated_at,omitempty"`
+}
+
+// clearOutputOnly borra los campos que el cliente no puede fijar.
+func (c *Command) clearOutputOnly() {
+	c.ID, c.CreatedAt, c.Status = 0, "", ""
+	c.OrderID, c.BatchID, c.Target, c.Slot = "", "", "", ""
+	c.ExecuteAt, c.NotAfter, c.SelectionReason = "", "", ""
+	c.DeliveredAt, c.StartedAt, c.ResultID, c.ClosedBy, c.UpdatedAt = "", "", "", "", ""
 }
 
 // CreateCommand: `raw` es el body que manda el celular, p.ej.
@@ -1255,15 +1290,25 @@ type Command struct {
 //
 //	"lat":4.65,"lon":-74.05,"gps_accuracy_m":5,"gps_source":"android-fused","requested_by":"android-abc"}
 func (s *Store) CreateCommand(ctx context.Context, raw json.RawMessage) (int64, error) {
+	id, _, err := s.CreateCommandOrOrder(ctx, raw)
+	return id, err
+}
+
+// CreateCommandOrOrder es CreateCommand, salvo que con runner "probe" la
+// sonda resuelta la ejecute un celular: entonces crea una orden de celular
+// (ver createPhoneOrderForDevice) y devuelve también su order_id. Así el
+// botón "Prueba vía sonda" del detalle del equipo sigue funcionando.
+func (s *Store) CreateCommandOrOrder(ctx context.Context, raw json.RawMessage) (int64, string, error) {
 	var c Command
 	if err := json.Unmarshal(raw, &c); err != nil {
-		return 0, fmt.Errorf("payload inválido: %w", err)
+		return 0, "", fmt.Errorf("payload inválido: %w", err)
 	}
+	c.clearOutputOnly()
 	if c.DeviceID == "" {
-		return 0, fmt.Errorf("falta device_id")
+		return 0, "", fmt.Errorf("falta device_id")
 	}
 	if c.Type == "" {
-		return 0, fmt.Errorf("falta type")
+		return 0, "", fmt.Errorf("falta type")
 	}
 	var routingTable string
 	switch c.Runner {
@@ -1272,11 +1317,16 @@ func (s *Store) CreateCommand(ctx context.Context, raw json.RawMessage) (int64, 
 	case RunnerProbe:
 		pid, table, err := s.resolveProbeTarget(ctx, c.DeviceID, c.ProbeID)
 		if err != nil {
-			return 0, err
+			return 0, "", err
 		}
 		c.ProbeID, routingTable = pid, table
+		if runner, _, err := s.probeRunner(ctx, pid); err != nil {
+			return 0, "", err
+		} else if runner == RunnerPhone {
+			return s.createPhoneOrderForDevice(ctx, pid, c.DeviceID, c.DurationS, c.RequestedBy, time.Now())
+		}
 	default:
-		return 0, fmt.Errorf("runner debe ser 'agent' o 'probe'")
+		return 0, "", fmt.Errorf("runner debe ser 'agent' o 'probe'")
 	}
 	res, err := s.db.ExecContext(ctx, `
 INSERT INTO commands (created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source,
@@ -1285,9 +1335,10 @@ VALUES (?,?,?,?,?,?,?,?,?, 'pending', ?,?,?)`,
 		time.Now().UTC().Format(time.RFC3339), c.DeviceID, c.Type, c.DurationS, c.Lat, c.Lon,
 		c.GPSAccuracyM, nullStr(c.GPSSource), nullStr(c.RequestedBy), c.Runner, nullStr(c.ProbeID), nullStr(routingTable))
 	if err != nil {
-		return 0, fmt.Errorf("insert command: %w", err)
+		return 0, "", fmt.Errorf("insert command: %w", err)
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	return id, "", err
 }
 
 // staleClaimAfter: si un comando lleva más de esto en 'claimed' sin cerrarse
@@ -1363,7 +1414,13 @@ ORDER BY id ASC LIMIT 1`, args...)
 // Devuelve el id de la medición insertada (0 si el comando no trajo ninguna),
 // para que la capa HTTP pueda clasificarle la ruta de salida: una medición que
 // llega por acá la corrió el propio equipo, o sea que salió por su módem.
+//
+// Es idempotente: si el comando ya estaba cerrado devuelve ErrCommandClosed y
+// no inserta otra medición (un reintento del agente tras perder la respuesta
+// duplicaba la medición). Las órdenes del celular no se cierran por acá.
 func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessage) (int64, error) {
+	s.completeMu.Lock()
+	defer s.completeMu.Unlock()
 	var body struct {
 		Status      string          `json:"status"` // "done" | "failed"
 		Error       string          `json:"error,omitempty"`
@@ -1376,14 +1433,21 @@ func (s *Store) CompleteCommand(ctx context.Context, id int64, raw json.RawMessa
 		return 0, fmt.Errorf("status debe ser 'done' o 'failed'")
 	}
 
-	row := s.db.QueryRowContext(ctx, `SELECT lat, lon, gps_accuracy_m, gps_source, runner, probe_id, routing_table FROM commands WHERE id = ?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT lat, lon, gps_accuracy_m, gps_source, runner, probe_id, routing_table, status FROM commands WHERE id = ?`, id)
 	var lat, lon, acc sql.NullFloat64
 	var gpsSource, runner, probeID, routingTable sql.NullString
-	if err := row.Scan(&lat, &lon, &acc, &gpsSource, &runner, &probeID, &routingTable); err != nil {
+	var status string
+	if err := row.Scan(&lat, &lon, &acc, &gpsSource, &runner, &probeID, &routingTable, &status); err != nil {
 		if err == sql.ErrNoRows {
 			return 0, fmt.Errorf("comando %d no existe", id)
 		}
 		return 0, fmt.Errorf("leer comando: %w", err)
+	}
+	if runner.String == RunnerPhone {
+		return 0, fmt.Errorf("las órdenes del celular se cierran con /probes/{id}/results")
+	}
+	if closedStatuses[status] {
+		return 0, ErrCommandClosed
 	}
 
 	var insertedID int64
@@ -1430,7 +1494,9 @@ func (s *Store) ListCommands(ctx context.Context, deviceID, status string, limit
 	if limit <= 0 || limit > 2000 {
 		limit = 100
 	}
-	q := "SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by, status, runner, probe_id, routing_table FROM commands WHERE 1=1"
+	q := `SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by, status, runner, probe_id, routing_table,
+	order_id, batch_id, target, slot, execute_at, not_after, selection_reason, delivered_at, started_at, result_id, closed_by, updated_at
+FROM commands WHERE 1=1`
 	var args []any
 	if deviceID != "" {
 		q += " AND device_id = ?"
@@ -1455,10 +1521,16 @@ func (s *Store) ListCommands(ctx context.Context, deviceID, status string, limit
 		var durationS sql.NullInt64
 		var lat, lon, acc sql.NullFloat64
 		var gpsSource, requestedBy, runner, probeID, table sql.NullString
+		var orderID, batchID, target, slot, execAt, notAfter, reason, delivered, started, resultID, closedBy, updated sql.NullString
 		if err := rows.Scan(&c.ID, &c.CreatedAt, &c.DeviceID, &c.Type, &durationS, &lat, &lon, &acc,
-			&gpsSource, &requestedBy, &c.Status, &runner, &probeID, &table); err != nil {
+			&gpsSource, &requestedBy, &c.Status, &runner, &probeID, &table,
+			&orderID, &batchID, &target, &slot, &execAt, &notAfter, &reason, &delivered, &started, &resultID, &closedBy, &updated); err != nil {
 			return nil, err
 		}
+		c.OrderID, c.BatchID, c.Target, c.Slot = orderID.String, batchID.String, target.String, slot.String
+		c.ExecuteAt, c.NotAfter, c.SelectionReason = execAt.String, notAfter.String, reason.String
+		c.DeliveredAt, c.StartedAt, c.ResultID = delivered.String, started.String, resultID.String
+		c.ClosedBy, c.UpdatedAt = closedBy.String, updated.String
 		c.Runner, c.ProbeID, c.RoutingTable = runner.String, probeID.String, table.String
 		if c.Runner == "" {
 			c.Runner = RunnerAgent

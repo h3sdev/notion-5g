@@ -43,25 +43,48 @@ en `~/.config/h3s/credentials.env` en el VPS.
 |---|---|
 | `GET /healthz` | Sin auth. Chequeo de vida. |
 | `POST /api/v1/measurements` | Inserta una medición (objeto) o varias (arreglo). Body = el mismo dict que ya produce `notion5g.py`. |
-| `GET /api/v1/measurements` | Lista/filtra por `device_id`, `tag`, `operator`, `since`, `limit`. |
+| `GET /api/v1/measurements` | Lista/filtra por `device_id`, `tag`, `operator`, `since`, `net_route`, `probe_id` (resultados del celular de esa sonda), `limit`. |
 | `GET /api/v1/measurements/summary` | Promedio/mediana de `down_mbps`/`up_mbps`/`rsrp_dbm` agrupado por `operator`\|`tag`\|`device_id`. |
 | `POST /api/v1/heartbeat` | Ping liviano: uptime + señal, sin prueba de velocidad. |
 | `GET /api/v1/heartbeats` | Lista heartbeats por `device_id`. |
-| `POST /api/v1/commands` | El celular pide una prueba: `{"device_id":"router-xxx","type":"run_speedtest","duration_s":10,"lat":...,"lon":...,"gps_accuracy_m":...,"gps_source":"android-fused","requested_by":"..."}`. Con `"runner":"probe"` la ejecuta la sonda MikroTik que tiene ese equipo en un puerto (el backend resuelve `probe_id` y `routing_table`); sin `runner` (o `"agent"`) la ejecuta el propio router. |
+| `POST /api/v1/commands` | El celular pide una prueba: `{"device_id":"router-xxx","type":"run_speedtest","duration_s":10,"lat":...,"lon":...,"gps_accuracy_m":...,"gps_source":"android-fused","requested_by":"..."}`. Con `"runner":"probe"` la ejecuta la sonda MikroTik que tiene ese equipo en un puerto (el backend resuelve `probe_id` y `routing_table`); sin `runner` (o `"agent"`) la ejecuta el propio router. Si esa sonda es de celular (`runner:"phone"`), se crea una **orden de celular** y la respuesta agrega `order_id`. Los campos de orden (`order_id`, `status`, …) que mande el cliente se ignoran. |
 | `GET /api/v1/commands/next?device_id=` | El router hace *polling* aquí (no puede recibir conexiones entrantes por su NAT celular) y se lleva el comando pendiente más viejo, marcado `claimed`. Solo recibe comandos de agente. |
 | `GET /api/v1/commands/next?probe_id=` | Igual, para una sonda: recibe los comandos de todos sus equipos, cada uno con `routing_table`. Cuenta como señal de vida de la sonda. |
-| `PUT /api/v1/probes/{probe_id}` | Configura una sonda: `{"label":"hAP","interval_s":900,"duration_s":10,"targets":[{"device_id":"router-R52...","routing_table":"to-notion"},{"device_id":"router-4g","routing_table":"to-4g","send_heartbeat":true}]}`. `interval_s` = ciclo automático (0 = apagado, mínimo 60). `send_heartbeat` solo para equipos sin agente propio. |
-| `GET /api/v1/probes`, `GET /api/v1/probes/{id}` | Sondas con sus equipos, `online` (consultó en los últimos 3 min) y `last_cycle_at`. |
+| `PUT /api/v1/probes/{probe_id}` | Configura una sonda: `{"label":"hAP","runner":"phone","interval_s":900,"duration_s":10,"targets":[{"slot":"A","device_id":"router-R52...","routing_table":"to-A","expected_asn":null},{"slot":"B","device_id":"router-4g","routing_table":"to-B","expected_asn":3816}]}`. `interval_s` = ciclo automático (0 = apagado, mínimo 60). `send_heartbeat` solo para equipos sin agente propio. `runner`: `probe` (script RouterOS, por defecto) o `phone` (celular por cable). **Claves ausentes se conservan**: sin `runner` queda el que tenía; sin `slot` o sin `expected_asn` (clave ausente) cada equipo conserva el suyo (`expected_asn: null` lo borra). En una sonda `phone`, `routing_table` única y distinta de `main`. |
+| `GET /api/v1/probes`, `GET /api/v1/probes/{id}` | Sondas con sus equipos (`slot`, `expected_asn`), `runner`, `online` (consultó en los últimos 3 min), `last_cycle_at` y, si el celular mandó estado, `phone_status`. |
 | `GET /api/v1/probes/{id}/config` | Lo que consulta la propia sonda (sus equipos y a cuáles mandar heartbeat). Cuenta como señal de vida. |
-| `POST /api/v1/probes/{id}/cycle` | Encola una prueba por equipo, en el orden de `targets` (así alternan). Se salta los que ya tienen una prueba abierta. |
+| `POST /api/v1/probes/{id}/cycle` | Encola una prueba por equipo, en el orden de `targets` (así alternan). Se salta los que ya tienen una prueba abierta. En una sonda `phone` encola órdenes de celular (`selection_reason: alternation`) y la respuesta agrega `order_ids`. |
 | `GET /api/v1/devices/{id}/phone_log` | Historial del celular acompañante (batería, estado de carga, red que usa) que llega con cada ubicación. |
-| `POST /api/v1/commands/{id}/complete` | El router reporta el resultado: `{"status":"done","measurement":{...}}` o `{"status":"failed","error":"..."}`. La ubicación del comando original se fusiona automáticamente en la medición (el módem no tiene GPS propio). |
+| `POST /api/v1/commands/{id}/complete` | El router reporta el resultado: `{"status":"done","measurement":{...}}` o `{"status":"failed","error":"..."}`. La ubicación del comando original se fusiona automáticamente en la medición (el módem no tiene GPS propio). **Idempotente**: sobre un comando ya cerrado responde `{"status":"ok","ignored":true}` sin insertar otra medición. Sobre una orden de celular, `400`. |
+| `POST /api/v1/commands/{id}/end_location` | Ubicación del navegador al terminar la prueba (`lat_end`/`lon_end`). Sobre una orden de celular se ignora (`"ignored":true`): el celular tiene su propio fix. |
 | `GET /api/v1/commands` | Lista/filtra comandos por `device_id`/`status`, para depurar. |
 | `GET /api/v1/speedtest/download?bytes=N` | Sink de descarga (por defecto 10 MB, tope 500 MB) para medir velocidad contra este mismo servidor. Devuelve `X-Speedtest-Concurrent`: cuántas pruebas están corriendo a la vez contra este backend. |
 | `POST /api/v1/speedtest/upload` | Sink de subida: lee y descarta el body, devuelve `received_bytes` y `concurrent`. |
 
 Todo excepto `/healthz` requiere el header `X-API-Key` si `API_KEY` está
 definida (siempre debería estarlo fuera de desarrollo local).
+
+### Sonda A/B con celular por cable (`runner: "phone"`)
+
+Contrato completo en [`docs/CONTRATO-SONDA-AB.md`](docs/CONTRATO-SONDA-AB.md) §1 (formas
+JSON, reglas y códigos). Las órdenes viven en la tabla `commands` con `runner='phone'`; el
+agente del router y el script de la sonda nunca las toman. Todas las rutas devuelven
+`404 {"error":"sonda no configurada"}` si la sonda no existe. Horas en RFC 3339 UTC.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `POST /api/v1/probes/{id}/orders` | Dashboard: crea una orden (`{"order_id":"<uuid>","target":"A"\|"B"\|"next","allow_fallback":false,"duration_s":10,"execute_at":null,"not_after":null}`) o una secuencia alternada (`"target":"sequence","count":2..48,"spacing_s":60..86400,"first":"A"` → órdenes `<id>-1…<id>-N`). Solo sondas `phone` activas. **Idempotente** por `order_id` (= `batch_id`): repetirlo devuelve las mismas órdenes con `"existing":true`. `order_id` terminado en `-N` → `400`; usado por otra sonda/lote → `409`. Por defecto `execute_at` = ahora y `not_after` = +30 min. |
+| `GET /api/v1/probes/{id}/orders?horizon=6h` | Celular: barre (vencidas → `expired`, `running` sin cambios 30 min → `interrupted`, `closed_by: server`), cuenta como señal de vida y devuelve `server_time`, `probe` (config), `orders` abiertas con `execute_at <= ahora+horizon` (máx. 200, `truncated`) y `closed` (cerradas por servidor/dashboard). `horizon` máx. 24 h. |
+| `GET /api/v1/probes/{id}/orders?view=history&limit=50` | Dashboard: todas las órdenes, más nuevas primero, sin barrer. |
+| `POST /api/v1/probes/{id}/orders/ack` | Celular: `{"order_ids":[...]}` (máx. 200) → `pending` pasa a `delivered`. Responde `acked`/`unknown`/`unchanged`. |
+| `POST /api/v1/probes/{id}/orders/cancel` | Dashboard: `{"order_ids":[...]}`, `{"batch_id":"..."}` o `{"all_open":true}` → `pending`/`delivered` pasan a `cancelled` (una `running` no se cancela). Responde `cancelled`/`unknown`/`unchanged`. |
+| `POST /api/v1/probes/{id}/orders/{order_id}/state` | Celular: `{"status":"delivered"\|"running"\|"interrupted"\|"expired","at":"...","result_id":"...","error":null}`. Transición inválida o repetida → `200` con `"ignored":true`. `done`/`failed` solo por `/results` (`400`). Orden desconocida → `404`. |
+| `POST /api/v1/probes/{id}/results` | Celular: `{"results":[...]}` (máx. 50). **Idempotente** por `result_id`: un reenvío da `"status":"duplicate"` con el mismo `measurement_id`. El servidor decide a qué router se atribuye (tabla confirmada en el MikroTik y sin cambios durante la prueba; por WiFi nunca se atribuye) y clasifica la red por el ASN de `egress_ip` contra `expected_asn` (`net_route`/`confidence`/`reason`). Cierra la orden si estaba abierta o la había cerrado el barrido del servidor. Estado por ítem: `inserted`, `duplicate` o `error` (`retryable`). No usa la IP de la petición ni la ubicación en caché. |
+| `POST /api/v1/probes/{id}/status` | Celular: estado en vivo (máx. 16 KiB). Se guarda el último por sonda; un envío con `seq` menor del mismo servicio se descarta. Cuenta como señal de vida. Responde `{"status":"ok","server_time":"..."}`. |
+| `GET /api/v1/probes/{id}/status` | Dashboard: `{"probe_id","received_at","age_s","online","status"}` (`online` = menos de 60 s; `status: null` si nunca mandó). |
+
+El planificador del backend (cada 30 s) también barre las órdenes vencidas de todas las
+sondas de celular, así el dashboard las ve aunque el celular no consulte.
 
 ## Sondas (MikroTik) — modo híbrido
 

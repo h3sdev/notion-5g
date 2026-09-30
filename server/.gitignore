@@ -1,0 +1,2 @@
+# Secretos locales (API_KEY): nunca al repo. La plantilla es .env.example.
+.env

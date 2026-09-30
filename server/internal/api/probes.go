@@ -20,7 +20,16 @@ func (s *Server) probeSchedulerLoop() {
 	defer t.Stop()
 	for range t.C {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		enq, err := s.store.EnqueueDueProbeCycles(ctx, time.Now())
+		now := time.Now()
+		// Primero el barrido de órdenes de celular (vencidas / sin cierre), así
+		// el dashboard las ve aunque el celular no consulte, y el ciclo
+		// automático no cuenta como abiertas las que ya vencieron.
+		if exp, intr, err := s.store.SweepPhoneOrders(ctx, "", now); err != nil {
+			log.Printf("sondas: barrido de órdenes: %v", err)
+		} else if exp+intr > 0 {
+			log.Printf("sondas: barrido: %d vencidas, %d sin cierre", exp, intr)
+		}
+		enq, err := s.store.EnqueueDueProbeCycles(ctx, now)
 		cancel()
 		if err != nil {
 			log.Printf("sondas: %v", err)
@@ -66,6 +75,7 @@ func (s *Server) handleListProbes(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "error de consulta")
 		return
 	}
+	s.attachPhoneStatus(ctx, probes)
 	writeJSON(w, http.StatusOK, probes)
 }
 
@@ -102,12 +112,13 @@ func (s *Server) handleProbeCycle(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	ids, err := s.store.EnqueueProbeCycle(ctx, r.PathValue("probe_id"), body.RequestedBy)
+	ids, orderIDs, err := s.store.EnqueueProbeCycleOrders(ctx, r.PathValue("probe_id"), body.RequestedBy)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"command_ids": ids})
+	// En una sonda de celular, command_ids son los id numéricos de las órdenes.
+	writeJSON(w, http.StatusOK, map[string]any{"command_ids": ids, "order_ids": orderIDs})
 }
 
 func (s *Server) writeProbe(ctx context.Context, w http.ResponseWriter, probeID string) {
@@ -121,5 +132,21 @@ func (s *Server) writeProbe(ctx context.Context, w http.ResponseWriter, probeID 
 		writeErr(w, http.StatusNotFound, "sonda no configurada")
 		return
 	}
+	s.attachPhoneStatus(ctx, probes)
 	writeJSON(w, http.StatusOK, probes[0])
+}
+
+// attachPhoneStatus agrega phone_status (último estado en vivo del celular) a
+// las sondas que tengan uno. Best-effort: si falla, las sondas salen sin él.
+func (s *Server) attachPhoneStatus(ctx context.Context, probes []store.Probe) {
+	all, err := s.store.ProbeStatuses(ctx, time.Now().UTC())
+	if err != nil {
+		log.Printf("estado de sondas: %v", err)
+		return
+	}
+	for i := range probes {
+		if st, ok := all[probes[i].ProbeID]; ok {
+			probes[i].PhoneStatus = &st
+		}
+	}
 }

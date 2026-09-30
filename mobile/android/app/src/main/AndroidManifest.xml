@@ -14,10 +14,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Sonda A/B (ProbeService): requestNetwork para Ethernet y WiFi a la vez,
+         WifiLock mientras mide, y el botón que saca la app de la optimización de
+         batería (sin eso, el watchdog no puede relanzarla desde segundo plano). -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="notion5g_field"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -46,6 +53,15 @@
             android:foregroundServiceType="location"/>
         <service
             android:name=".BeaconWatchdog"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <!-- Sonda A/B: sin android:process (comparte probe.db con el canal de Flutter). -->
+        <service
+            android:name=".ProbeService"
+            android:exported="false"
+            android:foregroundServiceType="location"/>
+        <service
+            android:name=".ProbeWatchdog"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
         <receiver

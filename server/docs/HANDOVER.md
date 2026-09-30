@@ -480,3 +480,154 @@ despliegue (el rsync normal lo lleva).
    lista anterior).
 5. Probar el modo en movimiento de la app en carretera, varias horas.
 6. Siguen los de §7 (exportación CSV, `DEFAULT_API_KEY` expuesta en `app.js`).
+
+---
+
+## Addendum 2026-09-29 — sonda A/B con celular por cable (forma A), backend local en Docker
+
+**Nada de esto está en producción ni en git todavía** (todo sin commit sobre `4a5bee4`). El VPS
+(`192.168.40.214`) no se alcanza: la red de la oficina donde vive está apagada. Por eso todo se
+montó y probó con el **backend local en Docker** en el PC de Diego. Diseño en
+[`PLAN-SONDA-AB.md`](PLAN-SONDA-AB.md) (forma A) y detalle cerrado en
+[`CONTRATO-SONDA-AB.md`](CONTRATO-SONDA-AB.md) (incluye la sección "Desviaciones" de cada parte).
+
+### 1. Qué se construyó
+
+| Parte | Dónde | Qué hace |
+|---|---|---|
+| Backend | `internal/store/phoneprobe.go`, `internal/api/phoneprobe.go` (+ cambios en `probes.go`, `store.go`, `api.go`) | Sondas con `runner: "phone"`; órdenes en `commands` con `order_id` único, `target` (A/B/next/sequence), `execute_at`/`not_after`, `selection_reason`, estados `pending → delivered → running → done/failed/expired/interrupted/cancelled`; subida de resultados **idempotente** por `result_id`; `CompleteCommand` idempotente; estado en vivo del celular (`POST/GET /probes/{id}/status`); clasificación por ASN contra `expected_asn` de cada slot. Columnas nuevas con `addColumnIfMissing`. El agente del router y el script de sonda **no** toman órdenes del celular (hay tests). Endpoints en `README.md`. |
+| Dashboard | `internal/web/static/` | En "Sondas", tarjeta de la sonda de celular: panel "Celular" (fase, orden en curso, MikroTik, GPS, cola, batería, IPs, alertas), controles "Prueba en A/B", "Siguiente disponible", "Secuencia de N alternadas", "Programar", "Cancelar pendientes", historial de órdenes y últimos resultados con veredicto de red. |
+| App | `mobile/` (Kotlin nuevo: `Probe*.kt`, `RouterOsApi.kt`, `SpeedTester.kt`, `NetPaths.kt`, `GpsFix.kt`, `ControlPlane.kt`; Flutter: `probe_channel.dart`, `screens/probe_screen.dart`, `screens/probe_settings_screen.dart`) | Servicio nativo aparte del de "modo en movimiento" (no lo reemplaza). Mide bajada/subida/ping **atado a la red Ethernet**; antes de cada prueba cambia la regla `phone-probe` del MikroTik por la **API clásica (8728)**, la relee y confirma; toma un fix de GPS nuevo (fresco/viejo/sin fijo); guarda todo en SQLite (`probe.db`) y sube por lotes. Plano de control al backend por WiFi. Plan local A/B si no hay backend. Pantalla **"Sonda A/B"** (icono ⇄ en la barra del inicio, con un punto de color: verde midiendo, azul en espera, ámbar/rojo con alertas). |
+| MikroTik | `scripts/mikrotik/` (`apply_probe.py`, `probe-ab.rsc`, `README.md`) | Configuración idempotente con `--dry-run` (por defecto), respaldo obligatorio antes de `--apply`, `--verify`, `--switch A|B|fallback`. |
+| Utilidad | `scripts/phone/probe_e2e.sh` | Instalar el APK por adb y seguir una orden de punta a punta contra el backend local. |
+
+### 2. Modo local (Docker)
+
+```bash
+cd /home/ubudev/notion-5g/server
+go test ./...
+docker compose -p notion5g-local up -d --build server     # :8080, base en el volumen notion5g-local_notion5g_data
+curl -s http://localhost:8080/healthz
+docker logs notion5g-local-server-1 2>&1 | tail            # sin "no such column"
+```
+
+- `server/.env` tiene `API_KEY` (queda fuera de git por `server/.gitignore`). Es el mismo valor que
+  `DEFAULT_API_KEY` del dashboard, así que el dashboard local entra sin pedir clave.
+- Dashboard local: `http://localhost:8080/` (o `http://<IP del PC>:8080/` desde otro equipo).
+- **La IP del PC cambia con la red.** El contrato y el valor por defecto de la app dicen
+  `192.168.40.22` (WiFi de la oficina); el 2026-09-29 el PC estaba en **`192.168.2.60`** (WiFi
+  "Pipito", la misma del celular, que tenía `192.168.2.92`) y `192.168.40.22` no respondía. En la
+  app se pone la IP del día (`ip -4 addr` en la WSL). Una reserva DHCP en Pipito lo dejaría fijo.
+- Nunca `docker compose down -v` (borra la base local).
+- La sonda `hap-oficina` **ya existe en la base local**: `runner: phone`, `interval_s: 0` (solo
+  mide cuando se le pide), A = `router-R524260829000001` / `to-A` / AS271773 (WOM), B =
+  `router-R023-4g` / `to-B` / AS3816 (Movistar). Las órdenes de las pruebas de humo quedaron
+  cerradas.
+
+### 3. MikroTik (hAP ac2, RouterOS 7.6) — ya aplicado
+
+Cableado (no mover): `ether1` = router B (Notion 4G, LAN 192.168.2.0/24), `ether2` = router A
+(Notion 5G, LAN 192.168.1.0/24), `ether3` = celular (red `192.168.89.0/24`, DHCP), `ether4`/`ether5`/WiFi
+= administración `192.168.88.0/24` (el PC es `192.168.88.254` en `ether5`). Tablas `to-A`/`to-B` con
+gateway `%interfaz` tomado del DHCP de cada WAN; `main` con los dos (A distancia 1, B distancia 2,
+`check-gateway=ping`); regla `phone-probe` (`src-address=192.168.89.0/24`) que el celular mueve entre
+`main`, `to-A` y `to-B`; vigilante que la devuelve a `main` tras 10 min forzada sin actividad del
+celular; usuario `phone-probe` (grupo `probe-api`, contraseña en
+`C:\Users\diego\mikrotik-probe\phone-probe-password.txt`); NTP; identidad `hap-sonda`.
+
+Procedimiento para cualquier cambio (detalle en `scripts/mikrotik/README.md`):
+
+```bash
+cd /home/ubudev/notion-5g/scripts/mikrotik
+MIKROTIK_PASSWORD=admin python3 apply_probe.py --dry-run --host 192.168.88.1   # plan, no toca nada
+MIKROTIK_PASSWORD=admin python3 apply_probe.py --apply   --host 192.168.88.1   # respaldo en flash/ y en el PC, luego aplica
+MIKROTIK_PASSWORD=admin python3 apply_probe.py --dry-run --host 192.168.88.1   # debe decir "Sin cambios"
+MIKROTIK_PASSWORD=admin python3 apply_probe.py --verify  --host 192.168.88.1   # IP de salida por cada tabla
+```
+
+**Novedad:** desde la WSL ya se llega al MikroTik por IPv4 `192.168.88.1` (antes solo por IPv6
+link-local desde el Python de Windows, que sigue sirviendo como plan B con el `--host` por defecto).
+Volver atrás: `/system backup load name=flash/pre-probe-<fecha>.backup` (reinicia el equipo).
+
+### 4. Cómo se opera
+
+**Desde la app** (icono ⇄ → "Sonda A/B"; engranaje → ajustes):
+1. Ajustes: backend `http://<IP del PC>:8080` (hoy `http://192.168.2.60:8080`), API key = `API_KEY` de
+   `server/.env`, sonda `hap-oficina`, MikroTik `192.168.89.1:8728`, usuario `phone-probe` + su
+   contraseña, destino de velocidad `cloudflare` (o `prod-download`: solo **descarga** de producción;
+   o `local`, que por cable no aplica porque el backend local es privado). "Probar backend" debe
+   decir OK (`runner=phone`). Consejo: los campos de claves son ocultos; con adb se pueden escribir
+   tocando el campo y luego `adb -P 5039 shell input text '<clave>'`.
+2. "Exigir Ethernet para medir": encendido para medir A/B de verdad. Apagado permite probar por WiFi
+   sin cable (resultado `phone-wifi`, no se atribuye a A ni a B).
+3. Interruptor "Sonda activa". La pantalla muestra en vivo: fase (Cambiando la ruta → Verificando →
+   Salida → GPS → Ping → Bajada → Subida → Guardar → Volver a respaldo), orden en curso, tabla del
+   MikroTik y estado de cada router, red (Ethernet/WiFi, camino al backend), GPS, cola (órdenes,
+   resultados por subir), últimos resultados con su veredicto y el registro de eventos.
+4. Botones: "Medir A", "Medir B", "Siguiente", "Medir por WiFi" (sin cable y sin exigir Ethernet),
+   "Probar MikroTik", "Volver a respaldo", "Sincronizar ahora".
+
+**Desde el dashboard local** (`http://localhost:8080`, sección "Sondas", tarjeta `hap-oficina`):
+panel "Celular" con el mismo estado (se pone gris si el celular no reporta hace más de 60 s),
+"Prueba en A/B", "Siguiente disponible", "Secuencia de N alternadas", "Programar", "Cancelar
+pendientes", historial de órdenes y resultados. Desde la WSL: `scripts/phone/probe_e2e.sh order A`,
+`... status`, `... results`.
+
+### 5. Qué se verificó (2026-09-29)
+
+- `go test ./...` y `go vet ./...` en verde; `python3 -m unittest test_apply_probe` (28 pruebas) en
+  verde.
+- Backend local en Docker sano, migración sin errores, pruebas de humo con curl de todos los
+  endpoints nuevos (idempotencia de órdenes y resultados, cancelación, estado en vivo). El dashboard
+  servido es el del repo.
+- MikroTik, contra el equipo real, a las 19:27 hora Colombia: `--dry-run` = **sin cambios**;
+  `--verify` = coincide con el contrato; DHCP de los dos WAN *bound* (A `192.168.1.221` gw
+  `192.168.1.1`, B `192.168.2.100` gw `192.168.2.1`); por `to-A` sale **179.19.72.14** (BOG, 21 ms),
+  por `to-B` **186.102.30.133** (Movistar, MDE, 68 ms); `main` sale por A; NTP sincronizado; vigilante
+  corriendo. `ether3` sin enlace (el celular no está conectado).
+- APK release (47 MB) compilado con el Flutter de Windows desde `C:\dev\notion5g_mobile`, idéntico a
+  `mobile/`: `C:\dev\notion5g_mobile\build\app\outputs\flutter-apk\app-release.apk`.
+
+### 6. Qué falta (en orden)
+
+1. **adb al S20+.** La depuración inalámbrica se apagó (Android la apaga al cambiar de WiFi): el
+   teléfono responde ping en `192.168.2.92` pero no hay servicio adb. Diego: Opciones de
+   desarrollador → Depuración inalámbrica ON (en Pipito), y re-vincular si lo pide. `adb -P 5039 mdns
+   services` da el puerto.
+2. **Instalar y configurar la app** en el S20+: `scripts/phone/probe_e2e.sh install <ip:puerto>`,
+   comprobar que el **modo en movimiento sigue enviando a producción** (lo relanza
+   `MY_PACKAGE_REPLACED`), configurar la sonda (§4) y hacer las pruebas sin cable del contrato §5.3
+   ("Medir por WiFi", "Prueba en A" desde el dashboard con "Exigir Ethernet" apagado, sin backend, forzar
+   cierre, cancelación).
+3. **Con cable:** celular a `ether3` (adaptador USB-C con Ethernet **y carga PD**), "Exigir Ethernet"
+   encendido, "Probar MikroTik" (tabla `main`, `to-A …%ether2`, `to-B …%ether1`), "Medir A"/"Medir B"
+   (IPs de salida distintas; esperado A = AS271773, B = AS3816 → `probe-asn-match`). Luego contrato
+   §5.4 pasos 6–10 (desconectar un router, sin WiFi, vigilante, regla cambiada a mitad, portal cautivo).
+4. **Cambiar la contraseña de `admin`** del MikroTik (sigue `admin/admin`).
+5. En el teléfono: apagar actualizaciones automáticas de Play Store y copias en la nube (por cable
+   Ethernet es la red por defecto y ensucian la medición).
+6. Fuera de alcance de esta pasada (siguen en el plan §6): cruzar las pruebas de la forma B con el
+   historial de fixes del celular y retirar `maxLocationAge`.
+7. Decidir si el Notion 4G tendrá `device_id` real (`router-<serial>`) si se le instala el agente.
+
+### 7. Desplegar a producción cuando vuelva el VPS
+
+1. **Primero traer del VPS al repo** (allá se ha editado directo antes) y revisar el diff:
+   `rsync -av --exclude='.env' --exclude='docker-compose.yml' --exclude='cf-tunnel.sh' --exclude='data/' --exclude='.git/' h3s@192.168.40.214:~/notion-5g-server/ /tmp/vps-server/`
+   y `diff -r /tmp/vps-server server/`. Si hay cambios allá que no están aquí, integrarlos antes.
+2. Commit de lo de esta sesión (lo hace Diego/el líder).
+3. Respaldo de la base: `docker cp notion5g-server:/data/notion5g.db{,-wal,-shm}` a
+   `~/notion5g-backups/pre-sonda-ab-<fecha>/`.
+4. `rsync` de `server/` al VPS excluyendo `.env`, `.env.example`, `docker-compose.yml`, `cf-tunnel.sh`,
+   `data/`, `.git/` (§6 y addendum 2026-09-25 §5), y `docker compose up -d --build server`.
+5. Revisar `docker logs notion5g-server | tail` (sin "no such column": la migración agrega columnas a
+   `probes`, `probe_targets`, `commands` y `measurements`, índices únicos por `order_id` y
+   `result_id`, y la tabla `probe_status`). Se probó sobre una copia de una base real
+   (`internal/store/migrate_test.go`), pero conviene repetirlo sobre una copia del respaldo del paso 3
+   antes de levantar el contenedor nuevo.
+6. Purgar Cloudflare (`/`, `/index.html`, `/assets/app.js`, `/assets/style.css`), §5.3.
+7. Crear la sonda en producción con el `PUT /api/v1/probes/hap-oficina` del contrato §5.1 (con la API
+   key de producción y los `expected_asn` 271773/3816).
+8. En la app, cambiar el backend de la sonda a `https://notion.h3s-iot.com` y la API key a la de
+   producción. Con un backend público el plano de control también puede ir por Ethernet (por el
+   respaldo del MikroTik), así que ya no depende del WiFi de la oficina.

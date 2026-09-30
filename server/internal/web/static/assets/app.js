@@ -1230,8 +1230,11 @@
         (c.runner === "probe"
           ? ' <span class="muted">vía sonda ' + escapeHtml(c.probe_id || "") + " (" + escapeHtml(c.routing_table || "") + ")</span>"
           : "") +
+        (c.runner === "phone"
+          ? ' <span class="muted">vía celular ' + escapeHtml(c.probe_id || "") + " (" + escapeHtml(c.routing_table || (c.target === "next" ? "siguiente disponible" : c.slot || "")) + ")</span>"
+          : "") +
         '</td><td data-label="Estado">' +
-        escapeHtml(c.status) +
+        (c.runner === "phone" ? orderStatusBadge(c) + (c.error ? ' <span class="muted">' + escapeHtml(c.error) + "</span>" : "") : escapeHtml(c.status)) +
         '</td><td data-label="Pedido por">' +
         escapeHtml(c.requested_by || "—") +
         "</td>";
@@ -1857,6 +1860,7 @@
   var peTargets = document.getElementById("pe-targets");
   var peDeviceOptions = document.getElementById("pe-device-options");
   var peStatus = document.getElementById("pe-status");
+  var peRunner = document.getElementById("pe-runner");
   var probeActionsEl = document.getElementById("probe-actions");
   var probeActionsInfo = document.getElementById("probe-actions-info");
   var runProbeSpeedtestBtn = document.getElementById("run-probe-speedtest");
@@ -1906,18 +1910,24 @@
 
   // Lo que el backend acepta en PUT: la config actual con los cambios encima.
   function probePayload(p, changes) {
+    // runner, slot y expected_asn van SIEMPRE con el valor actual (contrato
+    // §4 punto 5): el backend los conserva si faltan, pero no se depende de eso.
+    // runner "" = "dejar el que tenga" (sonda nueva: probe).
     var body = {
       label: p.label || "",
+      runner: p.runner || "",
       interval_s: p.interval_s || 0,
       duration_s: p.duration_s || null,
       enabled: p.enabled !== false,
       targets: (p.targets || []).map(function (t) {
         return {
+          slot: t.slot || "",
           device_id: t.device_id,
           routing_table: t.routing_table,
           label: t.label || "",
           send_heartbeat: !!t.send_heartbeat,
           enabled: t.enabled !== false,
+          expected_asn: t.expected_asn === undefined || t.expected_asn === "" ? null : t.expected_asn,
         };
       }),
     };
@@ -1942,7 +1952,12 @@
   }
 
   function renderProbes() {
+    // El panel del celular se reutiliza entre redibujos: si se estaba
+    // escribiendo en uno de sus campos, se le devuelve el foco al final.
+    var focused = document.activeElement;
+    if (!focused || !focused.closest || !focused.closest(".phone-panel")) focused = null;
     probesListEl.innerHTML = "";
+    syncPhoneTimer();
     if (!state.probes.length) {
       probesListEl.innerHTML =
         '<div class="summary-box muted">Todavía no hay ninguna sonda configurada. Tocá "+ Configurar sonda" para ' +
@@ -1962,7 +1977,10 @@
         (p.last_seen
           ? onlineBadge({ online: p.online, last_seen_seconds_ago: secondsSince(p.last_seen) })
           : '<span class="online-badge online-no"><span class="dot"></span>nunca se conectó</span>') +
-        (p.enabled === false ? '<span class="rat-badge rat-other">desactivada</span>' : "");
+        (p.enabled === false ? '<span class="rat-badge rat-other">desactivada</span>' : "") +
+        (isPhoneProbe(p)
+          ? '<span class="rat-badge rat-4g">mide un celular por cable</span>'
+          : '<span class="rat-badge rat-other">mide el script del MikroTik</span>');
       card.appendChild(head);
 
       var controls = document.createElement("div");
@@ -2080,6 +2098,7 @@
           i +
           1 +
           ". <strong>" +
+          (isPhoneProbe(p) ? escapeHtml(targetSlot(t, i)) + " · " : "") +
           escapeHtml(t.label || t.device_id) +
           "</strong>" +
           (t.label ? ' <span class="muted">' + escapeHtml(t.device_id) + "</span>" : "") +
@@ -2087,14 +2106,31 @@
           escapeHtml(t.routing_table) +
           "</code>" +
           (t.send_heartbeat ? ' <span class="band-chip">heartbeat</span>' : "") +
+          (t.expected_asn ? ' <span class="muted">ASN esperado ' + escapeHtml(String(t.expected_asn)) + "</span>" : "") +
           (t.enabled === false ? ' <span class="rat-badge rat-other">desactivado</span>' : "") +
           " " +
           (d ? onlineBadge(d) : '<span class="muted">(todavía no reportó)</span>');
         ul.appendChild(li);
       });
       card.appendChild(ul);
+      if (isPhoneProbe(p)) {
+        var ui = phoneUi(p);
+        card.appendChild(ui.root);
+        if (!ui.loadedOnce) {
+          ui.loadedOnce = true;
+          refreshPhoneStatus(ui);
+          refreshPhoneLists(ui);
+        }
+      }
       probesListEl.appendChild(card);
     });
+    if (focused && document.contains(focused)) {
+      try {
+        focused.focus({ preventScroll: true });
+      } catch (e) {
+        // navegador sin opciones de focus(): no importa
+      }
+    }
   }
 
   // ---- editor
@@ -2103,14 +2139,19 @@
     var row = document.createElement("div");
     row.className = "probe-target-row";
     row.innerHTML =
+      '<input type="text" class="pe-slot" maxlength="1" placeholder="A" title="Letra del equipo en la sonda (A, B…). Vacío = por posición." autocomplete="off" aria-label="Slot" />' +
       '<input type="text" class="pe-device" list="pe-device-options" placeholder="device_id del equipo" autocomplete="off" />' +
-      '<input type="text" class="pe-table" placeholder="tabla de ruteo (p. ej. to-notion)" autocomplete="off" />' +
+      '<input type="text" class="pe-table" placeholder="tabla de ruteo (p. ej. to-A)" autocomplete="off" />' +
+      '<input type="text" class="pe-label" placeholder="nombre (p. ej. Notion 5G)" autocomplete="off" />' +
+      '<input type="number" class="pe-asn" min="1" step="1" placeholder="ASN esperado" title="ASN esperado de la salida de este router (opcional). Vacío = el que el backend ya conozca del equipo." />' +
       '<label><input type="checkbox" class="pe-hb" /> heartbeat</label>' +
       '<button type="button" class="btn-link btn-danger">quitar</button>';
+    row.querySelector(".pe-slot").value = t && t.slot ? t.slot : "";
     row.querySelector(".pe-device").value = t ? t.device_id : "";
     row.querySelector(".pe-table").value = t ? t.routing_table : "";
+    row.querySelector(".pe-label").value = t && t.label ? t.label : "";
+    row.querySelector(".pe-asn").value = t && t.expected_asn ? String(t.expected_asn) : "";
     row.querySelector(".pe-hb").checked = !!(t && t.send_heartbeat);
-    row.dataset.label = t && t.label ? t.label : "";
     row.dataset.enabled = t && t.enabled === false ? "0" : "1";
     row.querySelector("button").addEventListener("click", function () {
       row.remove();
@@ -2124,6 +2165,7 @@
     peId.value = p ? p.probe_id : "";
     peId.disabled = !!p;
     peLabel.value = p ? p.label || "" : "";
+    peRunner.value = p && p.runner === "phone" ? "phone" : "probe";
     peDuration.value = p && p.duration_s ? p.duration_s : 10;
     peStatus.textContent = "";
     peTargets.innerHTML = "";
@@ -2161,17 +2203,37 @@
     }
     var targets = [];
     var problem = "";
+    var runner = peRunner.value === "phone" ? "phone" : "probe";
+    var seenSlot = {};
+    var seenTable = {};
     Array.prototype.forEach.call(peTargets.querySelectorAll(".probe-target-row"), function (row) {
       var dev = row.querySelector(".pe-device").value.trim();
       var table = row.querySelector(".pe-table").value.trim();
+      var slot = row.querySelector(".pe-slot").value.trim().toUpperCase();
+      var asnRaw = row.querySelector(".pe-asn").value.trim();
       if (!dev && !table) return; // fila vacía: se ignora
       if (!dev || !table) problem = "Cada equipo necesita device_id y tabla de ruteo.";
+      if (slot && !/^[A-Z]$/.test(slot)) problem = "El slot es una sola letra (A, B, C…).";
+      if (slot && seenSlot[slot]) problem = "Dos equipos no pueden tener el mismo slot (" + slot + ").";
+      seenSlot[slot || "_" + targets.length] = true;
+      var asn = null;
+      if (asnRaw) {
+        asn = parseInt(asnRaw, 10);
+        if (isNaN(asn) || asn <= 0 || String(asn) !== asnRaw) problem = "El ASN esperado es un número entero mayor que 0 (o vacío).";
+      }
+      if (runner === "phone") {
+        if (table === "main") problem = "Con un celular, la tabla main es la de respaldo: cada router necesita su propia tabla (to-A, to-B…).";
+        else if (seenTable[table]) problem = "Con un celular, cada router necesita una tabla distinta (" + table + " está repetida).";
+      }
+      seenTable[table] = true;
       targets.push({
+        slot: slot,
         device_id: dev,
         routing_table: table,
-        label: row.dataset.label || "",
+        label: row.querySelector(".pe-label").value.trim(),
         send_heartbeat: row.querySelector(".pe-hb").checked,
         enabled: row.dataset.enabled !== "0",
+        expected_asn: asn,
       });
     });
     if (problem) {
@@ -2188,6 +2250,7 @@
     var dur = parseInt(peDuration.value, 10);
     var body = probePayload(existing || { interval_s: 0 }, {
       label: peLabel.value.trim(),
+      runner: runner,
       duration_s: isNaN(dur) ? null : dur,
       targets: targets,
     });
@@ -2222,7 +2285,7 @@
     if (!m) return;
     var p = m.probe;
     probeActionsInfo.innerHTML =
-      "Mide este equipo desde " +
+      (isPhoneProbe(p) ? "Mide este equipo con el celular por cable de " : "Mide este equipo desde ") +
       escapeHtml(probeName(p)) +
       " por la tabla <code>" +
       escapeHtml(m.target.routing_table) +
@@ -2243,8 +2306,11 @@
     if (!m) return;
     runProbeSpeedtestBtn.disabled = true;
     clearBanner(detailErrorEl);
-    probeSpeedtestStatusEl.textContent = "obteniendo ubicación del navegador...";
-    getBrowserLocation()
+    // Con un celular por cable, él toma su propio fix GPS: la ubicación del
+    // navegador no se pide ni se manda (contrato sonda A/B §1.5).
+    var phone = isPhoneProbe(m.probe);
+    probeSpeedtestStatusEl.textContent = phone ? "creando la orden para el celular..." : "obteniendo ubicación del navegador...";
+    (phone ? Promise.resolve(null) : getBrowserLocation())
       .catch(function () {
         return null; // sin ubicación se mide igual
       })
@@ -2308,27 +2374,49 @@
           probeSpeedtestStatusEl.textContent = "en cola, esperando a la sonda... " + elapsed + "s";
           return;
         }
-        if (c.status === "claimed") {
-          probeSpeedtestStatusEl.textContent = "la sonda está midiendo... " + elapsed + "s";
+        if (c.status === "delivered") {
+          probeSpeedtestStatusEl.textContent = "el celular ya recibió la orden, esperando su turno... " + elapsed + "s";
+          return;
+        }
+        if (c.status === "claimed" || c.status === "running") {
+          probeSpeedtestStatusEl.textContent =
+            (c.runner === "phone" ? "el celular está midiendo... " : "la sonda está midiendo... ") + elapsed + "s";
           return;
         }
         stopProbeTestPoll();
         runProbeSpeedtestBtn.disabled = false;
-        if (c.status === "failed") {
-          probeSpeedtestStatusEl.textContent = "prueba fallida" + (c.error ? ": " + c.error : "");
+        var FINAL_ES = { failed: "prueba fallida", expired: "la orden venció sin ejecutarse", interrupted: "prueba interrumpida", cancelled: "orden cancelada" };
+        if (FINAL_ES[c.status]) {
+          probeSpeedtestStatusEl.textContent =
+            FINAL_ES[c.status] + (c.closed_by === "server" ? " (cerrada por el servidor)" : "") + (c.error ? ": " + c.error : "");
         } else {
           probeSpeedtestStatusEl.textContent = "prueba completada";
-          apiFetch("/api/v1/measurements?device_id=" + encodeURIComponent(deviceId) + "&limit=1")
+          // Orden de celular: su medición se busca por result_id entre las de
+          // la sonda (si no quedó atribuida al router, p. ej. por WiFi, la
+          // última del equipo sería OTRA medición, más vieja).
+          var isPhoneOrder = c.runner === "phone";
+          var q = isPhoneOrder
+            ? "/api/v1/measurements?probe_id=" + encodeURIComponent(c.probe_id || "") + "&limit=20"
+            : "/api/v1/measurements?device_id=" + encodeURIComponent(deviceId) + "&limit=1";
+          apiFetch(q)
             .then(function (rows) {
-              var r = (rows || [])[0];
-              if (r && r.source === "mikrotik-probe") {
+              var r = isPhoneOrder
+                ? (rows || []).filter(function (x) {
+                    return x && c.result_id && x.result_id === c.result_id;
+                  })[0]
+                : (rows || [])[0];
+              if (r && (r.source === "mikrotik-probe" || isPhoneOrder)) {
+                var reason = r.net && r.net.reason;
                 probeSpeedtestStatusEl.textContent =
                   "listo: ↓" + fmtNum(r.down_mbps) + " Mbps ↑" + fmtNum(r.up_mbps) + " Mbps" +
-                  (r.ping_ms !== undefined && r.ping_ms !== null ? " · ping " + fmtNum(r.ping_ms, " ms", 0) : "");
+                  (r.ping_ms !== undefined && r.ping_ms !== null ? " · ping " + fmtNum(r.ping_ms, " ms", 0) : "") +
+                  (isPhoneOrder && !r.slot ? " · SIN ATRIBUIR al router" + (reason ? ": " + phoneReasonEs(reason) : "") : "");
               }
             })
             .catch(function () {});
-          sendSpeedtestEndLocation(deviceId, commandId);
+          // El celular toma su propio fix: la ubicación del navegador no va a
+          // su medición (el backend además la ignora, contrato §1.5).
+          if (c.runner !== "phone") sendSpeedtestEndLocation(deviceId, commandId);
         }
         loadDetail(deviceId);
         refreshDevices();
@@ -2336,6 +2424,1168 @@
       .catch(function () {
         // error de red pasajero: se reintenta en el próximo tick
       });
+  }
+
+  // ---------------------------------------------------------------- sonda con celular por cable (forma A)
+  //
+  // Contrato: server/docs/CONTRATO-SONDA-AB.md §4. Una sonda con runner
+  // "phone" la ejecuta un celular conectado por cable al MikroTik: él mueve la
+  // regla phone-probe a la tabla del router (to-A / to-B), mide y sube. Acá se
+  // ve qué está haciendo (estado en vivo), se piden pruebas (órdenes) y se ve
+  // de dónde salió cada resultado (router, tabla, operador, GPS, sincronización).
+  //
+  // El panel de cada sonda se arma UNA vez y se reutiliza en cada redibujo de la
+  // lista (renderProbes vacía la lista cada 20 s): así los campos de N,
+  // separación y fechas no se pierden mientras se escriben.
+
+  var PHONE_TICK_MS = 5000; // estado en vivo
+  var PHONE_LISTS_EVERY = 2; // órdenes y resultados: cada 2 ticks (10 s)
+  var PHONE_STALE_S = 60;
+  var PHONE_LIST_LIMIT = 20;
+  var OTHER_TRAFFIC_WARN_BYTES = 5 * 1e6;
+
+  var PHASE_ES = {
+    stopped: "Detenida",
+    idle: "En espera",
+    waiting_ethernet: "Esperando el cable",
+    preparing: "Preparando",
+    switching_route: "Cambiando la ruta",
+    verifying_route: "Verificando la ruta",
+    egress_check: "Comprobando la salida",
+    gps_fix: "Esperando GPS",
+    ping: "Midiendo latencia",
+    download: "Descargando",
+    upload: "Subiendo",
+    storing: "Guardando",
+    restoring_route: "Volviendo a respaldo",
+    uploading: "Enviando resultado",
+    backoff: "Sin backend, reintentando",
+  };
+  // Barra de pasos (mismos pasos que la pantalla de la app, §2.11).
+  var PHASE_STEPS = [
+    ["switching_route", "Ruta"],
+    ["verifying_route", "Verificación"],
+    ["egress_check", "Salida"],
+    ["gps_fix", "GPS"],
+    ["ping", "Ping"],
+    ["download", "Bajada"],
+    ["upload", "Subida"],
+    ["storing", "Guardar"],
+    ["restoring_route", "Respaldo"],
+  ];
+  var ORDER_STATUS_ES = {
+    pending: ["En cola", "st-muted"],
+    claimed: ["Tomada", "st-info"],
+    delivered: ["Recibida por el celular", "st-info"],
+    running: ["Midiendo", "st-run"],
+    done: ["Completada", "st-ok"],
+    failed: ["Fallida", "st-err"],
+    expired: ["Vencida", "st-warn"],
+    interrupted: ["Interrumpida", "st-warn"],
+    cancelled: ["Cancelada", "st-muted"],
+  };
+  var SELECTION_ES = {
+    requested: "pedida desde el dashboard",
+    next: "siguiente disponible",
+    sequence: "secuencia alternada",
+    alternation: "ciclo automático",
+    "offline-schedule": "plan local sin backend",
+    "manual-app": "pedida desde la app",
+  };
+  // Veredictos de red de los resultados del celular (§4 punto 4).
+  var PHONE_REASON_ES = {
+    "phone-wifi": "por WiFi, no se atribuye a ningún router",
+    "probe-route-unconfirmed": "no se confirmó la ruta en el MikroTik",
+    "probe-asn-match": "salió por el operador esperado",
+    "probe-asn-other-router": "salió por el OTRO router",
+    "probe-asn-mismatch": "el operador de salida no coincide",
+    "probe-asn-ambiguous": "ruta confirmada; los dos routers son del mismo operador",
+    "network-changed-mid-test": "la IP de salida cambió durante la prueba",
+    "probe-route-changed": "la regla del MikroTik cambió durante la prueba: no se atribuye",
+    "probe-table-confirmed": "ruta confirmada en el MikroTik (sin verificar operador)",
+  };
+  // El detalle de cada equipo también muestra estas mediciones (tooltip de
+  // "Salida"): que las entienda sin pisar los textos que ya existían.
+  Object.keys(PHONE_REASON_ES).forEach(function (k) {
+    if (!REASON_ES[k]) REASON_ES[k] = PHONE_REASON_ES[k];
+  });
+
+  state.phone = {}; // probe_id -> ui (panel reutilizable + últimos datos)
+  state.phoneTimer = null;
+  state.phoneTick = 0;
+
+  function phoneReasonEs(r) {
+    if (!r) return "";
+    return PHONE_REASON_ES[r] || reasonEs(r);
+  }
+
+  function selectionEs(r) {
+    if (!r) return "—";
+    var m = /^fallback:([A-Z])-sin-datos$/.exec(r);
+    if (m) return "respaldo: " + m[1] + " sin datos";
+    return SELECTION_ES[r] || r;
+  }
+
+  function isPhoneProbe(p) {
+    return p && p.runner === "phone";
+  }
+
+  // Slot de un equipo: el que manda el backend o, si todavía no lo manda, la
+  // letra por posición (misma regla que usa el backend al asignarlo).
+  function targetSlot(t, i) {
+    return t && t.slot ? t.slot : String.fromCharCode(65 + i);
+  }
+
+  function probeTargetsWithSlots(p) {
+    return (p.targets || []).map(function (t, i) {
+      return { t: t, slot: targetSlot(t, i) };
+    });
+  }
+
+  function activeSlots(p) {
+    return probeTargetsWithSlots(p).filter(function (x) {
+      return x.t.enabled !== false;
+    });
+  }
+
+  function targetBySlot(p, slot) {
+    var m = probeTargetsWithSlots(p).filter(function (x) {
+      return x.slot === slot;
+    })[0];
+    return m ? m.t : null;
+  }
+
+  function slotForTable(p, table) {
+    var m = probeTargetsWithSlots(p).filter(function (x) {
+      return x.t.routing_table === table;
+    })[0];
+    return m ? m.slot : null;
+  }
+
+  function slotLabel(p, slot) {
+    var t = targetBySlot(p, slot);
+    return t && t.label ? t.label : t ? t.device_id : "";
+  }
+
+  // "Respaldo (sale por el que tenga datos)" / "Forzada a A" (§2.11).
+  function tableEs(p, table) {
+    if (!table) return "desconocida";
+    if (table === "main") return "Respaldo (sale por el que tenga datos)";
+    var slot = slotForTable(p, table);
+    return "Forzada a " + (slot || table);
+  }
+
+  // UUID v4 para order_id. crypto.randomUUID solo existe en contextos seguros
+  // (HTTPS o localhost): el dashboard local también se abre como
+  // http://192.168.40.22:8080, donde no está (contrato §4 punto 2).
+  function newUuid() {
+    var c = window.crypto || window.msCrypto;
+    if (c && typeof c.randomUUID === "function") {
+      try {
+        return c.randomUUID();
+      } catch (e) {
+        // sigue abajo
+      }
+    }
+    var b = new Uint8Array(16);
+    if (c && c.getRandomValues) c.getRandomValues(b);
+    else for (var i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    var h = "";
+    for (var j = 0; j < 16; j++) h += (b[j] < 16 ? "0" : "") + b[j].toString(16);
+    return h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
+  }
+
+  // <input type="datetime-local"> da hora local SIN zona: se pasa a UTC RFC
+  // 3339 sin fracciones (contrato §0). "" -> null; inválida -> undefined.
+  function isoFromLocalInput(v) {
+    if (!v) return null;
+    var d = new Date(v);
+    if (isNaN(d.getTime())) return undefined;
+    return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+  }
+
+  function localInputValue(d) {
+    function p2(n) {
+      return (n < 10 ? "0" : "") + n;
+    }
+    return (
+      d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()) + "T" + p2(d.getHours()) + ":" + p2(d.getMinutes())
+    );
+  }
+
+  // Devuelve HTML seguro: las horas del estado en vivo las escribe el celular
+  // (raw tal cual en probe_status), así que una que no parsea se escapa.
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return escapeHtml(String(iso));
+    var sameDay = new Date().toDateString() === d.toDateString();
+    var t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return sameDay ? t : d.toLocaleDateString([], { day: "2-digit", month: "2-digit" }) + " " + t;
+  }
+
+  function fmtDur(s) {
+    if (s === null || s === undefined || isNaN(s)) return "—";
+    s = Math.max(0, s);
+    if (s < 60) return Math.round(s) + " s";
+    if (s < 3600) return Math.round(s / 60) + " min";
+    if (s < 86400) return (s / 3600).toFixed(1) + " h";
+    return Math.round(s / 86400) + " d";
+  }
+
+  function badge(cls, text, title) {
+    return (
+      '<span class="st-badge ' + cls + '"' + (title ? ' title="' + escapeHtml(title) + '"' : "") + ">" + escapeHtml(text) + "</span>"
+    );
+  }
+
+  function orderStatusBadge(o) {
+    var s = ORDER_STATUS_ES[o.status] || [o.status || "—", "st-muted"];
+    return badge(s[1], s[0], o.status);
+  }
+
+  function gpsBadge(status, ageS) {
+    var age = ageS !== null && ageS !== undefined ? " · " + fmtDur(ageS) : "";
+    if (status === "fresh") return badge("st-ok", "GPS FRESCO" + age);
+    if (status === "stale") return badge("st-warn", "GPS VIEJO" + age);
+    if (status === "unavailable") return badge("st-err", "GPS SIN FIJO");
+    return badge("st-muted", "GPS —");
+  }
+
+  function yesNo(v) {
+    if (v === true) return "sí";
+    if (v === false) return "no";
+    return "—";
+  }
+
+  function has(v) {
+    return v !== null && v !== undefined && v !== "";
+  }
+
+  function gatewayIp(gw) {
+    if (!gw) return "";
+    return String(gw).split("%")[0];
+  }
+
+  function gatewayIface(gw) {
+    if (!gw) return "";
+    var i = String(gw).indexOf("%");
+    return i === -1 ? "" : String(gw).slice(i + 1);
+  }
+
+  // phoneApi: como apiFetch pero NUNCA rechaza y conserva el código HTTP (hace
+  // falta para distinguir 409 "order_id en uso" de un error de red, que se
+  // reintenta con el mismo order_id).
+  //
+  // Con tope de tiempo: una petición colgada (red que se traga los paquetes)
+  // dejaría el panel congelado en "en línea" para siempre, porque cada
+  // refresco espera a que termine el anterior.
+  var PHONE_FETCH_TIMEOUT_MS = 15000;
+
+  function phoneApi(method, path, body) {
+    var opts = { method: method, headers: { "X-API-Key": state.apiKey } };
+    if (body !== undefined) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    var timer = null;
+    if (typeof AbortController === "function") {
+      var ac = new AbortController();
+      opts.signal = ac.signal;
+      timer = setTimeout(function () {
+        ac.abort();
+      }, PHONE_FETCH_TIMEOUT_MS);
+    }
+    return fetch(path, opts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          var error = null;
+          if (!res.ok) {
+            if (res.status === 401) error = "API key inválida o ausente.";
+            else if (data && data.error) error = data.error;
+            else if (text && text.charAt(0) === "<") error = "Error " + res.status + " (respuesta HTML)";
+            else error = "Error " + res.status + (text ? ": " + text.trim() : "");
+          }
+          return { ok: res.ok, status: res.status, data: data, error: error };
+        });
+      })
+      .catch(function () {
+        return { ok: false, status: 0, data: null, error: "No se pudo conectar con el backend." };
+      })
+      .then(function (r) {
+        if (timer) clearTimeout(timer);
+        return r;
+      });
+  }
+
+  // El mux de Go responde "404 page not found" (texto plano) a una ruta que no
+  // existe: el backend todavía no tiene el endpoint. Distinto de un 404 JSON
+  // ("sonda no configurada").
+  function endpointMissing(r) {
+    return (r.status === 404 && !(r.data && r.data.error)) || r.status === 405;
+  }
+
+  function probeBase(p) {
+    return "/api/v1/probes/" + encodeURIComponent(p.probe_id);
+  }
+
+  // ---- panel (se arma una vez por sonda)
+
+  function phoneUi(p) {
+    var ui = state.phone[p.probe_id];
+    if (!ui) {
+      ui = buildPhoneUi(p);
+      state.phone[p.probe_id] = ui;
+    }
+    ui.probe = p;
+    syncSlotControls(ui);
+    if (!ui.statusResp && p.phone_status) {
+      ui.statusResp = p.phone_status;
+      ui.statusAt = Date.now();
+      renderPhoneStatus(ui);
+    }
+    return ui;
+  }
+
+  function el(tag, cls, html) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+  }
+
+  function buildPhoneUi(p) {
+    var ui = { probe: p, slotsKey: null, inflight: {}, statusResp: null, orders: null, results: null };
+    var root = el("div", "phone-panel");
+    ui.root = root;
+
+    root.appendChild(el("div", "phone-panel-title", "Celular por cable"));
+    ui.alertsEl = el("div", "phone-alerts");
+    root.appendChild(ui.alertsEl);
+    ui.statusEl = el("div", "phone-status", '<span class="muted">leyendo el estado del celular...</span>');
+    root.appendChild(ui.statusEl);
+
+    // -- controles
+    var ctl = el("div", "phone-controls");
+    root.appendChild(ctl);
+
+    var row1 = el("div", "phone-ctl-row");
+    ui.slotBtnsEl = el("span", "phone-slot-btns");
+    row1.appendChild(ui.slotBtnsEl);
+    var nextBtn = el("button", "btn-primary", "Siguiente disponible");
+    nextBtn.type = "button";
+    nextBtn.title = "Mide el router que lleva más tiempo sin una prueba completada";
+    row1.appendChild(nextBtn);
+    var fbLabel = el("label", "phone-check");
+    ui.fallbackEl = document.createElement("input");
+    ui.fallbackEl.type = "checkbox";
+    fbLabel.appendChild(ui.fallbackEl);
+    fbLabel.appendChild(document.createTextNode(" si no tiene datos, medir el otro"));
+    row1.appendChild(fbLabel);
+    ctl.appendChild(row1);
+
+    var row2 = el("div", "phone-ctl-row");
+    row2.appendChild(el("span", "summary-label", "Secuencia de"));
+    ui.seqCountEl = document.createElement("input");
+    ui.seqCountEl.type = "number";
+    ui.seqCountEl.min = "2";
+    ui.seqCountEl.max = "48";
+    ui.seqCountEl.value = "4";
+    ui.seqCountEl.className = "phone-num";
+    ui.seqCountEl.setAttribute("aria-label", "Cantidad de pruebas de la secuencia");
+    row2.appendChild(ui.seqCountEl);
+    row2.appendChild(el("span", "summary-label", "alternadas, cada"));
+    ui.seqSpacingEl = document.createElement("input");
+    ui.seqSpacingEl.type = "number";
+    ui.seqSpacingEl.min = "1";
+    ui.seqSpacingEl.max = "1440";
+    ui.seqSpacingEl.value = "5";
+    ui.seqSpacingEl.className = "phone-num";
+    ui.seqSpacingEl.setAttribute("aria-label", "Minutos entre pruebas de la secuencia");
+    row2.appendChild(ui.seqSpacingEl);
+    row2.appendChild(el("span", "summary-label", "min, empezando por"));
+    ui.seqFirstEl = document.createElement("select");
+    ui.seqFirstEl.setAttribute("aria-label", "Router con el que empieza la secuencia");
+    row2.appendChild(ui.seqFirstEl);
+    var seqBtn = el("button", "btn-primary", "Crear secuencia");
+    seqBtn.type = "button";
+    row2.appendChild(seqBtn);
+    ctl.appendChild(row2);
+
+    var row3 = el("div", "phone-ctl-row");
+    row3.appendChild(el("span", "summary-label", "Programar"));
+    ui.schedTargetEl = document.createElement("select");
+    ui.schedTargetEl.setAttribute("aria-label", "Router de la prueba programada");
+    row3.appendChild(ui.schedTargetEl);
+    row3.appendChild(el("span", "summary-label", "a las"));
+    ui.schedAtEl = document.createElement("input");
+    ui.schedAtEl.type = "datetime-local";
+    ui.schedAtEl.setAttribute("aria-label", "Inicio de la prueba programada");
+    var start = new Date(Date.now() + 10 * 60000);
+    start.setSeconds(0, 0);
+    ui.schedAtEl.value = localInputValue(start);
+    row3.appendChild(ui.schedAtEl);
+    row3.appendChild(el("span", "summary-label", "vence a las"));
+    ui.schedUntilEl = document.createElement("input");
+    ui.schedUntilEl.type = "datetime-local";
+    ui.schedUntilEl.setAttribute("aria-label", "Vencimiento de la prueba programada");
+    ui.schedUntilEl.title = "Si el celular no la alcanza a ejecutar antes de esta hora, queda vencida. Vacío = 30 min después del inicio.";
+    row3.appendChild(ui.schedUntilEl);
+    var schedBtn = el("button", "btn-primary", "Programar");
+    schedBtn.type = "button";
+    row3.appendChild(schedBtn);
+    ctl.appendChild(row3);
+
+    var row4 = el("div", "phone-ctl-row");
+    var cancelAllBtn = el("button", "btn-link btn-danger", "Cancelar pendientes");
+    cancelAllBtn.type = "button";
+    row4.appendChild(cancelAllBtn);
+    ui.msgEl = el("span", "phone-msg muted");
+    row4.appendChild(ui.msgEl);
+    ctl.appendChild(row4);
+
+    // -- órdenes y resultados
+    var ordersHead = el("div", "phone-sub-head", "<span>Órdenes</span>");
+    root.appendChild(ordersHead);
+    ui.ordersEl = el("div", "phone-orders", '<span class="muted">cargando...</span>');
+    root.appendChild(ui.ordersEl);
+    root.appendChild(el("div", "phone-sub-head", "<span>Resultados</span>"));
+    ui.resultsEl = el("div", "phone-results", '<span class="muted">cargando...</span>');
+    root.appendChild(ui.resultsEl);
+
+    // -- acciones
+    nextBtn.addEventListener("click", function () {
+      sendOrder(ui, nextBtn, { target: "next", allow_fallback: ui.fallbackEl.checked }, "Siguiente disponible");
+    });
+
+    seqBtn.addEventListener("click", function () {
+      var n = parseInt(ui.seqCountEl.value, 10);
+      var mins = parseFloat(ui.seqSpacingEl.value);
+      if (isNaN(n) || n < 2 || n > 48) return say(ui, "La secuencia debe tener entre 2 y 48 pruebas.", true);
+      if (isNaN(mins) || mins < 1 || mins > 1440) return say(ui, "La separación debe ir de 1 a 1440 minutos.", true);
+      sendOrder(
+        ui,
+        seqBtn,
+        { target: "sequence", count: n, spacing_s: Math.round(mins * 60), first: ui.seqFirstEl.value || "A" },
+        "Secuencia de " + n + " alternadas cada " + mins + " min"
+      );
+    });
+
+    schedBtn.addEventListener("click", function () {
+      var at = isoFromLocalInput(ui.schedAtEl.value);
+      var until = isoFromLocalInput(ui.schedUntilEl.value);
+      if (!at) return say(ui, "Elige la fecha y hora de inicio.", true);
+      if (until === undefined) return say(ui, "La hora de vencimiento no es válida.", true);
+      if (until && new Date(until) <= new Date(at)) return say(ui, "La hora de vencimiento debe ser posterior al inicio.", true);
+      // El campo de inicio se llena al abrir la página: si quedó en el pasado,
+      // la orden vencería apenas creada (sin vencimiento = inicio + 30 min).
+      var end = until ? new Date(until).getTime() : new Date(at).getTime() + 30 * 60000;
+      if (end <= Date.now()) return say(ui, "Esa prueba ya estaría vencida: elige un inicio o un vencimiento en el futuro.", true);
+      var target = ui.schedTargetEl.value || "A";
+      sendOrder(
+        ui,
+        schedBtn,
+        { target: target, allow_fallback: ui.fallbackEl.checked, execute_at: at, not_after: until },
+        "Prueba programada (" + (target === "next" ? "siguiente disponible" : "router " + target) + ") a las " + fmtTime(at)
+      );
+    });
+
+    cancelAllBtn.addEventListener("click", function () {
+      if (!window.confirm("¿Cancelar todas las órdenes pendientes de " + ui.probe.probe_id + "? Las que ya se están midiendo terminan igual.")) return;
+      cancelAllBtn.disabled = true;
+      say(ui, "cancelando...");
+      phoneApi("POST", probeBase(ui.probe) + "/orders/cancel", { all_open: true }).then(function (r) {
+        cancelAllBtn.disabled = false;
+        if (!r.ok) return say(ui, "No se pudo cancelar: " + r.error, true);
+        var n = r.data && r.data.cancelled ? r.data.cancelled.length : 0;
+        var u = r.data && r.data.unchanged ? r.data.unchanged.length : 0;
+        say(ui, n ? n + " orden(es) cancelada(s)" + (u ? "; " + u + " ya estaban en curso o cerradas" : "") : "No había órdenes pendientes.");
+        refreshPhoneLists(ui);
+      });
+    });
+
+    return ui;
+  }
+
+  // Botones "Prueba en A/B/…" y selectores de slot: se rehacen solo si
+  // cambian los slots activos de la sonda (no en cada redibujo).
+  function syncSlotControls(ui) {
+    var slots = activeSlots(ui.probe);
+    var key = slots
+      .map(function (x) {
+        return x.slot + "=" + (x.t.label || x.t.device_id);
+      })
+      .join("|");
+    if (key === ui.slotsKey) return;
+    ui.slotsKey = key;
+
+    ui.slotBtnsEl.innerHTML = "";
+    if (!slots.length) ui.slotBtnsEl.innerHTML = '<span class="muted">sin equipos activos</span>';
+    slots.forEach(function (x) {
+      var b = el("button", "btn-primary", "Prueba en " + escapeHtml(x.slot));
+      b.type = "button";
+      b.title = (x.t.label || x.t.device_id) + " · tabla " + x.t.routing_table;
+      b.addEventListener("click", function () {
+        sendOrder(ui, b, { target: x.slot, allow_fallback: ui.fallbackEl.checked }, "Prueba en " + x.slot);
+      });
+      ui.slotBtnsEl.appendChild(b);
+    });
+
+    function fill(sel, withNext) {
+      var prev = sel.value;
+      sel.innerHTML = "";
+      slots.forEach(function (x) {
+        var o = document.createElement("option");
+        o.value = x.slot;
+        o.textContent = x.slot + (x.t.label ? " · " + x.t.label : "");
+        sel.appendChild(o);
+      });
+      if (withNext) {
+        var o = document.createElement("option");
+        o.value = "next";
+        o.textContent = "Siguiente disponible";
+        sel.appendChild(o);
+      }
+      if (prev && Array.prototype.some.call(sel.options, function (op) { return op.value === prev; })) sel.value = prev;
+    }
+    fill(ui.seqFirstEl, false);
+    fill(ui.schedTargetEl, true);
+  }
+
+  function say(ui, text, isError) {
+    ui.msgEl.textContent = text || "";
+    ui.msgEl.className = "phone-msg " + (isError ? "phone-msg-err" : "muted");
+  }
+
+  // sendOrder: POST .../orders con un order_id generado UNA vez por clic. Si
+  // el envío falla por red o 5xx, el siguiente clic del mismo botón con los
+  // mismos datos reutiliza ese order_id (el backend responde existing: true en
+  // vez de duplicar). Un 409 o cualquier respuesta definitiva descarta el id.
+  function sendOrder(ui, btn, body, what) {
+    var p = ui.probe;
+    var sig = JSON.stringify(body);
+    var pend = btn._pendingOrder;
+    if (!pend || pend.sig !== sig) pend = btn._pendingOrder = { sig: sig, id: newUuid() };
+    var payload = Object.assign({ order_id: pend.id, duration_s: p.duration_s || 10, requested_by: "dashboard" }, body);
+    btn.disabled = true;
+    say(ui, what + ": enviando...");
+    phoneApi("POST", probeBase(p) + "/orders", payload).then(function (r) {
+      btn.disabled = false;
+      if (r.ok) {
+        btn._pendingOrder = null;
+        var orders = (r.data && r.data.orders) || [];
+        var first = orders[0];
+        var when = first && first.execute_at ? fmtTime(first.execute_at) : "";
+        if (r.data && r.data.existing) {
+          say(ui, what + ": ya estaba creada (no se duplicó)" + (orders.length > 1 ? " · " + orders.length + " órdenes" : "") + ".");
+        } else {
+          say(
+            ui,
+            what +
+              ": " +
+              (orders.length > 1 ? orders.length + " órdenes en cola desde las " + when : "en cola" + (when ? " para las " + when : "")) +
+              (statusOnline(ui) ? "." : " · ⚠ el celular no está reportando: se ejecuta cuando vuelva (si no vence antes).")
+          );
+        }
+        refreshPhoneLists(ui);
+        return;
+      }
+      if (r.status === 0 || r.status >= 500) {
+        say(ui, what + ": " + r.error + " Vuelve a tocar el botón: se reenvía la misma orden, no se duplica.", true);
+        return;
+      }
+      btn._pendingOrder = null; // 409 y demás 4xx: el próximo clic lleva un id nuevo
+      if (endpointMissing(r)) {
+        say(ui, what + ": el backend todavía no acepta órdenes del celular (falta POST /orders).", true);
+        return;
+      }
+      say(ui, what + ": " + r.error, true);
+    });
+  }
+
+  function cancelOrder(ui, orderId, btn) {
+    btn.disabled = true;
+    phoneApi("POST", probeBase(ui.probe) + "/orders/cancel", { order_ids: [orderId] }).then(function (r) {
+      if (!r.ok) {
+        btn.disabled = false;
+        return say(ui, "No se pudo cancelar: " + r.error, true);
+      }
+      var ok = r.data && r.data.cancelled && r.data.cancelled.indexOf(orderId) !== -1;
+      say(ui, ok ? "Orden cancelada." : "La orden ya no estaba pendiente (se está midiendo o ya cerró).");
+      refreshPhoneLists(ui);
+    });
+  }
+
+  // ---- refresco
+
+  // Edad del estado HOY: la que dijo el backend más lo que pasó desde esa
+  // lectura. Si el backend deja de responder, el panel igual envejece y pasa
+  // a "no reporta" en vez de quedarse en "en línea (hace 4 s)".
+  function statusAge(ui) {
+    var ps = ui.statusResp;
+    if (!ps) return null;
+    var base = typeof ps.age_s === "number" ? ps.age_s : secondsSince(ps.received_at);
+    if (base === null || base === undefined || isNaN(base)) return null;
+    return base + (ui.statusAt ? Math.max(0, (Date.now() - ui.statusAt) / 1000) : 0);
+  }
+
+  function statusOnline(ui) {
+    var ps = ui.statusResp;
+    var age = statusAge(ui);
+    return !!(ps && ps.status && ps.online !== false && !(age > PHONE_STALE_S));
+  }
+
+  function refreshPhoneStatus(ui) {
+    if (ui.inflight.status) return;
+    ui.inflight.status = true;
+    var p = ui.probe;
+    phoneApi("GET", probeBase(p) + "/status").then(function (r) {
+      ui.inflight.status = false;
+      if (r.ok) {
+        ui.statusResp = r.data;
+        ui.statusAt = Date.now();
+        ui.statusErr = null;
+      } else {
+        ui.statusErr = endpointMissing(r) ? "el backend todavía no expone el estado del celular (GET /status)" : r.error;
+      }
+      renderPhoneStatus(ui);
+    });
+  }
+
+  // Si ya hay una lectura en curso (empezó ANTES de crear o cancelar una
+  // orden), se pide otra al terminar: si no, la tabla mostraría la respuesta
+  // vieja hasta el próximo refresco.
+  function refreshPhoneLists(ui) {
+    var p = ui.probe;
+    if (ui.inflight.orders) ui.againOrders = true;
+    else {
+      ui.inflight.orders = true;
+      ui.againOrders = false;
+      phoneApi("GET", probeBase(p) + "/orders?view=history&limit=" + PHONE_LIST_LIMIT).then(function (r) {
+        ui.inflight.orders = false;
+        var again = ui.againOrders;
+        ui.againOrders = false;
+        if (r.ok) {
+          ui.orders = (r.data && r.data.orders) || [];
+          ui.ordersErr = null;
+        } else {
+          ui.ordersErr = endpointMissing(r) ? "el backend todavía no tiene el historial de órdenes (GET /orders)" : r.error;
+        }
+        renderPhoneOrders(ui);
+        if (again) refreshPhoneLists(ui);
+      });
+    }
+    if (ui.inflight.results) ui.againResults = true;
+    else {
+      ui.inflight.results = true;
+      ui.againResults = false;
+      phoneApi("GET", "/api/v1/measurements?probe_id=" + encodeURIComponent(p.probe_id) + "&limit=" + PHONE_LIST_LIMIT).then(function (r) {
+        ui.inflight.results = false;
+        var again = ui.againResults;
+        ui.againResults = false;
+        if (r.ok) {
+          // Un backend sin el filtro probe_id devolvería TODAS las mediciones:
+          // se filtra también acá.
+          ui.results = (Array.isArray(r.data) ? r.data : []).filter(function (m) {
+            return m && m.probe_id === p.probe_id;
+          });
+          ui.resultsErr = null;
+        } else {
+          ui.resultsErr = r.error;
+        }
+        renderPhoneResults(ui);
+        if (again) refreshPhoneLists(ui);
+      });
+    }
+  }
+
+  function phoneTick() {
+    if (state.view !== "list" || document.hidden || !state.apiKey) return;
+    state.phoneTick++;
+    var lists = state.phoneTick % PHONE_LISTS_EVERY === 0;
+    (state.probes || []).forEach(function (p) {
+      if (!isPhoneProbe(p)) return;
+      var ui = state.phone[p.probe_id];
+      if (!ui) return;
+      refreshPhoneStatus(ui);
+      if (lists) refreshPhoneLists(ui);
+    });
+  }
+
+  function syncPhoneTimer() {
+    var any = (state.probes || []).some(isPhoneProbe);
+    if (any && !state.phoneTimer) state.phoneTimer = setInterval(phoneTick, PHONE_TICK_MS);
+    if (!any && state.phoneTimer) {
+      clearInterval(state.phoneTimer);
+      state.phoneTimer = null;
+    }
+  }
+
+  // Al volver a la pestaña, no esperar al próximo tick.
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) {
+      state.phoneTick = PHONE_LISTS_EVERY - 1;
+      phoneTick();
+    }
+  });
+
+  // ---- dibujo: estado en vivo
+
+  function renderPhoneStatus(ui) {
+    var p = ui.probe;
+    var ps = ui.statusResp;
+    var s = ps && ps.status;
+    ui.alertsEl.innerHTML = "";
+    if (!s) {
+      ui.root.classList.remove("phone-stale");
+      ui.statusEl.innerHTML =
+        '<span class="muted">' +
+        escapeHtml(
+          ui.statusErr
+            ? "No se pudo leer el estado del celular: " + ui.statusErr
+            : 'El celular todavía no reportó su estado. Actívalo en la app ("Sonda A/B") con esta sonda (' + p.probe_id + ")."
+        ) +
+        "</span>";
+      return;
+    }
+    var age = statusAge(ui);
+    var stale = ps.online === false || (age !== null && age > PHONE_STALE_S);
+    ui.root.classList.toggle("phone-stale", stale);
+
+    // alertas del celular, arriba del panel (mismos textos que la app)
+    (s.alerts || []).forEach(function (a) {
+      var since = a.since ? secondsSince(a.since) : null;
+      var div = el(
+        "div",
+        "phone-alert " + (a.level === "error" ? "phone-alert-error" : "phone-alert-warn"),
+        escapeHtml(a.msg || a.code) + (since !== null ? ' <span class="muted">· desde hace ' + fmtDur(since) + "</span>" : "")
+      );
+      div.title = a.code || "";
+      ui.alertsEl.appendChild(div);
+    });
+
+    var h = [];
+    // cabecera: en línea / sin reportar
+    var head = stale
+      ? '<span class="online-badge online-no"><span class="dot"></span>el celular no reporta hace ' + fmtDur(age) + "</span>" +
+        ' <span class="muted">(último estado conocido, no el actual)</span>'
+      : '<span class="online-badge online-yes"><span class="dot"></span>en línea (hace ' + fmtDur(age) + ")</span>";
+    head +=
+      ' <span class="muted">' +
+      escapeHtml(s.measured_by || "celular") +
+      (s.app_version ? " · app " + escapeHtml(s.app_version) : "") +
+      "</span>";
+    if (s.running === false) head += " " + badge("st-muted", "SONDA DETENIDA EN LA APP");
+    else if (s.enabled === false) head += " " + badge("st-muted", "SONDA DESACTIVADA");
+    h.push('<div class="phone-head">' + head + "</div>");
+
+    // fase
+    var phase = s.phase || (s.running === false ? "stopped" : "");
+    var inPhase = null;
+    if (s.phase_since && s.sent_at) {
+      var d = (new Date(s.sent_at) - new Date(s.phase_since)) / 1000;
+      if (!isNaN(d)) inPhase = d + (age || 0);
+    }
+    h.push(
+      '<div class="phone-phase">' +
+        '<span class="phone-phase-name phase-' + escapeHtml(phase) + '">' + escapeHtml(PHASE_ES[phase] || phase || "—") + "</span>" +
+        (s.phase_detail ? ' <span class="phone-phase-detail">' + escapeHtml(s.phase_detail) + "</span>" : "") +
+        (inPhase !== null ? ' <span class="muted">· ' + fmtDur(inPhase) + " en esta fase</span>" : "") +
+        "</div>"
+    );
+    var stepIdx = -1;
+    PHASE_STEPS.forEach(function (st, i) {
+      if (st[0] === phase) stepIdx = i;
+    });
+    if (stepIdx !== -1 || s.current_order) {
+      h.push(
+        '<div class="phone-steps">' +
+          PHASE_STEPS.map(function (st, i) {
+            var cls = i === stepIdx ? "step-now" : stepIdx !== -1 && i < stepIdx ? "step-done" : "";
+            return '<span class="phone-step ' + cls + '">' + escapeHtml(st[1]) + "</span>";
+          }).join("") +
+          "</div>"
+      );
+    }
+
+    // orden en curso
+    var co = s.current_order;
+    if (co) {
+      var slot = co.slot || (co.target !== "next" && co.target !== "wifi" ? co.target : null);
+      var who = co.net_path === "wifi" || co.target === "wifi"
+        ? "Midiendo por WiFi (no se atribuye a ningún router)"
+        : slot
+          ? "Midiendo router " + slot + (co.label || slotLabel(p, slot) ? " (" + (co.label || slotLabel(p, slot)) + ")" : "")
+          : "Eligiendo router (siguiente disponible)";
+      var bits = [escapeHtml(who)];
+      if (co.routing_table) bits.push("tabla <code>" + escapeHtml(co.routing_table) + "</code>");
+      bits.push(escapeHtml(selectionEs(co.selection_reason)) + (co.requested_by ? ' <span class="muted">(' + escapeHtml(co.requested_by) + ")</span>" : ""));
+      if (co.attempt > 1) bits.push(badge("st-warn", "INTENTO " + co.attempt));
+      if (co.started_at) bits.push('<span class="muted">desde ' + fmtTime(co.started_at) + "</span>");
+      h.push('<div class="phone-current">' + bits.join(" · ") + "</div>");
+    }
+
+    // tarjetas
+    var cards = [];
+    cards.push(mikrotikCard(p, s.mikrotik, s.net));
+    cards.push(gpsCard(s.gps));
+    cards.push(queueCard(s.queue, s.local_plan, s.backend));
+    cards.push(netCard(s.net, s.backend));
+    cards.push(batteryCard(s.battery, s.permissions));
+    cards.push(lastResultCard(p, s.last_result));
+    h.push('<div class="phone-grid">' + cards.join("") + "</div>");
+    if (ui.statusErr) h.push('<div class="muted">⚠ último intento de lectura falló: ' + escapeHtml(ui.statusErr) + "</div>");
+
+    ui.statusEl.innerHTML = h.join("");
+  }
+
+  function card(title, rows) {
+    return (
+      '<div class="phone-card"><div class="phone-card-title">' +
+      escapeHtml(title) +
+      "</div>" +
+      rows
+        .filter(function (r) {
+          return r;
+        })
+        .map(function (r) {
+          return '<div class="phone-row">' + r + "</div>";
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
+  function kv(k, v) {
+    return '<span class="phone-k">' + escapeHtml(k) + "</span> " + v;
+  }
+
+  function mikrotikCard(p, mk, net) {
+    if (!mk) return card("MikroTik", ['<span class="muted">sin datos</span>']);
+    var rows = [];
+    var reach = mk.reachable === true ? badge("st-ok", "ALCANZABLE") : mk.reachable === false ? badge("st-err", "NO ALCANZABLE") : badge("st-muted", "—");
+    rows.push(kv("Estado", reach + (mk.host ? ' <span class="muted">' + escapeHtml(mk.host) + "</span>" : "")));
+    var tableCls = mk.current_table === "main" ? "st-ok" : mk.current_table ? "st-info" : "st-muted";
+    rows.push(
+      kv(
+        "Regla",
+        badge(tableCls, tableEs(p, mk.current_table), mk.current_table || "") +
+          (mk.rule_found === false ? " " + badge("st-err", "REGLA phone-probe NO EXISTE") : "")
+      )
+    );
+    // estado de cada router según sus rutas (enlace arriba/caído; si tiene
+    // datos lo dice la última prueba, no la ruta)
+    var routes = mk.routes || {};
+    var mainRoute = routes.main;
+    var mainSlot = null;
+    activeSlots(p).forEach(function (x) {
+      var r = routes[x.t.routing_table];
+      var txt;
+      if (!r) txt = '<span class="muted">sin ruta leída</span>';
+      else if (r.active) txt = badge("st-ok", "enlace arriba") + (r.gateway ? " · " + escapeHtml(gatewayIp(r.gateway)) : "");
+      else txt = badge("st-err", "enlace caído");
+      if (r && r.gateway) txt += ' <span class="muted">(' + escapeHtml(gatewayIface(r.gateway) || r.gateway) + ")</span>";
+      rows.push(kv(x.slot + ":", txt));
+      if (r && mainRoute && mainRoute.gateway) {
+        if (r.gateway === mainRoute.gateway || (gatewayIface(r.gateway) && gatewayIface(r.gateway) === gatewayIface(mainRoute.gateway)))
+          mainSlot = x.slot;
+      }
+    });
+    if (mainRoute) {
+      rows.push(
+        kv(
+          "Respaldo",
+          mainRoute.active === false
+            ? badge("st-err", "sin ruta activa")
+            : mainSlot
+              ? "sale hoy por " + mainSlot
+              : "sale por " + escapeHtml(mainRoute.gateway || "—")
+        )
+      );
+    }
+    if (mk.identity || mk.version)
+      rows.push(kv("Equipo", escapeHtml([mk.identity, mk.version ? "RouterOS " + mk.version : ""].filter(Boolean).join(" · "))));
+    if (mk.error) rows.push('<span class="phone-err">' + escapeHtml(mk.error) + "</span>");
+    rows.push(kv("Última lectura", mk.last_ok ? fmtTime(mk.last_ok) + ' <span class="muted">' + fmtAgo(secondsSince(mk.last_ok)) + "</span>" : "nunca"));
+    return card("MikroTik", rows);
+  }
+
+  function gpsCard(g) {
+    if (!g) return card("GPS", ['<span class="muted">sin datos</span>']);
+    var rows = [gpsBadge(g.status, g.age_s)];
+    if (has(g.accuracy_m) && isFinite(Number(g.accuracy_m))) rows.push(kv("Precisión", "±" + Math.round(Number(g.accuracy_m)) + " m"));
+    if (has(g.satellites_used)) rows.push(kv("Satélites", escapeHtml(String(g.satellites_used))));
+    if (g.source) rows.push(kv("Fuente", escapeHtml(g.source)));
+    var lat = Number(g.lat);
+    var lon = Number(g.lon);
+    if (has(g.lat) && has(g.lon) && isFinite(lat) && isFinite(lon)) rows.push(kv("Posición", mapsLink(lat, lon, null)));
+    if (g.at) rows.push(kv("Fijo", fmtTime(g.at)));
+    return card("GPS", rows);
+  }
+
+  function queueCard(q, lp, be) {
+    var rows = [];
+    q = q || {};
+    rows.push(
+      kv("Órdenes pendientes", escapeHtml(String(has(q.orders_pending) ? q.orders_pending : "—"))) +
+        (q.next_order_at ? ' <span class="muted">· próxima ' + fmtTime(q.next_order_at) + (q.next_order_target ? " (" + escapeHtml(q.next_order_target) + ")" : "") + "</span>" : "")
+    );
+    rows.push(
+      kv(
+        "Resultados por subir",
+        q.results_pending > 0 ? badge("st-warn", String(q.results_pending)) : escapeHtml(String(has(q.results_pending) ? q.results_pending : "—"))
+      )
+    );
+    if (q.results_rejected > 0) rows.push(kv("Rechazados", badge("st-err", String(q.results_rejected))));
+    if (q.outbox_pending > 0) rows.push(kv("Cambios de estado por enviar", escapeHtml(String(q.outbox_pending))));
+    if (lp && lp.active)
+      rows.push(
+        badge("st-warn", "SIN BACKEND: PLAN LOCAL") +
+          (lp.interval_s ? " cada " + fmtDur(lp.interval_s) : "") +
+          (lp.next_at ? ' <span class="muted">· próxima ' + fmtTime(lp.next_at) + "</span>" : "")
+      );
+    return card("Cola", rows);
+  }
+
+  function netCard(n, be) {
+    var rows = [];
+    n = n || {};
+    var eth = n.ethernet || {};
+    var wifi = n.wifi || {};
+    rows.push(
+      kv(
+        "Ethernet",
+        (eth.up ? badge("st-ok", "conectado") : badge(n.require_ethernet ? "st-err" : "st-muted", "sin cable")) +
+          (eth.ip ? " " + escapeHtml(eth.ip) : "") +
+          (eth.up && eth.validated === false ? ' <span class="muted">(sin Internet validado)</span>' : "")
+      )
+    );
+    rows.push(kv("WiFi", (wifi.up ? escapeHtml(wifi.ip || "conectado") : '<span class="muted">apagado / sin red</span>')));
+    rows.push(kv("Exigir Ethernet", yesNo(n.require_ethernet)));
+    if (n.require_ethernet && !eth.up) rows.push('<span class="phone-err">Se exige Ethernet y no hay cable: las órdenes esperan.</span>');
+    if (n.default_network) rows.push(kv("Red por defecto", escapeHtml(n.default_network)));
+    rows.push(kv("Camino al backend", escapeHtml(n.control_path || "—")));
+    if (be) {
+      if (be.reachable === false) rows.push(kv("Backend", badge("st-err", "no alcanzable") + (be.last_error ? ' <span class="muted">' + escapeHtml(be.last_error) + "</span>" : "")));
+      if (be.last_ok) rows.push(kv("Último contacto", fmtTime(be.last_ok)));
+      if (has(be.clock_skew_s) && Math.abs(be.clock_skew_s) > 5)
+        rows.push(kv("Reloj", badge("st-warn", "desfase " + Number(be.clock_skew_s).toFixed(1) + " s")));
+    }
+    return card("Red", rows);
+  }
+
+  var BATTERY_ES = { discharging: "descargando", charging: "cargando", full: "llena", not_charging: "sin cargar" };
+
+  function batteryCard(b, perms) {
+    var rows = [];
+    if (b) {
+      var pct = has(b.pct) ? b.pct + " %" : "—";
+      var low = has(b.pct) && b.pct < 20 && b.status !== "charging";
+      rows.push(kv("Carga", low ? badge("st-err", pct) : escapeHtml(pct)) + (b.status ? ' <span class="muted">' + escapeHtml(BATTERY_ES[b.status] || b.status) + "</span>" : ""));
+      if (b.plugged && b.plugged !== "none") rows.push(kv("Conectado a", escapeHtml(b.plugged)));
+      if (has(b.temp_c)) rows.push(kv("Temperatura", Number(b.temp_c).toFixed(1) + " °C"));
+      if (b.optimization_ignored === false) rows.push(badge("st-warn", "OPTIMIZACIÓN DE BATERÍA ACTIVA"));
+    } else rows.push('<span class="muted">sin datos</span>');
+    if (perms) {
+      var miss = [];
+      if (perms.location === false) miss.push("ubicación");
+      if (perms.background_location === false) miss.push("ubicación todo el tiempo");
+      if (perms.notifications === false) miss.push("notificaciones");
+      if (miss.length) rows.push('<span class="phone-err">Faltan permisos: ' + escapeHtml(miss.join(", ")) + "</span>");
+    }
+    return card("Batería", rows);
+  }
+
+  var SYNC_ES = { pending: ["Pendiente", "st-warn"], synced: ["Subido", "st-ok"], rejected: ["Rechazado", "st-err"] };
+
+  function lastResultCard(p, r) {
+    if (!r) return card("Última prueba", ['<span class="muted">ninguna todavía</span>']);
+    var rows = [];
+    rows.push(
+      kv("Hora", fmtTime(r.at)) +
+        " · " +
+        (r.slot ? "router " + escapeHtml(r.slot) : '<span class="muted">sin atribuir</span>')
+    );
+    rows.push(r.test_status === "failed" ? badge("st-err", "FALLIDA") : r.test_status === "done" ? badge("st-ok", "COMPLETADA") : "");
+    rows.push("↓ " + fmtNum(r.down_mbps, " Mbps") + " · ↑ " + fmtNum(r.up_mbps, " Mbps") + " · ping " + fmtNum(r.ping_ms, " ms", 0));
+    var sync = SYNC_ES[r.sync_status];
+    if (sync) rows.push(badge(sync[1], sync[0]) + (r.server_reason ? ' <span class="muted">' + escapeHtml(phoneReasonEs(r.server_reason)) + "</span>" : ""));
+    if (r.location_status) rows.push(gpsBadge(r.location_status, null));
+    if (r.error) rows.push('<span class="phone-err">' + escapeHtml(r.error) + "</span>");
+    return card("Última prueba", rows);
+  }
+
+  // ---- dibujo: órdenes
+
+  function renderPhoneOrders(ui) {
+    var p = ui.probe;
+    if (!ui.orders) {
+      ui.ordersEl.innerHTML = '<span class="muted">' + escapeHtml(ui.ordersErr || "cargando...") + "</span>";
+      return;
+    }
+    var h = [];
+    if (ui.ordersErr) h.push('<div class="muted">⚠ ' + escapeHtml(ui.ordersErr) + "</div>");
+    if (!ui.orders.length) {
+      h.push('<span class="muted">Todavía no hay órdenes para esta sonda.</span>');
+      ui.ordersEl.innerHTML = h.join("");
+      return;
+    }
+    h.push(
+      '<div class="table-wrap"><table class="data-table phone-table"><thead><tr>' +
+        "<th>Ejecutar</th><th>Objetivo</th><th>Motivo</th><th>Estado</th><th>Detalle</th><th></th>" +
+        "</tr></thead><tbody></tbody></table></div>"
+    );
+    ui.ordersEl.innerHTML = h.join("");
+    var tbody = ui.ordersEl.querySelector("tbody");
+    ui.orders.forEach(function (o) {
+      var tr = document.createElement("tr");
+      var target =
+        o.target === "next"
+          ? "Siguiente" + (o.slot ? " → " + o.slot : "")
+          : o.target || o.slot || "—";
+      var lbl = o.slot ? slotLabel(p, o.slot) : "";
+      var seq = o.batch_id && o.order_id && o.batch_id !== o.order_id ? /-(\d{1,2})$/.exec(o.order_id) : null;
+      var detail = [];
+      if (o.routing_table) detail.push("tabla <code>" + escapeHtml(o.routing_table) + "</code>");
+      if (o.allow_fallback) detail.push("con respaldo");
+      if (o.not_after && (o.status === "pending" || o.status === "delivered")) detail.push("vence " + fmtTime(o.not_after));
+      if (o.completed_at) detail.push("cerró " + fmtTime(o.completed_at));
+      if (o.measurement_id) detail.push("medición #" + escapeHtml(String(o.measurement_id)));
+      if (o.error) detail.push('<span class="phone-err">' + escapeHtml(o.error) + "</span>");
+      tr.innerHTML =
+        '<td data-label="Ejecutar">' +
+        fmtTime(o.execute_at || o.created_at) +
+        (o.started_at ? ' <span class="muted">(empezó ' + fmtTime(o.started_at) + ")</span>" : "") +
+        '</td><td data-label="Objetivo"><strong>' +
+        escapeHtml(target) +
+        "</strong>" +
+        (lbl ? ' <span class="muted">' + escapeHtml(lbl) + "</span>" : "") +
+        '</td><td data-label="Motivo">' +
+        escapeHtml(selectionEs(o.selection_reason)) +
+        (seq ? ' <span class="muted">#' + escapeHtml(seq[1]) + "</span>" : "") +
+        '</td><td data-label="Estado">' +
+        orderStatusBadge(o) +
+        (o.closed_by === "server" ? ' <span class="muted">(cerrada por el servidor)</span>' : "") +
+        '</td><td data-label="Detalle">' +
+        (detail.join(" · ") || "—") +
+        '</td><td data-label=""></td>';
+      if (o.status === "pending" || o.status === "delivered") {
+        var b = el("button", "btn-link btn-danger", "Cancelar");
+        b.type = "button";
+        b.addEventListener("click", function () {
+          cancelOrder(ui, o.order_id, b);
+        });
+        tr.lastElementChild.appendChild(b);
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---- dibujo: resultados (trazabilidad por medición)
+
+  function fmtBytes(n) {
+    if (!has(n)) return "—";
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + " GB";
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + " MB";
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + " kB";
+    return n + " B";
+  }
+
+  function renderPhoneResults(ui) {
+    var p = ui.probe;
+    if (!ui.results) {
+      ui.resultsEl.innerHTML = '<span class="muted">' + escapeHtml(ui.resultsErr || "cargando...") + "</span>";
+      return;
+    }
+    var h = [];
+    if (ui.resultsErr) h.push('<div class="muted">⚠ ' + escapeHtml(ui.resultsErr) + "</div>");
+    if (!ui.results.length) {
+      h.push('<span class="muted">Todavía no hay resultados subidos por el celular.</span>');
+      ui.resultsEl.innerHTML = h.join("");
+      return;
+    }
+    var rows = ui.results.map(function (m) {
+      var net = m.net || {};
+      // router
+      var router;
+      if (m.slot) {
+        router = "<strong>" + escapeHtml(m.slot) + "</strong>" + (slotLabel(p, m.slot) ? ' <span class="muted">' + escapeHtml(slotLabel(p, m.slot)) + "</span>" : "");
+      } else {
+        router = badge("st-muted", "SIN ATRIBUIR") + (m.net_path === "wifi" ? ' <span class="muted">por WiFi</span>' : "");
+      }
+      if (m.routing_table) router += '<br><span class="muted">tabla</span> <code>' + escapeHtml(m.routing_table) + "</code>";
+      if (m.device_id_client && m.device_id_client !== m.device_id)
+        router += '<br><span class="muted">el celular decía ' + escapeHtml(m.device_id_client) + "</span>";
+
+      // estado
+      var st = [];
+      st.push(m.test_status === "failed" ? badge("st-err", "PRUEBA FALLIDA") : badge("st-ok", "PRUEBA COMPLETADA"));
+      st.push(gpsBadge(m.location_status, m.gps_age_s));
+      if (m.captive_portal === true)
+        st.push(badge("st-err", "PORTAL CAUTIVO" + (m.portal_host ? " · " + m.portal_host : ""), "la SIM del router pide registro o saldo; no es una caída de señal"));
+      if (m.error) st.push('<span class="phone-err">' + escapeHtml(m.error) + "</span>");
+
+      // veredicto
+      var reason = net.reason || "";
+      var verdict = routeBadge(m) + " " + '<span class="muted">' + escapeHtml(phoneReasonEs(reason) || "sin veredicto") + "</span>";
+      if (reason === "probe-asn-mismatch" || reason === "probe-asn-other-router") {
+        verdict +=
+          "<br>" +
+          badge(
+            "st-err",
+            "⚠ OPERADOR NO COINCIDE",
+            "ASN de salida " + (net.egress_asn || "?") + ", esperado " + (net.expected_asn || "?")
+          ) +
+          ' <span class="muted">' +
+          escapeHtml(asnText(net.egress_asn, net.egress_asn_name) || "AS?") +
+          (net.expected_asn ? " · esperado AS" + escapeHtml(String(net.expected_asn)) : "") +
+          "</span>";
+      } else if (net.egress_asn || net.egress_asn_name) {
+        verdict += '<br><span class="muted">' + escapeHtml(asnText(net.egress_asn, net.egress_asn_name)) + "</span>";
+      }
+      if (m.egress_ip) verdict += ' <span class="muted">· ' + escapeHtml(m.egress_ip) + "</span>";
+      if (has(m.other_traffic_bytes) && m.other_traffic_bytes > OTHER_TRAFFIC_WARN_BYTES)
+        verdict += "<br>" + badge("st-warn", "otras apps usaron la red durante la prueba", fmtBytes(m.other_traffic_bytes) + " de otro tráfico");
+
+      // origen y sincronización
+      var src = [];
+      if (m.executed_offline)
+        src.push(badge("st-warn", "hecha sin Internet, sincronizada a las " + fmtTime(m._received_at)));
+      else src.push('<span class="muted">subida ' + fmtTime(m._received_at) + "</span>");
+      src.push(escapeHtml(selectionEs(m.selection_reason)));
+      if (m.attempt > 1) src.push(badge("st-warn", "intento " + m.attempt));
+      if (m.related_order_id) src.push('<span class="muted">intento previo al respaldo</span>');
+      if (m.order_id) src.push('<span class="muted" title="' + escapeHtml(m.order_id) + '">orden ' + escapeHtml(String(m.order_id).slice(0, 8)) + "</span>");
+      if (m.measured_by) src.push('<span class="muted">' + escapeHtml(m.measured_by) + "</span>");
+
+      return (
+        "<tr>" +
+        '<td data-label="Prueba">' + fmtTime(m.test_started_at || m.ts) + "</td>" +
+        '<td data-label="Router">' + router + "</td>" +
+        '<td data-label="↓ / ↑">' + fmtNum(m.down_mbps) + " / " + fmtNum(m.up_mbps) + ' <span class="muted">Mbps</span></td>' +
+        '<td data-label="Ping">' + fmtPing(m.ping_ms, m.loss_pct) + "</td>" +
+        '<td data-label="Estado">' + st.join(" ") + "</td>" +
+        '<td data-label="Veredicto">' + verdict + "</td>" +
+        '<td data-label="Origen">' + src.join(" · ") + "</td>" +
+        "</tr>"
+      );
+    });
+    h.push(
+      '<div class="table-wrap"><table class="data-table phone-table"><thead><tr>' +
+        "<th>Prueba</th><th>Router</th><th>↓ / ↑</th><th>Ping</th><th>Estado</th><th>Veredicto</th><th>Origen</th>" +
+        "</tr></thead><tbody>" +
+        rows.join("") +
+        "</tbody></table></div>"
+    );
+    ui.resultsEl.innerHTML = h.join("");
   }
 
   // ---------------------------------------------------------------- prueba de velocidad (navegador)

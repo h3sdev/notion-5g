@@ -54,7 +54,8 @@
       <p class="muted" style="margin-top:-6px">
         Un MikroTik con un puerto por equipo: mide por la tabla de ruteo de cada uno, así que la salida está
         garantizada. Las pruebas se piden acá o las dispara solo el backend cada cierto tiempo, alternando equipos,
-        mientras la sonda esté en línea.
+        mientras la sonda esté en línea. Si la sonda la ejecuta un celular conectado por cable al MikroTik, su tarjeta
+        muestra en vivo qué está haciendo el celular, sus órdenes y de dónde salió cada resultado.
       </p>
       <div id="probe-error" class="banner banner-error" hidden></div>
       <div id="probes-list"></div>
@@ -66,13 +67,20 @@
           <input id="pe-id" type="text" placeholder="hap-oficina" autocomplete="off" />
           <label for="pe-label">Nombre</label>
           <input id="pe-label" type="text" placeholder="hAP ac2 oficina" autocomplete="off" />
+          <label for="pe-runner">Quién mide</label>
+          <select id="pe-runner">
+            <option value="probe">Script del MikroTik</option>
+            <option value="phone">Celular por cable</option>
+          </select>
           <label for="pe-duration">Duración de cada prueba (s)</label>
           <input id="pe-duration" type="number" min="3" max="60" step="1" value="10" />
         </div>
         <p class="summary-label" style="margin:12px 0 4px">Equipos conectados (en el orden en que se prueban)</p>
         <p class="muted" style="margin:0 0 6px">
           La tabla de ruteo es la que se creó en el MikroTik para el puerto de ese equipo. "Heartbeat" solo para
-          equipos sin agente propio (el Notion ya manda los suyos).
+          equipos sin agente propio (el Notion ya manda los suyos). Con un celular por cable, cada router lleva una
+          letra (slot A, B…) y su propia tabla (to-A, to-B; nunca main). El ASN esperado es opcional: sirve para
+          verificar que la prueba salió por el operador de ese router.
         </p>
         <div id="pe-targets"></div>
         <datalist id="pe-device-options"></datalist>

@@ -26,6 +26,8 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "notion5g/device").setMethodCallHandler { call, result ->
             if (call.method == "status") result.success(DeviceInfo.status(this)) else result.notImplemented()
         }
+        // Sonda A/B con el celular por cable (ProbeService): ver ProbeChannels.
+        ProbeChannels.register(this, flutterEngine.dartExecutor.binaryMessenger)
         // Modo en movimiento: lo corre BeaconService (nativo) para que siga vivo
         // aunque Android mate el proceso de Flutter; Dart solo lo prende/apaga.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "notion5g/beacon").setMethodCallHandler { call, result ->
