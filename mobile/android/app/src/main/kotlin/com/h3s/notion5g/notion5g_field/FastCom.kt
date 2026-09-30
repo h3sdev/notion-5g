@@ -18,7 +18,9 @@ object FastCom {
         val servers: List<String>,
     )
 
-    private const val TIMEOUT_MS = 8000
+    /// 15 s: con 8 s, el 16 % de las pruebas por el 4G (picos de latencia de
+    /// hasta 300 ms en Movistar) no alcanzaban a traer la lista (2026-09-30).
+    private const val TIMEOUT_MS = 15000
     @Volatile private var token: String? = null
 
     private fun get(network: Network, url: String, ua: String): String {
@@ -55,7 +57,9 @@ object FastCom {
 
     fun targets(network: Network, ua: String, count: Int = 5): Targets {
         var lastErr: Exception? = null
-        for (refresh in listOf(false, true)) {
+        // Tres intentos: dos con el token guardado (un timeout suelto no es un
+        // token vencido) y el último pidiendo el token de nuevo.
+        for (refresh in listOf(false, false, true)) {
             try {
                 val j = JSONObject(get(network, "https://api.fast.com/netflix/speedtest/v2?https=true&token=${token(network, ua, refresh)}&urlCount=$count", ua))
                 val arr = j.getJSONArray("targets")
