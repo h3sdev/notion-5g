@@ -54,7 +54,77 @@ object RouterWeb {
         c.disconnect()
     }
 
+    private fun get(network: Network, url: String, headers: Map<String, String> = emptyMap()): HttpURLConnection {
+        val c = network.openConnection(URL(url)) as HttpURLConnection
+        c.connectTimeout = TIMEOUT_MS
+        c.readTimeout = TIMEOUT_MS
+        c.instanceFollowRedirects = false
+        c.useCaches = false
+        for ((k, v) in headers) c.setRequestProperty(k, v)
+        c.responseCode
+        return c
+    }
+
     fun reboot(network: Network, host: String, user: String = USER, password: String = PASSWORD): Outcome {
+        // El Notion 4G ("LTE Wireless Router") trae la interfaz Marvell vieja
+        // (login por GET firmado con /cgi/protected.cgi y reinicio con
+        // json_device_restart); el 5G, la nueva (login por POST y xml_action.cgi).
+        val title = try {
+            Regex("<title>(.*?)</title>", RegexOption.IGNORE_CASE).find(drain(get(network, "http://$host/")))?.groupValues?.get(1)
+        } catch (_: Exception) {
+            null
+        }
+        return if (title?.contains("LTE", ignoreCase = true) == true) rebootLegacy(network, host, user, password)
+        else rebootXml(network, host, user, password)
+    }
+
+    /// Interfaz vieja (probado contra el Notion 4G PB017, firmware R0238, el 2026-09-29).
+    private fun rebootLegacy(network: Network, host: String, user: String, password: String): Outcome {
+        val base = "http://$host"
+        try {
+            val c1 = get(network, "$base/login.cgi")
+            val www = c1.getHeaderField("WWW-Authenticate") ?: ""
+            drain(c1)
+            if (!www.startsWith("Digest")) return Outcome(false, "web-connect", "login.cgi sin challenge Digest", false)
+            val parts = www.substringAfter(' ').split(',').mapNotNull {
+                val kv = it.trim().split('=', limit = 2)
+                if (kv.size == 2) kv[0] to kv[1].trim('"') else null
+            }.toMap()
+            val realm = parts["realm"] ?: return Outcome(false, "web-connect", "challenge sin realm", false)
+            val nonce = parts["nonce"] ?: return Outcome(false, "web-connect", "challenge sin nonce", false)
+            val qop = parts["qop"] ?: "auth"
+            val ha1 = md5("$user:$realm:$password")
+            var nc = 1
+            fun authHeader(): String {
+                val cn = cnonce()
+                val n = "%08x".format(nc++)
+                val res = md5("$ha1:$nonce:$n:$cn:$qop:${md5("GET:$URI_FOR_DIGEST")}")
+                return "Digest username=\"$user\", realm=\"$realm\", nonce=\"$nonce\", uri=\"$URI_FOR_DIGEST\", " +
+                    "response=\"$res\", qop=$qop, nc=$n, cnonce=\"$cn\""
+            }
+            val cn = cnonce()
+            val res = md5("$ha1:$nonce:00000001:$cn:$qop:${md5("GET:/cgi/protected.cgi")}")
+            val c2 = get(network, "$base/login.cgi?Action=Digest&username=$user&realm=$realm&nonce=$nonce&response=$res" +
+                "&qop=$qop&cnonce=$cn&temp=marvell", mapOf("Authorization" to authHeader()))
+            if (!drain(c2).contains("200 OK")) {
+                return Outcome(false, "web-auth", "login web rechazado (interfaz vieja); no se reintenta para no bloquear el equipo", false)
+            }
+            val body = try {
+                drain(get(network, "$base/xml_action.cgi?method=get&module=duster&file=json_device_restart${System.currentTimeMillis()}",
+                    mapOf("Authorization" to authHeader())))
+            } catch (e: java.io.IOException) {
+                return Outcome(true, null, "sin respuesta a device_restart (${e.javaClass.simpleName}): probablemente ya se estaba reiniciando", true)
+            }
+            if (body.contains("UNAUTHORIZED") || body.contains("KICKOFF")) {
+                return Outcome(false, "web-auth", "device_restart rechazado (sesión no autorizada)", true)
+            }
+            return Outcome(true, null, null, true)
+        } catch (e: Exception) {
+            return Outcome(false, "web-connect", "${e.javaClass.simpleName}${e.message?.let { ": " + it.take(140) } ?: ""}", false)
+        }
+    }
+
+    private fun rebootXml(network: Network, host: String, user: String, password: String): Outcome {
         val base = "http://$host"
         try {
             // 1. Challenge: realm/nonce/qop.
