@@ -431,6 +431,18 @@ func readLocalStatus() (map[string]any, error) {
 		if v, ok := toFloat(lte["s_status"]); ok {
 			st["ca_secondary"] = v != 0
 		}
+		// Portadora secundaria de la CA LTE (la web del equipo la muestra como "B7/B2").
+		if v, ok := toFloat(lte["s_status"]); !ok || v != 0 {
+			if b, ok := firstVal(lte, "s_band"); ok {
+				st["band_lte_ca"] = b
+			}
+			if b, ok := firstVal(lte, "s_pci"); ok {
+				st["pci_ca"] = b
+			}
+			if b, ok := firstVal(lte, "s_dlEuArfcn"); ok {
+				st["earfcn_ca"] = b
+			}
+		}
 
 		// Bloque NR. Hasta 2026-09-24 el agente leía SOLO el sub-objeto "lte",
 		// así que nr_band llegaba siempre nulo al backend (0 de 74 mediciones
@@ -469,6 +481,49 @@ func readLocalStatus() (map[string]any, error) {
 		// siempre para no inflar cada heartbeat del equipo.
 		if _, tieneBanda := st["nr_band"]; !tieneBanda && nr != nil {
 			st["zcainfo_nr_raw"] = nr
+		}
+	}
+	// Portadora NR de la ENDC: NO está en get_zcainfo (que solo trae las LTE p_* y
+	// s_*), sino en cm get_eng_info → "nr", anidado. Son los mismos campos que lee la
+	// sección ENDC de /js/panel/internet/engineeringInfo.js del equipo; confirmado el
+	// 2026-09-30 con TIGO (B28 + n78: band 78, phy_cell_id 416, dl_nrafcn 638592,
+	// rsrp -62, sinr 18, dl_bandwidth 162 PRB, dl_scs 1). En NSA la red agrega la NR
+	// con tráfico, así que en un heartbeat en reposo puede no aparecer.
+	if eng, err := ubusCall("cm", "get_eng_info"); err == nil {
+		if nr := findMap(eng, "nr", 0); nr != nil {
+			if b, ok := firstVal(nr, "band"); ok {
+				st["nr_band"] = b
+				delete(st, "zcainfo_nr_raw")
+				if v, ok := firstVal(nr, "phy_cell_id"); ok {
+					st["nr_pci"] = v
+				}
+				if v, ok := firstVal(nr, "dl_nrafcn"); ok {
+					st["nr_arfcn"] = v
+				}
+				if v, ok := toFloat(nr["rsrp"]); ok {
+					st["nr_rsrp_dbm"] = v
+				}
+				if v, ok := toFloat(nr["rsrq"]); ok {
+					st["nr_rsrq_db"] = v
+				}
+				if v, ok := toFloat(nr["sinr"]); ok {
+					st["nr_sinr_db"] = v
+				}
+				scs := map[int]int{0: 15, 1: 30, 2: 60}
+				var scsKHz int
+				if v, ok := toFloat(nr["dl_scs"]); ok {
+					if k, ok := scs[int(v)]; ok {
+						scsKHz = k
+						st["nr_scs_khz"] = k
+					}
+				}
+				if v, ok := toFloat(nr["dl_bandwidth"]); ok && v > 0 {
+					st["nr_bw_prb"] = int(v)
+					if mhz, ok := nrBandwidthMHz(int(v), scsKHz); ok {
+						st["nr_bw_mhz"] = mhz
+					}
+				}
+			}
 		}
 	}
 	if mode, err := ubusCall("util_wan", "get_network_mode"); err == nil {
@@ -576,6 +631,46 @@ func firstMap(m map[string]any, keys ...string) map[string]any {
 		}
 	}
 	return nil
+}
+
+// findMap busca el primer sub-objeto llamado key a cualquier profundidad (como
+// el .find() de jQuery que usa la web del equipo).
+func findMap(m map[string]any, key string, depth int) map[string]any {
+	if depth > 6 {
+		return nil
+	}
+	if sub, ok := m[key].(map[string]any); ok && len(sub) > 0 {
+		return sub
+	}
+	for _, v := range m {
+		switch x := v.(type) {
+		case map[string]any:
+			if r := findMap(x, key, depth+1); r != nil {
+				return r
+			}
+		case []any:
+			for _, e := range x {
+				if em, ok := e.(map[string]any); ok {
+					if r := findMap(em, key, depth+1); r != nil {
+						return r
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// nrBandwidthMHz: ancho de banda NR a partir de los PRB y el SCS (TS 38.101-1,
+// tabla 5.3.2-1).
+func nrBandwidthMHz(prb, scsKHz int) (int, bool) {
+	tables := map[int]map[int]int{
+		15: {25: 5, 52: 10, 79: 15, 106: 20, 133: 25, 160: 30, 216: 40, 270: 50},
+		30: {11: 5, 24: 10, 38: 15, 51: 20, 65: 25, 78: 30, 106: 40, 133: 50, 162: 60, 189: 70, 217: 80, 245: 90, 273: 100},
+		60: {11: 10, 18: 15, 24: 20, 31: 25, 38: 30, 51: 40, 65: 50, 79: 60, 93: 70, 107: 80, 121: 90, 135: 100},
+	}
+	v, ok := tables[scsKHz][prb]
+	return v, ok
 }
 
 // firstAny devuelve el valor del primer campo presente y no vacío.

@@ -758,3 +758,12 @@ instala por `adb -P 5039 -s 192.168.2.92:<puerto>`.
    datos del módem y la tabla del dashboard sale con guiones en los dos equipos. El backend ya guarda
    esos campos si vienen; es cambio de app. Detalle completo en `docs/PENDIENTE-SENAL-POR-SSH.md`.
    **Hecho el mismo día (app 1.5.0):** 5G por SSH+`ubus`, 4G por su web vieja; verificado en producción.
+9. **(2026-09-30) Las dos bandas de la NSA.** La NR de la ENDC **no está en `cm get_zcainfo`** (solo trae
+   las LTE `p_*`/`s_*`): está en **`cm get_eng_info` → `eng.nr`** (`band`, `phy_cell_id`, `dl_nrafcn`,
+   `rsrp`, `rsrq`, `sinr`; `dl_bandwidth` en PRB y `dl_scs` como código 0/1/2 = 15/30/60 kHz). Lo
+   confirma la sección ENDC de `/js/panel/internet/engineeringInfo.js` del propio equipo. La app 1.5.x
+   y el agente (`cmd/routeragent`, reinstalado el mismo día; respaldo `/data/routeragent-arm.bak` =
+   binario del 24-sep) la leen de ahí, más la secundaria de CA LTE (`band_lte_ca`). La app lee también
+   al terminar la descarga/subida (`signal_end`), porque en NSA la red agrega la NR con tráfico. Primera
+   lectura, SIM TIGO: B28 + n78, PCI 416, NR-ARFCN 638592, 60 MHz, RSRP −62 dBm. El dashboard muestra
+   la combinación ("B28 + n78") en la tabla y el mapa.
