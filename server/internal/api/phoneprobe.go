@@ -311,6 +311,7 @@ type phoneResultItem struct {
 	ruleEndTable                                  *string // nil = mikrotik_rule_end null o sin table
 	egressIP, egressIPEnd                         string
 	egressAddr                                    netip.Addr
+	egressEndAddr                                 netip.Addr
 }
 
 func objStr(m map[string]any, k string) string {
@@ -409,6 +410,9 @@ func parseResultItem(raw json.RawMessage, probeID string) (phoneResultItem, stri
 	if a, err := netip.ParseAddr(strings.TrimSpace(it.egressIP)); err == nil {
 		it.egressAddr = normalizeAddr(a)
 	}
+	if a, err := netip.ParseAddr(strings.TrimSpace(it.egressIPEnd)); err == nil {
+		it.egressEndAddr = normalizeAddr(a)
+	}
 	return it, ""
 }
 
@@ -423,7 +427,7 @@ type phoneClassInput struct {
 	confirmed     bool // Ethernet con la regla confirmada en el MikroTik
 	ruleChanged   bool // mikrotik_rule_end.table ≠ routing_table
 	knownTable    bool // la tabla es de un equipo de la sonda
-	ipChanged     bool // egress_ip ≠ egress_ip_end
+	ipChanged     bool // la salida cambió de red a mitad de la prueba (ver egressChanged)
 	asn           int  // ASN resuelto (0 = no)
 	expected      int  // ASN esperado del equipo atribuido (0 = no se sabe)
 	otherExpected map[int]bool
@@ -457,6 +461,22 @@ func classifyPhoneResult(in phoneClassInput) phoneVerdict {
 	}
 }
 
+// egressChanged: la IP de salida del inicio y la del final son de redes
+// distintas. Con CGNAT (Movistar, por ejemplo) cada conexión puede salir por
+// otra IP pública del mismo operador, así que dos IP distintas con el mismo ASN
+// no son un cambio de red. Si falta alguno de los dos ASN, se compara la IP.
+func egressChanged(it phoneResultItem, asns map[netip.Addr]asnInfo) bool {
+	if it.egressIP == "" || it.egressIPEnd == "" || strings.EqualFold(it.egressIP, it.egressIPEnd) {
+		return false
+	}
+	a, okA := asns[it.egressAddr]
+	b, okB := asns[it.egressEndAddr]
+	if okA && okB && a.ASN > 0 {
+		return a.ASN != b.ASN
+	}
+	return true
+}
+
 // resolveEgressASNs resuelve el ASN de cada IP única del lote: 3 s por IP y 8 s
 // en total. Lo que no alcance queda sin resolver.
 func (s *Server) resolveEgressASNs(ctx context.Context, items []phoneResultItem) map[netip.Addr]asnInfo {
@@ -464,8 +484,11 @@ func (s *Server) resolveEgressASNs(ctx context.Context, items []phoneResultItem)
 	seen := map[netip.Addr]bool{}
 	bctx, cancel := context.WithTimeout(ctx, phoneASNBatch)
 	defer cancel()
+	var addrs []netip.Addr
 	for _, it := range items {
-		a := it.egressAddr
+		addrs = append(addrs, it.egressAddr, it.egressEndAddr)
+	}
+	for _, a := range addrs {
 		if !a.IsValid() || seen[a] {
 			continue
 		}
@@ -592,7 +615,7 @@ func (s *Server) storeResult(ctx context.Context, it phoneResultItem, targets []
 		confirmed:     it.netPath == "ethernet" && it.confirmed,
 		ruleChanged:   ruleChanged,
 		knownTable:    target != nil,
-		ipChanged:     it.egressIP != "" && it.egressIPEnd != "" && !strings.EqualFold(it.egressIP, it.egressIPEnd),
+		ipChanged:     egressChanged(it, asns),
 		otherExpected: map[int]bool{},
 	}
 	info, resolved := asns[it.egressAddr]

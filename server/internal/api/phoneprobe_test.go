@@ -466,6 +466,7 @@ func TestPhoneResultClassification(t *testing.T) {
 	cacheASN(h.s, "181.49.10.20", 27831, "Colombia Movil")
 	cacheASN(h.s, "186.102.123.189", 3816, "Colombia Telecomunicaciones")
 	cacheASN(h.s, "190.60.1.1", 14080, "Telmex")
+	cacheASN(h.s, "186.102.72.153", 3816, "Colombia Telecomunicaciones")
 	cases := []struct {
 		name, body               string
 		route, conf, reason, dev string
@@ -486,8 +487,10 @@ func TestPhoneResultClassification(t *testing.T) {
 			"other-network", "high", "probe-asn-other-router", "router-A", "A"},
 		{"ASN distinto", result("c0000000-0000-4000-8000-000000000007", "", "to-B", `"egress_ip":"190.60.1.1"`),
 			"unknown", "low", "probe-asn-mismatch", "router-B", "B"},
-		{"IP cambió", result("c0000000-0000-4000-8000-000000000008", "", "to-B", `"egress_ip":"186.102.123.189","egress_ip_end":"186.102.123.190"`),
+		{"IP cambió de red", result("c0000000-0000-4000-8000-000000000008", "", "to-B", `"egress_ip":"186.102.123.189","egress_ip_end":"190.60.1.1"`),
 			"unknown", "low", "network-changed-mid-test", "router-B", "B"},
+		{"CGNAT mismo ASN", result("c0000000-0000-4000-8000-000000000019", "", "to-B", `"egress_ip":"186.102.123.189","egress_ip_end":"186.102.72.153"`),
+			"router", "high", "probe-asn-match", "router-B", "B"},
 	}
 	for _, c := range cases {
 		_, obj := postResults(h, c.body)
@@ -825,5 +828,26 @@ func TestPhoneResultStripsSecrets(t *testing.T) {
 	}
 	if m["down_mbps"] != 85.3 || m["device_id"] != "router-A" {
 		t.Errorf("resto del resultado: %v", m)
+	}
+}
+
+func TestEgressChangedCGNAT(t *testing.T) {
+	start, end, other := netip.MustParseAddr("186.102.14.153"), netip.MustParseAddr("186.102.72.153"), netip.MustParseAddr("179.19.72.14")
+	asns := map[netip.Addr]asnInfo{start: {ASN: 3816}, end: {ASN: 3816}, other: {ASN: 271773}}
+	it := phoneResultItem{egressIP: start.String(), egressIPEnd: end.String(), egressAddr: start, egressEndAddr: end}
+	if egressChanged(it, asns) {
+		t.Fatal("dos IP de Movistar (mismo ASN) no son un cambio de red")
+	}
+	it.egressIPEnd, it.egressEndAddr = other.String(), other
+	if !egressChanged(it, asns) {
+		t.Fatal("pasar de AS3816 a AS271773 es un cambio de red")
+	}
+	delete(asns, other)
+	if !egressChanged(it, asns) {
+		t.Fatal("sin ASN del final, IP distinta cuenta como cambio")
+	}
+	it.egressIPEnd, it.egressEndAddr = start.String(), start
+	if egressChanged(it, asns) {
+		t.Fatal("misma IP no es cambio")
 	}
 }
