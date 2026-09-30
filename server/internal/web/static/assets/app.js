@@ -3610,7 +3610,12 @@
         "<tr>" +
         '<td data-label="Prueba">' + fmtTime(m.test_started_at || m.ts) + "</td>" +
         '<td data-label="Router">' + router + "</td>" +
-        '<td data-label="↓ / ↑">' + fmtNum(m.down_mbps) + " / " + fmtNum(m.up_mbps) + ' <span class="muted">Mbps</span></td>' +
+        '<td data-label="↓ / ↑">' + fmtNum(m.down_mbps) + " / " + fmtNum(m.up_mbps) + ' <span class="muted">Mbps' +
+        (m.target_kind === "fast" ? " · fast.com" + (m.streams ? " ×" + escapeHtml(String(m.streams)) : "") : "") + "</span>" +
+        (m.cf_down_mbps != null || m.cf_up_mbps != null
+          ? '<br><span class="muted">Cloudflare ×1: ' + fmtNum(m.cf_down_mbps) + " / " + fmtNum(m.cf_up_mbps) + "</span>"
+          : "") +
+        "</td>" +
         '<td data-label="Ping">' + fmtPing(m.ping_ms, m.loss_pct) + "</td>" +
         '<td data-label="Estado">' + st.join(" ") + "</td>" +
         '<td data-label="Veredicto">' + verdict + "</td>" +

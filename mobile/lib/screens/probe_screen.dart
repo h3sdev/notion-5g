@@ -689,6 +689,9 @@ class _ProbeScreenState extends State<ProbeScreen> {
           Text('${ProbeText.hhmm((r['test_started_at'] ?? r['created_at']) as String?)} · $who · '
               '↓${ProbeText.num1(r['down_mbps'])} ↑${ProbeText.num1(r['up_mbps'])} Mbps · ping ${ProbeText.num1(r['ping_ms'])} ms',
               style: const TextStyle(fontWeight: FontWeight.w500)),
+          if (r['cf_down_mbps'] != null || r['cf_up_mbps'] != null)
+            Text('fast.com arriba · Cloudflare 1 conexión: ↓${ProbeText.num1(r['cf_down_mbps'])} ↑${ProbeText.num1(r['cf_up_mbps'])} Mbps',
+                style: const TextStyle(fontSize: 12, color: Colors.black54)),
           Wrap(children: [
             _badge(ok ? 'COMPLETADA' : 'FALLIDA', ok ? Colors.green : Colors.red),
             _badge(

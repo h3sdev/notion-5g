@@ -33,7 +33,7 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
     'ssh_port_A',
     'ssh_port_B',
   };
-  static const _bools = {'require_ethernet', 'flush_conntrack', 'local_plan_enabled'};
+  static const _bools = {'require_ethernet', 'flush_conntrack', 'local_plan_enabled', 'also_cloudflare'};
 
   Map<String, dynamic>? _cfg;
   final _ctrl = <String, TextEditingController>{};
@@ -264,6 +264,9 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
                     child: Text('El backend local no es alcanzable por Ethernet; se usará Cloudflare en las pruebas por cable.',
                         style: TextStyle(color: Colors.orange)),
                   ),
+                if (_speedTarget == 'fast')
+                  _switch('also_cloudflare', 'Medir también contra Cloudflare (1 conexión)',
+                      help: 'La medición de siempre, para comparar con el historial. Alarga cada prueba unos 25 s.'),
                 if (_speedTarget == 'prod-download')
                   const Padding(
                     padding: EdgeInsets.only(top: 6),

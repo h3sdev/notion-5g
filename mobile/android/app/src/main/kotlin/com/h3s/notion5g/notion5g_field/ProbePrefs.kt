@@ -30,6 +30,7 @@ class ProbePrefs(context: Context) {
             "table_A" to "to-A",
             "table_B" to "to-B",
             "require_ethernet" to true,
+            "also_cloudflare" to true,
             "speed_target" to "fast",
             "prod_url" to "https://notion.h3s-iot.com",
             "prod_api_key" to "",

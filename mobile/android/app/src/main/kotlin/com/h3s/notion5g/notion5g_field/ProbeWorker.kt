@@ -548,6 +548,11 @@ class ProbeWorker(
         var ping: SpeedTester.PingResult? = null
         var down: SpeedTester.PhaseResult? = null
         var up: SpeedTester.PhaseResult? = null
+        /// Segunda medición contra Cloudflare con 1 conexión (la de siempre),
+        /// cuando el destino principal es fast.com: comparable con el historial.
+        var cfDown: SpeedTester.PhaseResult? = null
+        var cfUp: SpeedTester.PhaseResult? = null
+        var cfPing: SpeedTester.PingResult? = null
         var testStartedMs: Long? = null
         var testStartedNs = 0L
         var testFinishedMs: Long? = null
@@ -831,6 +836,15 @@ class ProbeWorker(
                     db.event("error", "upload", o.orderId, "Subida falló: ${u.error}")
                 } else {
                     db.event("info", "upload", o.orderId, "Subida: ${ProbeUtil.fmt1(u.mbps)} Mbps (${ProbeUtil.fmt1(u.bytes / 1e6)} MB en ${ProbeUtil.fmt1(u.seconds)} s)")
+                }
+                // h2) la misma ruta contra Cloudflare, 1 conexión (como antes de fast.com)
+                if (r.fast != null && s.bool("also_cloudflare")) {
+                    phase("download", "Cloudflare (1 conexión)")
+                    r.cfPing = st.ping("speed.cloudflare.com", 443, 5)
+                    r.cfDown = st.download({ "https://speed.cloudflare.com/__down?bytes=25000000&measId=${enc(r.resultId)}" }, emptyMap(), r.durationS, maxBytes)
+                    phase("upload", "Cloudflare (1 conexión)")
+                    r.cfUp = st.upload({ "https://speed.cloudflare.com/__up?measId=${enc(r.resultId)}" }, emptyMap(), r.durationS, maxBytes)
+                    db.event("info", "upload", o.orderId, "Cloudflare (1 conexión): ${ProbeUtil.fmt1(r.cfDown?.mbps)} ↓ / ${ProbeUtil.fmt1(r.cfUp?.mbps)} ↑ Mbps")
                 }
             }
             r.testFinishedMs = System.currentTimeMillis()
@@ -1134,6 +1148,15 @@ class ProbeWorker(
         p.putN("up_bytes", r.up?.bytes)
         p.putN("up_s", ProbeUtil.round(r.up?.seconds, 2))
         p.putN("concurrent_tests", r.down?.concurrent ?: r.up?.concurrent)
+        if (r.cfDown != null || r.cfUp != null) {
+            p.put("cf_streams", 1)
+            p.putN("cf_down_mbps", ProbeUtil.round(r.cfDown?.mbps, 2))
+            p.putN("cf_down_bytes", r.cfDown?.bytes)
+            p.putN("cf_up_mbps", ProbeUtil.round(r.cfUp?.mbps, 2))
+            p.putN("cf_up_bytes", r.cfUp?.bytes)
+            p.putN("cf_ping_ms", ProbeUtil.round(r.cfPing?.medianMs, 1))
+            p.putN("cf_error", r.cfDown?.error ?: r.cfUp?.error)
+        }
         val t1 = traffic()
         val t0 = r.traffic0
         p.putN("other_traffic_bytes", if (t0 != null && t1 != null) maxOf(0L, (t1.first - t0.first) - (t1.second - t0.second)) else null)
