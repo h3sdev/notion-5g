@@ -6,6 +6,10 @@
 > el puerto 22 sigue cerrado): Movistar, LTE, banda 2, PCI 433, RSRP −77. Los nombres de campo
 > de `ubus` del agente sirvieron tal cual (sin `signal_error: parse`). Sin hacer: la lectura de
 > cierre `signal_end` y lo de §7. `nr_band` sin confirmar hasta que el 5G enganche NR.
+>
+> **Actualización (misma tarde, app 1.5.4 + agente `d3389cf`):** `signal_end` hecho. La NR NO sale de
+> `get_zcainfo` sino de `cm get_eng_info` → `eng.nr` (ver HANDOVER, addendum 2026-09-30 tarde). Con
+> SIM TIGO: 5G-NSA B28/B2 + n78, 60 MHz. Queda solo §7.
 
 > Escrito el 2026-09-30 desde el backend (VPS). Es para el Claude que tiene conexión con el
 > celular (adb, `C:\dev\notion5g_mobile`) y con los routers (SSH). Todo lo del backend está

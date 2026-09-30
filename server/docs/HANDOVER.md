@@ -767,3 +767,67 @@ instala por `adb -P 5039 -s 192.168.2.92:<puerto>`.
    al terminar la descarga/subida (`signal_end`), porque en NSA la red agrega la NR con tráfico. Primera
    lectura, SIM TIGO: B28 + n78, PCI 416, NR-ARFCN 638592, 60 MHz, RSRP −62 dBm. El dashboard muestra
    la combinación ("B28 + n78") en la tabla y el mapa.
+
+## Addendum 2026-09-30 (tarde) — señal del módem en cada medición, las dos bandas de la NSA, links a los equipos
+
+Todo lo de abajo está desplegado y verificado en producción (repo, GitHub, VPS, router 5G y
+celular con las mismas versiones). Commits: `dc594bb`, `f8331ad`, `ca7d77b`, `d3389cf`.
+
+### 1. Qué quedó funcionando
+
+| Pieza | Versión / commit | Qué hace |
+|---|---|---|
+| App del S20+ | **1.5.4+16** | Antes de cada prueba lee el módem del router del slot y manda `operator`, `rat`, `band_lte`, `band_lte_ca`, `pci`, `rsrp_dbm`, `rsrq_db`, `sinr_db`, `rssi_dbm`, `uptime_s`, `nr_*` planos en el resultado (`signal_source`, `signal_read_at`, `signal_ms`; `signal_error` si falla, y la prueba se corre igual). Segunda lectura al terminar descarga/subida en `signal_end`. |
+| Dashboard | `ca7d77b` | Columna Banda con la combinación (`B2 + n78`, `B7 + B2`) y la señal NR debajo (RSRP · SINR · MHz); mismo texto en el popup del mapa. Tarjeta MikroTik con links clicables. |
+| Agente del 5G | `d3389cf` | Lee la NR de `cm get_eng_info` y la CA secundaria. Instalado en `/data/routeragent-arm` (MD5 `b5cffa7e…`); respaldo `/data/routeragent-arm.bak` = binario del 24-sep (el del 18-sep se borró por espacio: `/data` tiene ~6 MB libres y el binario pesa 6,9 MB). |
+| Backend | sin cambios de Go | `InsertPhoneResult` ya guardaba esos campos; `/status` ya guardaba el estado tal cual. |
+
+Primeras lecturas reales:
+- 5G por `ssh-ubus` (~0,8 s): con WOM, LTE-CA B7 (RSRP −57 vs −58 del heartbeat del agente en el mismo minuto).
+- 4G por `router-web` (~1,8 s; su puerto 22 sigue cerrado): Movistar, LTE B2/B4.
+- **Diego cambió la SIM del 5G a TIGO (~18:30 UTC):** desde entonces 5G-NSA, **B28 o B2 + n78**, PCI NR 416, NR-ARFCN 638592, 60 MHz, RSRP NR −59…−62 dBm, bajada 60–89 Mbps. Con WOM nunca se vio NR.
+
+### 2. Hallazgos que conviene no redescubrir
+
+- **La NR de la ENDC NO está en `cm get_zcainfo`** (solo trae las LTE: `p_*` primaria y `s_*`
+  secundaria de CA). Está en **`cm get_eng_info` → `eng.nr`**: `band`, `phy_cell_id`, `dl_nrafcn`,
+  `ul_nrafcn`, `rsrp`/`rsrq`/`sinr` (ya en dBm/dB), `dl_bandwidth` **en PRB** (162 = 60 MHz a 30 kHz),
+  `dl_scs` como código (0/1/2 = 15/30/60 kHz). `eng.lte` trae además `rrc_state`, `tx_power`, `cqi`,
+  `dl_bler`/`ul_bler`, `ECGI`, `iccid`, `PLMN` (no se usan todavía). La fuente fue el JS de la página
+  de ingeniería del propio equipo: `http://192.168.88.1:8081/js/panel/internet/engineeringInfo.js`
+  (estático, sin login).
+- En NSA la red agrega la NR con tráfico; en la práctica en TIGO también aparece en la lectura de antes
+  de la prueba. `nr_read` dice de qué lectura salió (`start`/`end`).
+- **Los heartbeats del agente solo llevan** `uptime_s`, `operator`, `rat`, `rsrp_dbm` (+ ping): la
+  banda y la NR del agente van en sus mediciones `source=router`, no en `/heartbeats`.
+- `/api/v1/measurements` devuelve el `raw` ya aplanado en cada fila. La API de producción responde
+  **403 a `urllib` de Python sin `User-Agent`** (Cloudflare): mandar uno.
+- La sesión web del 4G admite una sola sesión: la lectura antes de la prueba cuenta como la lectura
+  periódica de `routers.B.signal` (no se hacen dos logins seguidos).
+
+### 3. Links a los equipos (tarjeta MikroTik del dashboard)
+
+El celular lee los dst-nat `probe:web-<slot>` del MikroTik en cada revisión en reposo y los manda en
+`status.mikrotik.web` (`{"webfig": url, "A": {url, lan_url}, "B": {...}}`). Hoy: WebFig
+`http://192.168.88.1`, A `http://192.168.88.1:8081` (LAN `192.168.1.1`), B `http://192.168.88.1:8082`
+(LAN `192.168.2.1`). Los de `192.168.88.1` abren solo desde el PC enchufado al MikroTik; el LAN del 4G
+choca con Pipito (misma subred). El dashboard solo pinta `http://host[:puerto]`.
+
+### 4. Cómo se instaló el agente (repetible)
+
+Desde el PC no hay SSH a los routers: se agregó a mano un dst-nat temporal en el MikroTik
+(`tmp:ssh-A`, `192.168.88.1:8021 → 192.168.1.1:22`, igual que `probe:web-A` pero puerto 22), se subió
+el binario por `ssh … 'cat > /data/routeragent-arm.new'` con las opciones legacy de `scripts/rsh.sh`,
+se comparó el MD5 y se hizo `mv`. **El dst-nat se borró al terminar**; hoy no queda ninguna regla
+`tmp:*`. Se verificó con una orden `run_speedtest` del agente (comando 463).
+
+### 5. Pendientes
+
+1. Rellenar las mediciones viejas de la sonda con la lectura más cercana (§7 del pendiente).
+2. "Red de salida: sin determinar" para equipos medidos por sonda (§7 del pendiente).
+3. Aprovechar `eng.lte` (`rrc_state`, `tx_power`, `cqi`, BLER) si sirve para diagnóstico.
+4. Enseñarle a `apply_probe.py` las `probe:web-A/B` (siguen puestas a mano).
+5. `app.js` sin versión en la URL: tras cada despliegue del dashboard hay que recargar con Ctrl+F5.
+6. adb inalámbrico: el puerto cambia cada vez que se reactiva, y el PC solo ve al celular por mDNS si
+   los dos están en la misma red (con el PC en el WiFi del Notion, `H3SWiFi_5G_81E9`, no se ve ni el
+   celular ni el VPS).
