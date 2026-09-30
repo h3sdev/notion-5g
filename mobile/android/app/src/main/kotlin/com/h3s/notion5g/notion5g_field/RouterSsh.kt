@@ -37,6 +37,8 @@ object RouterSsh {
         val authenticated: Boolean,
         /// Código de salida del comando si llegó antes de que se cortara la sesión.
         val exitStatus: Int?,
+        /// El equipo rechazó la conexión al puerto (sin servidor SSH).
+        val refused: Boolean = false,
     )
 
     private const val CONNECT_MS = 8000
@@ -98,6 +100,17 @@ object RouterSsh {
             m.contains("USERAUTH fail", ignoreCase = true) || m.contains("Too many authentication", ignoreCase = true)
     }
 
+    /// ¿Algún eslabón de la cadena es "conexión rechazada" (ECONNREFUSED)?
+    private fun isRefused(e: Throwable): Boolean {
+        var c: Throwable? = e
+        var n = 0
+        while (c != null && n++ < 8) {
+            if (c.message?.contains("ECONNREFUSED") == true || c.message?.contains("Connection refused", ignoreCase = true) == true) return true
+            c = c.cause
+        }
+        return false
+    }
+
     private fun describe(e: Throwable): String {
         val cause = e.cause
         val base = "${e.javaClass.simpleName}${e.message?.let { ": " + it.take(160) } ?: ""}"
@@ -133,7 +146,7 @@ object RouterSsh {
                 s.connect(CONNECT_MS)
             } catch (e: JSchException) {
                 hostKey(s)
-                return Outcome(false, if (isAuthError(e)) "ssh-auth" else "ssh-connect", describe(e), fp, keyType, false, null)
+                return Outcome(false, if (isAuthError(e)) "ssh-auth" else "ssh-connect", describe(e), fp, keyType, false, null, isRefused(e))
             }
             authenticated = true
             hostKey(s)
@@ -162,7 +175,7 @@ object RouterSsh {
             return Outcome(true, null, null, fp, keyType, true, exit)
         } catch (e: Exception) {
             hostKey(session)
-            return Outcome(false, "ssh-connect", describe(e), fp, keyType, authenticated, null)
+            return Outcome(false, "ssh-connect", describe(e), fp, keyType, authenticated, null, !authenticated && isRefused(e))
         } finally {
             try { session?.disconnect() } catch (_: Exception) {}
         }

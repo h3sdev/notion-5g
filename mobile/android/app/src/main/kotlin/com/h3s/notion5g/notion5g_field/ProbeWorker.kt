@@ -1276,7 +1276,17 @@ class ProbeWorker(
                     // Último punto en que "detener" corta: una vez enviado el
                     // comando se espera su fin (≤10 s) para no perder ssh_ok.
                     checkpoint()
-                    val out = RouterSsh.run(eth.network, gw, ssh)
+                    var out = RouterSsh.run(eth.network, gw, ssh)
+                    rb.result.put("method", "ssh")
+                    if (!out.ok && out.refused) {
+                        // Puerto 22 cerrado (el Notion 4G no trae SSH): mismo reinicio por su API web.
+                        rebootStep(rb, "ssh", "router ${t.slot}: SSH cerrado, reinicio por la API web de $gw")
+                        db.event("warn", "rebooting", o.orderId, "Reinicio de ${t.slot}: el puerto 22 está cerrado, se usa la API web del equipo")
+                        val web = RouterWeb.reboot(eth.network, gw)
+                        rb.result.put("method", "web").put("ssh_refused", true).putN("web_detail", web.detail)
+                        out = RouterSsh.Outcome(web.ok, if (web.ok) null else if (web.error == "web-auth") "ssh-auth" else "ssh-connect",
+                            if (web.ok) null else "API web: ${web.detail}", null, null, web.authenticated, null)
+                    }
                     rb.result.put("ssh_ok", out.ok)
                         .putN("host_key_fp", out.hostKeyFp)
                         .putN("host_key_type", out.hostKeyType)
