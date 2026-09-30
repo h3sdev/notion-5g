@@ -29,7 +29,13 @@ object FastCom {
         c.setRequestProperty("User-Agent", ua)
         try {
             if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode} de ${URL(url).host}")
-            return c.inputStream.use { it.readBytes().decodeToString() }
+            val bytes = c.inputStream.use { it.readBytes() }
+            // api.fast.com a veces responde en Latin-1 ("Bogotá" llega como un byte 0xE1).
+            return try {
+                Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+            } catch (_: java.nio.charset.CharacterCodingException) {
+                String(bytes, Charsets.ISO_8859_1)
+            }
         } finally {
             c.disconnect()
         }

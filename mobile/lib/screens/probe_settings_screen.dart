@@ -38,7 +38,7 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
   Map<String, dynamic>? _cfg;
   final _ctrl = <String, TextEditingController>{};
   final _bool = <String, bool>{};
-  String _speedTarget = 'cloudflare';
+  String _speedTarget = 'fast';
   bool _saving = false;
   bool _testing = false;
   String? _testMsg;
@@ -73,7 +73,7 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
         if (_bools.contains(k)) {
           _bool[k] = v == true;
         } else if (k == 'speed_target') {
-          _speedTarget = (v as String?) ?? 'cloudflare';
+          _speedTarget = (v as String?) ?? 'fast';
         } else {
           _ctrl[k] = TextEditingController(text: v?.toString() ?? '');
         }
