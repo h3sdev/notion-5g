@@ -223,17 +223,25 @@ class ProbeControl(
                 if (existing == null) {
                     val lost = so.optString("status") == "running"
                     val now = System.currentTimeMillis()
+                    val type = so.optStrN("type") ?: ProbeDb.TYPE_SPEEDTEST
+                    // Un reinicio (§6.2) va dirigido a un equipo: su "target" es
+                    // el slot (si el backend no lo manda, se busca por device_id).
+                    val slot = so.optStrN("slot") ?: if (type == ProbeDb.TYPE_REBOOT) slotOfDevice(o, so.optStrN("device_id")) else null
+                    val target = if (type == ProbeDb.TYPE_REBOOT) (slot ?: so.optStrN("target") ?: "?") else (so.optStrN("target") ?: "next")
                     d.insertOrThrow("orders", null, ContentValues().apply {
                         put("order_id", id); put("origin", "server")
                         so.optLongN("id")?.let { put("server_id", it) }
-                        put("target", so.optStrN("target") ?: "next")
-                        put("slot", so.optStrN("slot")); put("device_id", so.optStrN("device_id"))
+                        put("type", type)
+                        put("target", target)
+                        put("slot", slot); put("device_id", so.optStrN("device_id"))
                         put("routing_table", so.optStrN("routing_table"))
                         put("allow_fallback", if (so.optBoolean("allow_fallback", false)) 1 else 0)
                         put("duration_s", so.optInt("duration_s", 10))
                         put("execute_at_ms", exec)
                         if (notAfter != null) put("not_after_ms", notAfter)
-                        put("selection_reason", so.optStrN("selection_reason") ?: "requested")
+                        // En un reinicio el backend manda selection_reason null y el
+                        // motivo en reboot_reason (manual | recommended).
+                        put("selection_reason", so.optStrN("selection_reason") ?: so.optStrN("reboot_reason") ?: "requested")
                         put("requested_by", so.optStrN("requested_by"))
                         put("status", if (lost) "interrupted" else "pending")
                         if (lost) { put("error", "estado-perdido"); put("result_id", so.optStrN("result_id")) }
@@ -244,7 +252,9 @@ class ProbeControl(
                             .putN("result_id", so.optStrN("result_id")).put("error", "estado-perdido"))
                         logs.add(Triple("warn", id, "Orden ${so.optStrN("target")} estaba en curso en el servidor pero no aquí: queda interrumpida"))
                     } else {
-                        logs.add(Triple("info", id, "Orden nueva: ${so.optStrN("target")} (${so.optStrN("selection_reason")}, ${so.optStrN("requested_by") ?: "?"})"))
+                        logs.add(Triple("info", id,
+                            if (type == ProbeDb.TYPE_REBOOT) "Orden nueva: reiniciar router $target (${so.optStrN("requested_by") ?: "?"})"
+                            else "Orden nueva: ${so.optStrN("target")} (${so.optStrN("selection_reason")}, ${so.optStrN("requested_by") ?: "?"})"))
                     }
                     changed = true
                 } else if (existing.status in ProbeDb.OPEN &&
@@ -293,6 +303,18 @@ class ProbeControl(
         }
         for ((lvl, id, msg) in logs) db.event(lvl, ProbeState.phase, id, msg)
         return changed
+    }
+
+    /// Slot del equipo en la config que vino en la misma respuesta (o la guardada).
+    private fun slotOfDevice(resp: JSONObject, deviceId: String?): String? {
+        if (deviceId == null) return null
+        val cfg = resp.optJSONObject("probe") ?: try { db.kvGet("probe_config")?.let { JSONObject(it) } } catch (_: Exception) { null }
+        val arr = cfg?.optJSONArray("targets") ?: return null
+        for (i in 0 until arr.length()) {
+            val t = arr.optJSONObject(i) ?: continue
+            if (t.optStrN("device_id") == deviceId) return t.optStrN("slot")?.ifEmpty { null } ?: ('A' + i).toString()
+        }
+        return null
     }
 
     private fun ack(s: ProbeSettings) {

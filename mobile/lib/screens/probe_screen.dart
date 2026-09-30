@@ -23,6 +23,8 @@ class _ProbeScreenState extends State<ProbeScreen> {
   Map<String, dynamic>? _st;
   List<Map<String, dynamic>> _results = [];
   List<Map<String, dynamic>> _events = [];
+  List<Map<String, dynamic>> _reboots = [];
+  String? _lastRebootStep;
   StreamSubscription<Map<String, dynamic>>? _sub;
   Timer? _poll;
   Timer? _tick;
@@ -65,9 +67,11 @@ class _ProbeScreenState extends State<ProbeScreen> {
     if (!mounted) return;
     final phase = s['phase'] as String?;
     final rid = (s['last_result'] as Map?)?['result_id'] as String?;
-    final changed = phase != _lastPhase || rid != _lastResultId;
+    final rstep = (s['reboot'] as Map?)?['step'] as String?;
+    final changed = phase != _lastPhase || rid != _lastResultId || rstep != _lastRebootStep;
     _lastPhase = phase;
     _lastResultId = rid;
+    _lastRebootStep = rstep;
     setState(() => _st = s);
     if (changed) _refreshLists();
   }
@@ -76,10 +80,12 @@ class _ProbeScreenState extends State<ProbeScreen> {
     try {
       final r = await ProbeChannel.recentResults(limit: 10);
       final e = await ProbeChannel.recentEvents(limit: 100);
+      final rb = await ProbeChannel.recentReboots(limit: 5);
       if (!mounted) return;
       setState(() {
         _results = r;
         _events = e;
+        _reboots = rb;
       });
     } catch (_) {}
   }
@@ -171,6 +177,7 @@ class _ProbeScreenState extends State<ProbeScreen> {
                 children: [
                   ..._alerts(),
                   _phaseCard(),
+                  _routersCard(),
                   _routeCard(),
                   _netCard(),
                   _gpsCard(),
@@ -250,6 +257,7 @@ class _ProbeScreenState extends State<ProbeScreen> {
         'storing' => Icons.save,
         'uploading' => Icons.cloud_upload,
         'backoff' => Icons.cloud_off,
+        'rebooting' => Icons.restart_alt,
         _ => Icons.sync,
       };
 
@@ -271,7 +279,11 @@ class _ProbeScreenState extends State<ProbeScreen> {
     final stepIdx = ProbeText.steps.indexWhere((s) => s[0] == phase);
     final color = running ? (phase == 'idle' ? Colors.blue : Colors.green) : Colors.grey;
     String? orderLine;
-    if (o != null) {
+    if (o != null && o['type'] == 'reboot_router') {
+      final label = o['label'] as String?;
+      orderLine = 'Reiniciando router ${o['slot'] ?? o['target']}${label != null ? ' ($label)' : ''}'
+          '${o['requested_by'] != null ? ' · pedido por ${o['requested_by']}' : ''}';
+    } else if (o != null) {
       final slot = o['slot'] as String?;
       final label = o['label'] as String?;
       final table = o['routing_table'] as String?;
@@ -328,6 +340,7 @@ class _ProbeScreenState extends State<ProbeScreen> {
               Text(orderLine, style: const TextStyle(fontWeight: FontWeight.w500)),
             ],
             const SizedBox(height: 10),
+            if (phase != 'rebooting')
             Wrap(
               spacing: 4,
               runSpacing: 4,
@@ -348,6 +361,143 @@ class _ProbeScreenState extends State<ProbeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------- salud de los routers
+
+  /// Salud de A y B (pings del MikroTik, §6.2), el reinicio en curso con sus
+  /// pasos y los últimos reinicios pedidos por el backend.
+  Widget _routersCard() {
+    final routers = _m('routers');
+    final reboot = (_st?['reboot'] as Map?)?.cast<String, dynamic>();
+    final slots = routers.keys.toList()..sort();
+    return _section('Salud de los routers', [
+      if (slots.isEmpty)
+        const Text('Sin verificar todavía (se mide en reposo, cada lectura del MikroTik).',
+            style: TextStyle(color: Colors.black54)),
+      for (final slot in slots) _healthRow(slot, (routers[slot] as Map?)?.cast<String, dynamic>() ?? const {}),
+      if (reboot != null) ...[
+        const Divider(),
+        _rebootProgress(reboot),
+      ],
+      if (_reboots.isNotEmpty) ...[
+        const Divider(),
+        const Text('Reinicios pedidos', style: TextStyle(fontWeight: FontWeight.w500)),
+        for (final r in _reboots) _rebootTile(r),
+      ],
+    ]);
+  }
+
+  Widget _healthRow(String slot, Map<String, dynamic> h) {
+    final ok = h['internet_ok'];
+    final gw = h['gateway_ok'];
+    final down = h['down_since'] as String?;
+    final Color color = ok == true ? Colors.green.shade700 : (ok == false ? Colors.red : Colors.grey);
+    String main;
+    if (ok == true) {
+      main = 'con Internet · ${ProbeText.num1(h['rtt_ms'])} ms'
+          '${(h['loss_pct'] as num? ?? 0) > 0 ? ' · pérdida ${ProbeText.num1(h['loss_pct'])} %' : ''}';
+    } else if (ok == false) {
+      main = 'SIN Internet${down != null ? ' desde hace ${ProbeText.duration(down)}' : ''}'
+          '${gw == false ? ' · la puerta de enlace no responde (¿apagado?)' : (gw == true ? ' · la puerta de enlace responde' : '')}';
+    } else {
+      main = 'sin dato';
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.circle, size: 14, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Router $slot: $main', style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+                Text(
+                    '${h['health_ip'] != null ? 'ping a ${h['health_ip']}' : 'sin IP de salud'}'
+                    '${h['gateway'] != null ? ' · gateway ${h['gateway']}' : ''}'
+                    ' · verificado ${ProbeText.ago(h['checked_at'] as String?)}',
+                    style: Theme.of(context).textTheme.bodySmall),
+                if (h['error'] != null)
+                  Text('${h['error']}', style: const TextStyle(color: Colors.orange, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rebootProgress(Map<String, dynamic> r) {
+    final raw = r['step'] as String? ?? 'received';
+    // reading_gateway es parte de "Recibida" (todavía no hay SSH).
+    final step = raw == 'reading_gateway' ? 'received' : raw;
+    final failed = step == 'failed';
+    var idx = ProbeText.rebootSteps.indexWhere((s) => s[0] == step);
+    if (failed) idx = -1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Reiniciando router ${r['slot']}${r['label'] != null ? ' (${r['label']})' : ''}'
+            '${r['gateway_ip'] != null ? ' · ${r['gateway_ip']}' : ''}',
+            style: const TextStyle(fontWeight: FontWeight.w500)),
+        const SizedBox(height: 4),
+        Wrap(spacing: 4, runSpacing: 4, children: [
+          for (var i = 0; i < ProbeText.rebootSteps.length; i++)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: i == idx ? Colors.deepOrange : (idx >= 0 && i < idx ? Colors.orange.shade100 : Colors.grey.shade200),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(ProbeText.rebootSteps[i][1],
+                  style: TextStyle(fontSize: 12, color: i == idx ? Colors.white : Colors.black87)),
+            ),
+        ]),
+        if (r['elapsed_s'] != null)
+          Text('${r['elapsed_s']} s desde el comando'
+              '${r['gateway_back_s'] != null ? ' · volvió a los ${r['gateway_back_s']} s' : ''}'
+              '${r['internet_back_s'] != null ? ' · Internet a los ${r['internet_back_s']} s' : ''}',
+              style: Theme.of(context).textTheme.bodySmall),
+        if (r['error'] != null)
+          Text('Error: ${ProbeText.rebootError(r['error'] as String?)}', style: const TextStyle(color: Colors.red, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _rebootTile(Map<String, dynamic> r) {
+    final status = r['status'] as String?;
+    final res = (r['result'] as Map?)?.cast<String, dynamic>();
+    final Color color = switch (status) {
+      'done' => Colors.green.shade700,
+      'failed' || 'interrupted' => Colors.red,
+      'running' || 'delivered' || 'pending' => Colors.deepOrange,
+      _ => Colors.grey,
+    };
+    final back = res == null
+        ? ''
+        : '${res['gateway_back_s'] != null ? ' · volvió a los ${res['gateway_back_s']} s' : ''}'
+            '${res['internet_back_s'] != null ? ' · Internet a los ${res['internet_back_s']} s' : ''}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${ProbeText.hhmm(r['created_at'] as String?)} · router ${r['slot'] ?? '?'} · ${ProbeText.orderStatus(status)}$back',
+              style: TextStyle(color: color, fontWeight: FontWeight.w500)),
+          Text(
+              '${r['requested_by'] != null ? 'pedido por ${r['requested_by']}' : 'pedido desde el backend'}'
+              '${res?['host_key_fp'] != null ? ' · llave ${res!['host_key_fp']}' : ''}',
+              style: Theme.of(context).textTheme.bodySmall),
+          if (r['error'] != null)
+            Text('Error: ${ProbeText.rebootError(r['error'] as String?)}'
+                '${res?['ssh_detail'] != null ? ' (${res!['ssh_detail']})' : ''}',
+                style: const TextStyle(color: Colors.red, fontSize: 12)),
+        ],
       ),
     );
   }
@@ -468,7 +618,7 @@ class _ProbeScreenState extends State<ProbeScreen> {
     final skew = b['clock_skew_s'];
     return _section('Cola', [
       _kv('Órdenes', '${q['orders_pending'] ?? 0} pendientes'
-          '${q['next_order_at'] != null ? ' · próxima ${q['next_order_target'] ?? ''} a las ${ProbeText.hhmm(q['next_order_at'] as String?)}' : ''}'),
+          '${q['next_order_at'] != null ? ' · próxima ${q['next_order_type'] == 'reboot_router' ? 'reiniciar ' : ''}${q['next_order_target'] ?? ''} a las ${ProbeText.hhmm(q['next_order_at'] as String?)}' : ''}'),
       _kv('Resultados', '${q['results_pending'] ?? 0} por subir · ${q['results_rejected'] ?? 0} rechazados'),
       _kv('Estados por mandar', '${q['outbox_pending'] ?? 0}'),
       _kv('Backend', '${b['url'] ?? ''}'),

@@ -189,6 +189,9 @@ class ProbeWorker(
 
     companion object {
         private const val MAX_FORCED_MS = 8 * 60 * 1000L
+        private const val REBOOT_WATCH_MS = 5 * 60 * 1000L
+        private const val REBOOT_NO_DOWN_MS = 150 * 1000L
+        private const val REBOOT_POLL_MS = 5000L
         private val OPEN = ProbeDb.OPEN
     }
 
@@ -244,11 +247,14 @@ class ProbeWorker(
             val s = prefs.snapshot()
             for (o in db.orders("status='running'", arrayOf())) {
                 if (db.hasResult(o.resultId)) continue
+                // Un reinicio lleva su resultado parcial (ssh_ok si el comando alcanzó a salir).
+                val partial = if (o.isReboot) o.resultJson?.let { try { JSONObject(it) } catch (_: Exception) { null } } ?: JSONObject().put("ssh_ok", false) else null
                 val ok = db.tx { d ->
                     val won = db.casOrder(d, o.orderId, listOf("running"), ContentValues().apply {
                         put("status", "interrupted"); put("error", "app-reiniciada")
                     })
-                    if (won && o.origin == "server") db.addOutbox(d, o.orderId, stateBody("interrupted", o.resultId, "app-reiniciada"))
+                    if (won && o.origin == "server") db.addOutbox(d, o.orderId,
+                        stateBody("interrupted", o.resultId, "app-reiniciada").apply { if (partial != null) put("result", partial) })
                     won
                 }
                 if (ok) db.event("warn", "preparing", o.orderId, "Orden ${o.target} interrumpida (la app se reinició): no se repite")
@@ -380,8 +386,11 @@ class ProbeWorker(
         }
         lastIdleCheck = now
         val fb = s.fallbackTable
+        val targets = MikrotikOps.targets(db, s)
         try {
             val mk = MikrotikOps.client(s, eth.network)
+            var health: List<RouterHealth.Check>? = null
+            var healthErr: String? = null
             val (before, after, routes) = mk.session { api ->
                 val r = mk.readRule(api)
                 var r2 = r
@@ -389,9 +398,20 @@ class ProbeWorker(
                     mk.setRuleTable(api, r.id, fb)
                     r2 = mk.readRule(api)
                 }
-                Triple(r, r2, mk.allDefaultRoutes(api))
+                val rt = mk.allDefaultRoutes(api)
+                // Salud por router (§6.2) en la misma sesión: solo en reposo,
+                // así nunca coincide con una prueba de ese router.
+                try {
+                    health = RouterHealth.check(mk, api, targets.filter { it.enabled }, rt,
+                        mk.rulesWithPrefix(api, RouterHealth.RULE_PREFIX), 3)
+                } catch (e: Exception) {
+                    healthErr = (e as? RouterOsException)?.message ?: e.javaClass.simpleName
+                }
+                Triple(r, r2, rt)
             }
             MikrotikOps.noteOk(after)
+            health?.let { h -> for (line in RouterHealth.record(db, h)) db.event("warn", ProbeState.phase, null, line) }
+            healthErr?.let { RouterHealth.recordUnchecked(db, targets.filter { it.enabled }, it) }
             ProbeState.mkRoutes = MikrotikOps.routesJson(routes, MikrotikOps.targets(db, s), fb)
             if (before.table != fb) {
                 db.event("warn", ProbeState.phase, null, "Regla estaba en ${before.table} sin prueba: vuelta a respaldo")
@@ -401,6 +421,7 @@ class ProbeWorker(
         } catch (e: Exception) {
             cp.ruleOnFallback = false
             val msg = MikrotikOps.noteError(e)
+            RouterHealth.recordUnchecked(db, targets.filter { it.enabled }, msg)
             // Una línea por error distinto (o cada 10 min si sigue igual).
             if (msg != lastMkErrMsg || now - lastMkErrLog > 10 * 60_000L) {
                 lastMkErrLog = now
@@ -572,12 +593,26 @@ class ProbeWorker(
         ProbeState.busy = true
         abortReason = if (stopping) "detenida" else null
         try {
-            return executeInner(o, s)
+            return when (o.type) {
+                ProbeDb.TYPE_SPEEDTEST -> executeInner(o, s)
+                ProbeDb.TYPE_REBOOT -> executeReboot(o, s)
+                else -> {
+                    val won = db.tx { d ->
+                        val w = db.casOrder(d, o.orderId, OPEN, ContentValues().apply { put("status", "interrupted"); put("error", "tipo-desconocido") })
+                        if (w && o.origin == "server") db.addOutbox(d, o.orderId, stateBody("interrupted", null, "tipo-desconocido"))
+                        w
+                    }
+                    if (won) db.event("error", ProbeState.phase, o.orderId, "Orden de tipo desconocido (${o.type}): no se ejecuta")
+                    kickControl()
+                    true
+                }
+            }
         } finally {
             ProbeState.busy = false
             cp.testActive = false
             forcedSinceElapsed = 0L
             ProbeState.currentOrder = null
+            ProbeState.reboot = null
         }
     }
 
@@ -1114,6 +1149,339 @@ class ProbeWorker(
         p.putN("battery_pct", DeviceInfo.status(ctx)["battery_pct"])
         p.put("app_version", appVersion)
         return p
+    }
+
+    // ------------------------------------------------ reinicio (§6.2)
+
+    /// Una orden reboot_router en curso. `step`: reading_gateway → ssh →
+    /// waiting_down → waiting_back → waiting_internet → done | failed.
+    private class Reboot(val order: ProbeDb.Order, val target: ProbeTarget) {
+        val result = JSONObject()
+        var step = "received"
+        val startedMs = System.currentTimeMillis()
+        var gatewayIp: String? = null
+        var error: String? = null
+        var sentEl = 0L
+        var wentDown = false
+        var gatewayBackS: Long? = null
+        var internetBackS: Long? = null
+    }
+
+    private fun rebootJson(rb: Reboot): JSONObject = JSONObject()
+        .put("order_id", rb.order.orderId)
+        .put("slot", rb.target.slot)
+        .putN("device_id", rb.target.deviceId ?: rb.order.deviceId)
+        .putN("label", rb.target.label)
+        .put("step", rb.step)
+        .put("started_at", Rfc3339.format(rb.startedMs))
+        .putN("gateway_ip", rb.gatewayIp)
+        .putN("elapsed_s", if (rb.sentEl > 0) (SystemClock.elapsedRealtime() - rb.sentEl) / 1000 else null)
+        .put("went_down", rb.wentDown)
+        .putN("gateway_back_s", rb.gatewayBackS)
+        .putN("internet_back_s", rb.internetBackS)
+        .putN("error", rb.error)
+
+    private fun rebootStep(rb: Reboot, step: String, detail: String) {
+        rb.step = step
+        ProbeState.reboot = rebootJson(rb)
+        ProbeState.currentOrder = JSONObject()
+            .put("order_id", rb.order.orderId)
+            .put("origin", rb.order.origin)
+            .put("type", ProbeDb.TYPE_REBOOT)
+            .putN("result_id", null)
+            .put("target", rb.order.target)
+            .put("slot", rb.target.slot)
+            .putN("device_id", rb.target.deviceId ?: rb.order.deviceId)
+            .putN("label", rb.target.label)
+            .putN("routing_table", rb.target.table)
+            .put("selection_reason", rb.order.selectionReason)
+            .putN("requested_by", rb.order.requestedBy)
+            .put("attempt", 1)
+            .put("net_path", "ethernet")
+            .put("started_at", Rfc3339.format(rb.startedMs))
+            .put("step", step)
+            .put("reboot_step", step)
+        // El progreso también va al backend: running con otro `step` (el backend
+        // lo guarda en la orden; §6.3). El primero viaja con el propio running.
+        if (rb.order.origin == "server" && step != "reading_gateway") {
+            val body = JSONObject().put("status", "running").put("at", Rfc3339.format(rb.startedMs)).put("step", step)
+            db.tx { d -> if (db.order(rb.order.orderId)?.status == "running") db.addOutbox(d, rb.order.orderId, body) }
+            kickControl()
+        }
+        if (ProbeState.phase == "rebooting" && ProbeState.phaseDetail != detail) {
+            ProbeState.phaseDetail = detail
+            publish(true)
+        } else phase("rebooting", detail)
+    }
+
+    /// Ejecuta una orden reboot_router entre pruebas (el worker es uno solo:
+    /// nunca coincide con una medición). Siempre se consume.
+    private fun executeReboot(o: ProbeDb.Order, s: ProbeSettings): Boolean {
+        val targets = MikrotikOps.targets(db, s)
+        val slot = o.slot ?: o.target
+        // El equipo pedido manda sobre el slot: si la config cambió y ese slot es
+        // ahora otro router, nunca se reinicia uno que no se pidió.
+        val t = if (o.deviceId != null) {
+            targets.firstOrNull { it.deviceId == o.deviceId && it.table.isNotEmpty() }
+                ?: targets.firstOrNull { it.slot == slot && it.deviceId == null && it.table.isNotEmpty() }
+        } else targets.firstOrNull { it.slot == slot && it.table.isNotEmpty() }
+        if (t == null) {
+            val won = db.tx { d ->
+                val w = db.casOrder(d, o.orderId, OPEN, ContentValues().apply { put("status", "interrupted"); put("error", "slot-desconocido") })
+                if (w && o.origin == "server") db.addOutbox(d, o.orderId, stateBody("interrupted", null, "slot-desconocido"))
+                w
+            }
+            if (won) db.event("error", "rebooting", o.orderId, "Reinicio: el equipo ${o.deviceId ?: slot} no está en la sonda (slot-desconocido)")
+            kickControl()
+            return true
+        }
+        val rb = Reboot(o, t)
+        val won = db.tx { d ->
+            val w = db.casOrder(d, o.orderId, OPEN, ContentValues().apply {
+                put("status", "running"); put("started_ms", rb.startedMs); putNull("error")
+                put("slot", t.slot); put("device_id", t.deviceId ?: o.deviceId); put("routing_table", t.table)
+            })
+            if (w && o.origin == "server") db.addOutbox(d, o.orderId, stateBody("running", null, null).put("step", "reading_gateway"))
+            w
+        }
+        if (!won) {
+            db.event("info", ProbeState.phase, o.orderId, "La orden de reinicio ya no estaba abierta (cancelada o vencida): no se ejecuta")
+            return true
+        }
+        db.event("info", "rebooting", o.orderId, "Reinicio del router ${t.slot}${t.label?.let { " ($it)" } ?: ""}: empieza")
+        kickControl()
+        try {
+            rebootStep(rb, "reading_gateway", "router ${t.slot}: leyendo la puerta de enlace")
+            val eth = net.eth
+            if (eth == null) {
+                rb.error = "no-ethernet"
+                db.event("error", "rebooting", o.orderId, "Reinicio de ${t.slot}: no hay cable Ethernet (el router solo se alcanza por el MikroTik)")
+            } else {
+                val route = rebootGateway(s, t, eth.network, rb)
+                val gw = route?.gatewayIp
+                if (gw == null) {
+                    rb.error = "mikrotik-unreachable"
+                } else if (!route.active) {
+                    // Puerto caído o router apagado: no hay a quién mandarle el
+                    // comando, y sin la ruta de su tabla el SSH (usuario y clave)
+                    // podría salir por el otro router hacia una red ajena.
+                    rb.gatewayIp = gw
+                    rb.error = "ssh-connect"
+                    rb.result.put("ssh_detail", "la ruta de ${t.table} está inactiva (puerto caído o router apagado): no se intentó el SSH")
+                    db.event("error", "rebooting", o.orderId, "Reinicio de ${t.slot}: la ruta de ${t.table} está inactiva (¿router apagado o cable suelto?): no se intenta el SSH")
+                } else {
+                    rb.gatewayIp = gw
+                    val ssh = s.ssh(t.slot)
+                    rebootStep(rb, "ssh", "router ${t.slot}: SSH a $gw:${ssh.port}")
+                    // Último punto en que "detener" corta: una vez enviado el
+                    // comando se espera su fin (≤10 s) para no perder ssh_ok.
+                    checkpoint()
+                    val out = RouterSsh.run(eth.network, gw, ssh)
+                    rb.result.put("ssh_ok", out.ok)
+                        .putN("host_key_fp", out.hostKeyFp)
+                        .putN("host_key_type", out.hostKeyType)
+                        .put("ssh_authenticated", out.authenticated)
+                        .putN("exit_status", out.exitStatus)
+                        .putN("ssh_detail", out.detail)
+                        .put("ssh_user", ssh.user)
+                        .put("ssh_port", ssh.port)
+                        .put("command", ssh.command)
+                    if (!out.ok) {
+                        rb.error = out.error
+                        db.event("error", "rebooting", o.orderId, "Reinicio de ${t.slot}: ${if (out.error == "ssh-auth") "usuario o clave SSH rechazados" else "SSH falló"} (${out.detail})")
+                    } else {
+                        rb.sentEl = SystemClock.elapsedRealtime()
+                        // Si la app muere mientras vigila, recover() cierra la orden con
+                        // este resultado parcial (el backend necesita ssh_ok: el comando salió).
+                        val partial = JSONObject(rb.result.toString()).put("gateway_ip", gw)
+                        db.tx { d -> db.casOrder(d, o.orderId, listOf("running"), ContentValues().apply { put("result_json", partial.toString()) }) }
+                        db.event("info", "rebooting", o.orderId, "Reinicio de ${t.slot}: SSH ok (${out.hostKeyType ?: "?"} ${out.hostKeyFp ?: ""}), comando '${ssh.command}' enviado")
+                        watchReboot(rb, s)
+                    }
+                }
+            }
+        } catch (e: ProbeAbort) {
+            rb.result.putN("gateway_back_s", rb.gatewayBackS).putN("internet_back_s", rb.internetBackS).put("went_down", rb.wentDown)
+            val body = stateBody("interrupted", null, "detenida").put("result", rb.result)
+            val w = db.tx { d ->
+                val x = db.casOrder(d, o.orderId, listOf("running"), ContentValues().apply {
+                    put("status", "interrupted"); put("error", "detenida"); put("result_json", rb.result.toString())
+                })
+                if (x && o.origin == "server") db.addOutbox(d, o.orderId, body)
+                x
+            }
+            if (w) db.event("warn", "rebooting", o.orderId, "Sonda detenida durante el reinicio de ${t.slot}: la orden queda interrumpida")
+            kickControl()
+            return true
+        } catch (e: Exception) {
+            rb.error = rb.error ?: "error-interno"
+            rb.result.put("detail", "${e.javaClass.simpleName}${e.message?.let { ": " + it.take(120) } ?: ""}")
+            db.event("error", "rebooting", o.orderId, "Error interno durante el reinicio: ${e.javaClass.simpleName}")
+        }
+        closeReboot(rb)
+        kickControl()
+        return true
+    }
+
+    /// Paso 1: gateway de la tabla del slot, leído del MikroTik (3 intentos).
+    /// De paso deja la regla phone-probe en respaldo (en reposo ya lo está), así
+    /// el SSH llega a la LAN del router aunque falten las reglas probe:mgmt-*.
+    private fun rebootGateway(s: ProbeSettings, t: ProbeTarget, network: Network, rb: Reboot): Mikrotik.Route? {
+        val fb = s.fallbackTable
+        for (i in 1..3) {
+            checkpoint()
+            try {
+                val mk = MikrotikOps.client(s, network)
+                val (rt, mgmt) = mk.session { api ->
+                    val r = mk.readRule(api)
+                    if (r.table != fb) mk.setRuleTable(api, r.id, fb)
+                    val route = mk.defaultRoute(api, t.table)
+                    val rules = mk.rulesWithPrefix(api, "probe:mgmt-")
+                    route to rules.containsKey("probe:mgmt-${t.slot}")
+                }
+                MikrotikOps.noteOk(null)
+                rb.result.put("mgmt_rule", mgmt)
+                if (rt?.gatewayIp != null) {
+                    if (!mgmt) db.event("warn", "rebooting", rb.order.orderId, "Falta la regla probe:mgmt-${t.slot} en el MikroTik (§6.1): el SSH depende de que la regla del celular esté en ${fb}")
+                    return rt
+                }
+                db.event("error", "rebooting", rb.order.orderId, "Reinicio de ${t.slot}: la tabla ${t.table} no tiene ruta por defecto (no se sabe la IP del router)")
+            } catch (e: ProbeAbort) {
+                throw e
+            } catch (e: Exception) {
+                val msg = MikrotikOps.noteError(e)
+                db.event("error", "rebooting", rb.order.orderId, "Reinicio de ${t.slot}, intento $i: $msg")
+                val kind = (e as? RouterOsException)?.kind
+                if (kind == "login" || kind == "rule-missing") return null
+            }
+            if (i < 3) sleepChecked(2000)
+        }
+        return null
+    }
+
+    /// Paso 4: vigila la salud del slot hasta 5 min. "Se apagó" = dos lecturas
+    /// seguidas sin puerta de enlace (un ping perdido no cuenta); "volvió" =
+    /// responde otra vez después de haberse apagado. Sin la política `test`
+    /// en el MikroTik (sin ping) se usa el estado del enlace de su ruta.
+    private fun watchReboot(rb: Reboot, s: ProbeSettings) {
+        val t = rb.target
+        val deadline = rb.sentEl + REBOOT_WATCH_MS
+        var downCount = 0
+        var mkOk = false
+        var lastErr: String? = null
+        var healthWhy: String? = null
+        var gwMethod: String? = null
+        rebootStep(rb, "waiting_down", "router ${t.slot}: esperando que se apague")
+        while (true) {
+            checkpoint()
+            val iterStart = SystemClock.elapsedRealtime()
+            if (iterStart > deadline) break
+            val sinceS = (iterStart - rb.sentEl) / 1000
+            val eth = net.eth
+            if (eth == null) {
+                lastErr = "sin Ethernet"
+            } else try {
+                val mk = MikrotikOps.client(s, eth.network)
+                val (route, checks) = mk.session { api ->
+                    val rt = mk.allDefaultRoutes(api)
+                    rt[t.table] to RouterHealth.check(mk, api, listOf(t), rt, mk.rulesWithPrefix(api, RouterHealth.RULE_PREFIX), 1)
+                }
+                mkOk = true
+                lastErr = null
+                MikrotikOps.noteOk(null)
+                for (line in RouterHealth.record(db, checks)) db.event("warn", "rebooting", rb.order.orderId, line)
+                val c = checks.firstOrNull()
+                // Sin IP de salud, o con IP pero sin poder hacer ping (p. ej. falta la
+                // política test): no se puede esperar a Internet, basta la puerta de enlace.
+                healthWhy = when {
+                    c?.healthIp == null -> c?.error ?: "sin regla de salud"
+                    c.internetOk == null && c.error != null -> c.error
+                    else -> null
+                }
+                val gwUp: Boolean? = c?.gatewayOk ?: route?.active
+                gwMethod = if (c?.gatewayOk != null) "ping" else if (route != null) "enlace" else gwMethod
+                if (gwUp == false) {
+                    downCount++
+                    if (downCount >= 2 && !rb.wentDown) {
+                        rb.wentDown = true
+                        db.event("info", "rebooting", rb.order.orderId, "Router ${t.slot} apagado (sin puerta de enlace a los $sinceS s)")
+                        rebootStep(rb, "waiting_back", "router ${t.slot}: reiniciando, esperando que vuelva")
+                    }
+                } else if (gwUp == true) {
+                    downCount = 0
+                    if (rb.wentDown && rb.gatewayBackS == null) {
+                        rb.gatewayBackS = sinceS
+                        db.event("info", "rebooting", rb.order.orderId, "Router ${t.slot}: puerta de enlace de vuelta a los $sinceS s")
+                        rebootStep(rb, "waiting_internet", "router ${t.slot}: de vuelta, esperando Internet")
+                    }
+                }
+                if (rb.wentDown && rb.gatewayBackS != null && c?.internetOk == true && rb.internetBackS == null) {
+                    rb.internetBackS = sinceS
+                    db.event("info", "rebooting", rb.order.orderId, "Router ${t.slot}: Internet de vuelta a los $sinceS s")
+                }
+                if (rb.wentDown && rb.gatewayBackS != null && (rb.internetBackS != null || healthWhy != null)) break
+                if (!rb.wentDown && iterStart - rb.sentEl >= REBOOT_NO_DOWN_MS) {
+                    rb.error = "no-reboot"
+                    db.event("error", "rebooting", rb.order.orderId, "Router ${t.slot}: siguió respondiendo ${REBOOT_NO_DOWN_MS / 1000} s después del comando: no se reinició")
+                    break
+                }
+            } catch (e: ProbeAbort) {
+                throw e
+            } catch (e: Exception) {
+                lastErr = MikrotikOps.noteError(e)
+            }
+            ProbeState.reboot = rebootJson(rb)
+            progress("router ${t.slot}: ${stepText(rb.step)} · ${sinceS} s${lastErr?.let { " · $it" } ?: ""}")
+            val wait = iterStart + REBOOT_POLL_MS - SystemClock.elapsedRealtime()
+            if (wait > 0) sleepChecked(wait)
+        }
+        if (rb.error == null) {
+            rb.error = when {
+                !mkOk -> "mikrotik-unreachable"
+                rb.gatewayBackS == null -> "timeout-back"
+                rb.internetBackS == null && healthWhy == null -> "timeout-back"
+                else -> null
+            }
+            if (rb.error != null) db.event("error", "rebooting", rb.order.orderId,
+                "Router ${t.slot}: ${if (rb.error == "mikrotik-unreachable") "no se pudo leer el MikroTik para vigilarlo" else "no volvió en ${REBOOT_WATCH_MS / 60_000} min"}")
+        }
+        rb.result.put("went_down", rb.wentDown)
+            .putN("gateway_check", gwMethod)
+            .put("internet_check", healthWhy ?: "ping")
+            .putN("watch_error", lastErr)
+    }
+
+    private fun stepText(step: String): String = when (step) {
+        "waiting_down" -> "esperando que se apague"
+        "waiting_back" -> "reiniciando, esperando que vuelva"
+        "waiting_internet" -> "de vuelta, esperando Internet"
+        else -> step
+    }
+
+    /// Paso 5: cierra la orden done/failed con su resultado (va en el cambio de
+    /// estado: el reinicio no genera medición).
+    private fun closeReboot(rb: Reboot) {
+        val o = rb.order
+        val status = if (rb.error == null) "done" else "failed"
+        if (!rb.result.has("ssh_ok")) rb.result.put("ssh_ok", false)
+        rb.result.putN("gateway_ip", rb.gatewayIp)
+            .putN("gateway_back_s", rb.gatewayBackS)
+            .putN("internet_back_s", rb.internetBackS)
+            .putN("error", rb.error)
+        rb.step = status
+        ProbeState.reboot = rebootJson(rb)
+        val body = stateBody(status, null, rb.error).put("step", status).put("result", rb.result)
+        val won = db.tx { d ->
+            val w = db.casOrder(d, o.orderId, listOf("running"), ContentValues().apply {
+                put("status", status); put("error", rb.error); put("result_json", rb.result.toString())
+            })
+            if (w && o.origin == "server") db.addOutbox(d, o.orderId, body)
+            w
+        }
+        if (won) db.event(if (status == "done") "info" else "error", "rebooting", o.orderId,
+            if (status == "done") "Reinicio de ${rb.target.slot} listo: puerta de enlace a los ${rb.gatewayBackS ?: "-"} s, Internet a los ${rb.internetBackS ?: "-"} s"
+            else "Reinicio de ${rb.target.slot} fallido: ${rb.error}")
+        publish(true)
     }
 
     // --------------------------------------------------- canal (worker)

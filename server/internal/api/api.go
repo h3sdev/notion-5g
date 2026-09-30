@@ -84,6 +84,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/devices", s.auth(s.handleListDevices))
 	s.mux.HandleFunc("POST /api/v1/devices/{device_id}/location", s.auth(s.handleSetDeviceLocation))
 	s.mux.HandleFunc("GET /api/v1/devices/{device_id}/phone_log", s.auth(s.handleListPhoneLog))
+	// Reinicio remoto por el celular de la sonda (§6.3, reboot.go).
+	s.mux.HandleFunc("POST /api/v1/devices/{device_id}/reboot", s.auth(s.handleRebootDevice))
 
 	s.mux.HandleFunc("POST /api/v1/commands", s.auth(s.handleCreateCommand))
 	s.mux.HandleFunc("GET /api/v1/commands", s.auth(s.handleListCommands))
@@ -495,6 +497,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "error de consulta")
 		return
 	}
+	s.attachDeviceReboot(ctx, devices)
 	writeJSON(w, http.StatusOK, devices)
 }
 

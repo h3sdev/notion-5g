@@ -109,6 +109,8 @@ func (s *Store) migratePhoneProbe(ctx context.Context) error {
 			"preferred_device TEXT", "fallback_device TEXT", "execute_at TEXT", "not_after TEXT",
 			"selection_reason TEXT", "delivered_at TEXT", "started_at TEXT", "result_id TEXT",
 			"closed_by TEXT", "updated_at TEXT",
+			// Reinicio remoto (§6): paso en curso, resultado JSON y motivo.
+			"step TEXT", "result_json TEXT", "reboot_reason TEXT",
 		},
 		"measurements": {
 			"result_id TEXT", "order_id TEXT", "probe_id TEXT", "measured_by TEXT", "routing_table TEXT",
@@ -329,11 +331,18 @@ type PhoneOrder struct {
 	Error           *string `json:"error"`
 	ResultID        *string `json:"result_id"`
 	MeasurementID   *int64  `json:"measurement_id"`
+	// Solo órdenes reboot_router (§6); null en las pruebas de velocidad.
+	// RebootReason: manual | recommended. Step: paso que informó el celular
+	// (p. ej. ssh, waiting-back). Result: el JSON con que el celular la cerró.
+	RebootReason *string         `json:"reboot_reason"`
+	Step         *string         `json:"step"`
+	Result       json.RawMessage `json:"result"`
 }
 
 const phoneOrderCols = `id, order_id, batch_id, probe_id, type, target, slot, device_id, routing_table, allow_fallback,
 	preferred_device, fallback_device, duration_s, execute_at, not_after, selection_reason, requested_by, status,
-	created_at, delivered_at, started_at, completed_at, updated_at, closed_by, error, result_id, measurement_id`
+	created_at, delivered_at, started_at, completed_at, updated_at, closed_by, error, result_id, measurement_id,
+	reboot_reason, step, result_json`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
@@ -349,11 +358,17 @@ func scanPhoneOrder(r rowScanner) (PhoneOrder, error) {
 	var o PhoneOrder
 	var orderID, batchID, probeID, target, slot, table, preferred, fallback, execAt, notAfter, reason, requestedBy sql.NullString
 	var delivered, started, completed, updated, closedBy, errMsg, resultID sql.NullString
+	var rebootReason, step, resultJSON sql.NullString
 	var allow, dur, mid sql.NullInt64
 	if err := r.Scan(&o.ID, &orderID, &batchID, &probeID, &o.Type, &target, &slot, &o.DeviceID, &table, &allow,
 		&preferred, &fallback, &dur, &execAt, &notAfter, &reason, &requestedBy, &o.Status,
-		&o.CreatedAt, &delivered, &started, &completed, &updated, &closedBy, &errMsg, &resultID, &mid); err != nil {
+		&o.CreatedAt, &delivered, &started, &completed, &updated, &closedBy, &errMsg, &resultID, &mid,
+		&rebootReason, &step, &resultJSON); err != nil {
 		return o, err
+	}
+	o.RebootReason, o.Step = strPtr(rebootReason), strPtr(step)
+	if resultJSON.Valid && resultJSON.String != "" {
+		o.Result = json.RawMessage(resultJSON.String)
 	}
 	o.OrderID, o.ProbeID, o.Runner = orderID.String, probeID.String, RunnerPhone
 	o.BatchID, o.Target, o.Slot, o.RoutingTable = strPtr(batchID), strPtr(target), strPtr(slot), strPtr(table)
@@ -390,8 +405,10 @@ func queryPhoneOrders(ctx context.Context, q queryer, where string, args ...any)
 	return out, rows.Err()
 }
 
-// orderSpec: una orden lista para insertar.
+// orderSpec: una orden lista para insertar. typ vacío = run_speedtest; en
+// reboot_router, durationS 0 y reason vacío se guardan NULL.
 type orderSpec struct {
+	typ, rebootReason                               string
 	orderID, batchID, target, slot, deviceID, table string
 	allowFallback                                   bool
 	preferred, fallback                             string
@@ -406,14 +423,22 @@ func insertPhoneOrder(ctx context.Context, q queryer, probeID string, sp orderSp
 	if sp.allowFallback {
 		allow = 1
 	}
+	typ := sp.typ
+	if typ == "" {
+		typ = "run_speedtest"
+	}
+	var dur any
+	if sp.durationS > 0 {
+		dur = sp.durationS
+	}
 	res, err := q.ExecContext(ctx, `
 INSERT INTO commands (created_at, device_id, type, duration_s, requested_by, status, runner, probe_id, routing_table,
 	order_id, batch_id, target, slot, allow_fallback, preferred_device, fallback_device, execute_at, not_after,
-	selection_reason, updated_at)
-VALUES (?,?, 'run_speedtest', ?,?, 'pending', 'phone', ?,?, ?,?,?,?,?,?,?,?,?, ?,?)`,
-		ts, sp.deviceID, sp.durationS, nullStr(sp.requestedBy), probeID, nullStr(sp.table),
+	selection_reason, updated_at, reboot_reason)
+VALUES (?,?,?,?,?, 'pending', 'phone', ?,?, ?,?,?,?,?,?,?,?,?, ?,?,?)`,
+		ts, sp.deviceID, typ, dur, nullStr(sp.requestedBy), probeID, nullStr(sp.table),
 		sp.orderID, sp.batchID, sp.target, nullStr(sp.slot), allow, nullStr(sp.preferred), nullStr(sp.fallback),
-		FormatTS(sp.executeAt), FormatTS(sp.notAfter), sp.reason, ts)
+		FormatTS(sp.executeAt), FormatTS(sp.notAfter), nullStr(sp.reason), ts, nullStr(sp.rebootReason))
 	if err != nil {
 		return 0, err
 	}
@@ -730,10 +755,11 @@ func (s *Store) createPhoneOrderForDevice(ctx context.Context, probeID, deviceID
 	return cid, id, nil
 }
 
-// countOpenPhoneOrders: órdenes abiertas de la sonda (o de un slot): pending,
-// delivered, o running con updated_at de hace menos de 30 min.
+// countOpenPhoneOrders: pruebas abiertas de la sonda (o de un slot): pending,
+// delivered, o running con updated_at de hace menos de 30 min. Las órdenes de
+// reinicio (§6) no cuentan: no son pruebas y no frenan el ciclo.
 func (s *Store) countOpenPhoneOrders(ctx context.Context, probeID, slot string, now time.Time) (int, error) {
-	q := `SELECT COUNT(*) FROM commands WHERE runner = 'phone' AND probe_id = ?
+	q := `SELECT COUNT(*) FROM commands WHERE runner = 'phone' AND probe_id = ? AND type <> 'reboot_router'
 AND (status IN ('pending','delivered') OR (status = 'running' AND updated_at >= ?))`
 	args := []any{probeID, FormatTS(now.Add(-phoneRunningStale))}
 	if slot != "" {
@@ -993,44 +1019,112 @@ var phoneTransitions = map[string]map[string]bool{
 	"running":   {"interrupted": true},
 }
 
-// SetPhoneOrderState aplica un cambio de estado sin resultado. Devuelve el
-// estado actual y ignored=true si la transición no era válida (repetida,
-// hacia atrás, o sobre una orden final, dura o blanda). at = hora del
-// celular (started_at en running); todo lo demás usa la hora del servidor.
-func (s *Store) SetPhoneOrderState(ctx context.Context, probeID, orderID, status string, at *time.Time, resultID, errMsg string, now time.Time) (string, bool, error) {
+// PhoneStateUpdate: cuerpo de POST .../orders/{order_id}/state ya validado.
+// At = hora del celular (started_at en running). Step y Result solo se
+// guardan en órdenes reboot_router (§6); en las pruebas se ignoran.
+type PhoneStateUpdate struct {
+	Status   string
+	At       *time.Time
+	ResultID string
+	Error    string
+	Step     string
+	Result   json.RawMessage
+}
+
+// SetPhoneOrderState aplica un cambio de estado sin resultado de medición.
+// Devuelve el estado actual y ignored=true si la transición no era válida
+// (repetida, hacia atrás, o sobre una orden final, dura o blanda). Todo lo
+// que no es At usa la hora del servidor.
+//
+// Órdenes reboot_router (§6): no generan medición, así que se cierran por acá
+// con done/failed (y el result JSON del celular), desde abiertas o desde un
+// final blando (el barrido las cerró porque el celular no avisó a tiempo). Un
+// running repetido con otro step (o con result) actualiza el progreso.
+//
+// En un reinicio manda lo que dice el celular: si la orden quedó cancelled
+// (dashboard o servidor) o en un final blando pero el celular ya la había
+// tomado (se entera de la cancelación en su próximo GET), su running,
+// interrupted, done o failed se aplica igual, para que el historial y el
+// enfriamiento sepan que el comando pudo salir. Y cuando un reinicio pasa a
+// running se cancelan (closed_by server) los otros reinicios pendientes del
+// mismo equipo: nunca dos reboot seguidos.
+func (s *Store) SetPhoneOrderState(ctx context.Context, probeID, orderID string, u PhoneStateUpdate, now time.Time) (string, bool, error) {
 	ts := FormatTS(now)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", false, err
 	}
 	defer tx.Rollback()
-	var cur string
-	err = tx.QueryRowContext(ctx, `SELECT status FROM commands WHERE runner='phone' AND probe_id = ? AND order_id = ?`, probeID, orderID).Scan(&cur)
+	var cur, typ, deviceID string
+	var closedBy, curStep sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT status, type, closed_by, step, device_id FROM commands WHERE runner='phone' AND probe_id = ? AND order_id = ?`,
+		probeID, orderID).Scan(&cur, &typ, &closedBy, &curStep, &deviceID)
 	if err == sql.ErrNoRows {
 		return "", false, ErrOrderNotFound
 	}
 	if err != nil {
 		return "", false, err
 	}
-	if !phoneTransitions[cur][status] {
-		return cur, true, nil
+	reboot := typ == RebootOrderType
+	status := u.Status
+	final := status == "done" || status == "failed"
+	if final && !reboot {
+		return "", false, badReq("done/failed se cierran con /results")
 	}
+
+	softFinal := (cur == "expired" || cur == "interrupted") && closedBy.String == "server"
+	// Reinicio cerrado por el servidor o el dashboard: el reporte del celular
+	// manda (ver arriba). Un final del propio celular no se reabre.
+	rebootReopen := reboot && (softFinal || (cur == "cancelled" && closedBy.String != "phone"))
 	set := `status=?, updated_at=?`
 	args := []any{status, ts}
-	switch status {
-	case "delivered":
-		set += `, delivered_at=?`
-		args = append(args, ts)
-	case "running":
-		started := now
-		if at != nil {
-			started = *at
+	switch {
+	case final || (rebootReopen && status == "interrupted"):
+		if !openPhoneStatuses[cur] && !softFinal && !rebootReopen {
+			return cur, true, nil
 		}
-		set += `, started_at=?, result_id=?`
-		args = append(args, FormatTS(started), nullStr(resultID))
-	case "interrupted", "expired":
 		set += `, completed_at=?, closed_by='phone', error=?`
-		args = append(args, ts, nullStr(errMsg))
+		args = append(args, ts, nullStr(u.Error))
+	case rebootReopen && status == "running":
+		started := now
+		if u.At != nil {
+			started = *u.At
+		}
+		set += `, started_at=?, result_id=?, completed_at=NULL, closed_by=NULL, error=NULL`
+		args = append(args, FormatTS(started), nullStr(u.ResultID))
+	case reboot && status == cur && cur == "running":
+		// Progreso de un reinicio: solo si trae algo nuevo.
+		if (u.Step == "" || u.Step == curStep.String) && u.Result == nil {
+			return cur, true, nil
+		}
+	case !phoneTransitions[cur][status]:
+		return cur, true, nil
+	default:
+		switch status {
+		case "delivered":
+			set += `, delivered_at=?`
+			args = append(args, ts)
+		case "running":
+			started := now
+			if u.At != nil {
+				started = *u.At
+			}
+			set += `, started_at=?, result_id=?`
+			args = append(args, FormatTS(started), nullStr(u.ResultID))
+		case "interrupted", "expired":
+			set += `, completed_at=?, closed_by='phone', error=?`
+			args = append(args, ts, nullStr(u.Error))
+		}
+	}
+	if reboot {
+		if u.Step != "" {
+			set += `, step=?`
+			args = append(args, u.Step)
+		}
+		if u.Result != nil {
+			set += `, result_json=?`
+			args = append(args, string(u.Result))
+		}
 	}
 	args = append(args, probeID, orderID, cur)
 	res, err := tx.ExecContext(ctx, `UPDATE commands SET `+set+` WHERE runner='phone' AND probe_id = ? AND order_id = ? AND status = ?`, args...)
@@ -1039,6 +1133,16 @@ func (s *Store) SetPhoneOrderState(ctx context.Context, probeID, orderID, status
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return cur, true, nil
+	}
+	if reboot && status == "running" && cur != "running" {
+		// Otro reinicio del mismo equipo que se coló (p. ej. pedido tras
+		// cancelar éste justo cuando el celular ya lo corría): se cancela.
+		if _, err := tx.ExecContext(ctx, `UPDATE commands SET status='cancelled', closed_by='server', error='reinicio-duplicado',
+	completed_at=?, updated_at=?
+WHERE runner='phone' AND type=? AND device_id = ? AND order_id <> ? AND status IN ('pending','delivered')`,
+			ts, ts, RebootOrderType, deviceID, orderID); err != nil {
+			return "", false, err
+		}
 	}
 	return status, false, tx.Commit()
 }
@@ -1112,9 +1216,13 @@ func (s *Store) InsertProbeResult(ctx context.Context, raw json.RawMessage, c Pr
 	}
 	orderCol := ""
 	if c.OrderID != "" {
-		err := tx.QueryRowContext(ctx, `SELECT id, status, closed_by, not_after FROM commands WHERE runner='phone' AND probe_id = ? AND order_id = ?`,
-			c.ProbeID, c.OrderID).Scan(&ord.id, &ord.status, &ord.closedBy, &ord.notAfter)
+		var typ string
+		err := tx.QueryRowContext(ctx, `SELECT id, status, closed_by, not_after, type FROM commands WHERE runner='phone' AND probe_id = ? AND order_id = ?`,
+			c.ProbeID, c.OrderID).Scan(&ord.id, &ord.status, &ord.closedBy, &ord.notAfter, &typ)
 		switch {
+		case err == nil && typ == RebootOrderType:
+			// Un reinicio nunca genera medición (§6.3): se cierra con /state.
+			return out, ErrBadResult{"la orden " + c.OrderID + " es un reinicio (reboot_router): se cierra con /state y no genera medición"}
 		case err == sql.ErrNoRows:
 			edited, e := editRaw(raw, []string{"order_id"}, map[string]any{"order_id_client": c.OrderID})
 			if e != nil {

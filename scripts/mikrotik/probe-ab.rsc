@@ -1,6 +1,6 @@
 # probe-ab.rsc - sonda A/B del celular por cable (hAP ac2, RouterOS 7.6)
 # GENERADO por: python apply_probe.py --emit-rsc   (no editar a mano; regenerar)
-# Contrato: server/docs/CONTRATO-SONDA-AB.md, seccion 3.
+# Contrato: server/docs/CONTRATO-SONDA-AB.md, secciones 3 y 6.1.
 #
 # Lo recomendado es apply_probe.py --apply (hace respaldo, compara y solo cambia lo que
 # difiere). Este script es la alternativa manual e idempotente (se puede correr varias
@@ -12,8 +12,9 @@
 # sube el archivo a Files y corre  /import file-name=probe-ab.rsc   (o pegalo en la
 # terminal de WinBox). Todo va en un solo bloque { }: si algo falla, se detiene.
 #
-# Diferencias con apply_probe.py: no compara (siempre hace set); la regla NAT se busca
-# sin mirar src-address; no hace las verificaciones finales (usa --verify).
+# Diferencias con apply_probe.py: no compara (siempre hace set y mueve las reglas); la
+# regla NAT se busca sin mirar src-address; no avisa de reglas de firewall ajenas ni hace
+# las verificaciones finales (usa --verify).
 
 {
 :local phonePass "CAMBIAR-ESTA-CLAVE"
@@ -77,12 +78,12 @@
 {
 :local x [/ip dhcp-client find where comment="probe:wan-B"]
 :if ([:len $x] = 0) do={:set x [/ip dhcp-client find where interface="ether1"]}
-:if ([:len $x] = 0) do={/ip dhcp-client add interface=ether1 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:B-default\";\"probe:main-B\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}}" disabled=no comment=probe:wan-B} else={/ip dhcp-client set [:pick $x 0] interface=ether1 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:B-default\";\"probe:main-B\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}}" disabled=no comment=probe:wan-B}
+:if ([:len $x] = 0) do={/ip dhcp-client add interface=ether1 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:B-default\";\"probe:main-B\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}; :local d (\$\"gateway-address\" . \"/32\"); :foreach r in=[/routing rule find comment=\"probe:mgmt-B\"] do={:if ([:tostr [/routing rule get \$r dst-address]] != \$d) do={/routing rule set \$r dst-address=\$d; :log info \"probe: mgmt-B -> \$d\"}}}" disabled=no comment=probe:wan-B} else={/ip dhcp-client set [:pick $x 0] interface=ether1 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:B-default\";\"probe:main-B\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}; :local d (\$\"gateway-address\" . \"/32\"); :foreach r in=[/routing rule find comment=\"probe:mgmt-B\"] do={:if ([:tostr [/routing rule get \$r dst-address]] != \$d) do={/routing rule set \$r dst-address=\$d; :log info \"probe: mgmt-B -> \$d\"}}}" disabled=no comment=probe:wan-B}
 }
 {
 :local x [/ip dhcp-client find where comment="probe:wan-A"]
 :if ([:len $x] = 0) do={:set x [/ip dhcp-client find where interface="ether2"]}
-:if ([:len $x] = 0) do={/ip dhcp-client add interface=ether2 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:A-default\";\"probe:main-A\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}}" disabled=no comment=probe:wan-A} else={/ip dhcp-client set [:pick $x 0] interface=ether2 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:A-default\";\"probe:main-A\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}}" disabled=no comment=probe:wan-A}
+:if ([:len $x] = 0) do={/ip dhcp-client add interface=ether2 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:A-default\";\"probe:main-A\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}; :local d (\$\"gateway-address\" . \"/32\"); :foreach r in=[/routing rule find comment=\"probe:mgmt-A\"] do={:if ([:tostr [/routing rule get \$r dst-address]] != \$d) do={/routing rule set \$r dst-address=\$d; :log info \"probe: mgmt-A -> \$d\"}}}" disabled=no comment=probe:wan-A} else={/ip dhcp-client set [:pick $x 0] interface=ether2 add-default-route=no use-peer-dns=no use-peer-ntp=no script=":if (\$bound=1) do={:local gw (\$\"gateway-address\" . \"%\" . \$interface); :foreach c in={\"probe:A-default\";\"probe:main-A\"} do={:foreach r in=[/ip route find comment=\$c] do={:if ([:tostr [/ip route get \$r gateway]] != \$gw) do={/ip route set \$r gateway=\$gw; :log info \"probe: \$c -> \$gw\"}}}; :local d (\$\"gateway-address\" . \"/32\"); :foreach r in=[/routing rule find comment=\"probe:mgmt-A\"] do={:if ([:tostr [/routing rule get \$r dst-address]] != \$d) do={/routing rule set \$r dst-address=\$d; :log info \"probe: mgmt-A -> \$d\"}}}" disabled=no comment=probe:wan-A}
 }
 :put "sonda A/B: 7/14 esperando DHCP de los WAN (hasta 15 s)"
 {
@@ -114,7 +115,7 @@
 :local x [/ip route find where comment="probe:main-B"]
 :if ([:len $x] = 0) do={/ip route add dst-address=0.0.0.0/0 routing-table=main distance=2 check-gateway=ping gateway=($gwB . "%ether1") comment="probe:main-B"} else={/ip route set [:pick $x 0] dst-address=0.0.0.0/0 routing-table=main distance=2 check-gateway=ping; :if ($boundB) do={/ip route set [:pick $x 0] gateway=($gwB . "%ether1")}}
 }
-:put "sonda A/B: 9/14 reglas de ruteo"
+:put "sonda A/B: 9/14 reglas de ruteo (celular, gestion y salud por router)"
 {
 :local x [/routing rule find where comment="probe:phone-local"]
 :if ([:len $x] = 0) do={/routing rule add dst-address=192.168.89.0/24 action=lookup-only-in-table table=main disabled=no comment=probe:phone-local} else={/routing rule set [:pick $x 0] dst-address=192.168.89.0/24 action=lookup-only-in-table table=main disabled=no comment=probe:phone-local}
@@ -124,17 +125,31 @@
 :if ([:len $x] = 0) do={/routing rule add src-address=192.168.89.0/24 action=lookup-only-in-table disabled=no comment=phone-probe table=main} else={/routing rule set [:pick $x 0] src-address=192.168.89.0/24 action=lookup-only-in-table disabled=no comment=phone-probe}
 }
 {
-:local seenProbe false
-:local wrong false
-:foreach r in=[/routing rule find] do={:local c [/routing rule get $r comment]; :if ($c = "phone-probe") do={:set seenProbe true}; :if (($c = "probe:phone-local") && $seenProbe) do={:set wrong true}}
-:if ($wrong) do={/routing rule move [find where comment="probe:phone-local"] destination=[find where comment="phone-probe"]}
+:local x [/routing rule find where comment="probe:mgmt-A"]
+:local d ($gwA . "/32")
+:if ([:len $x] = 0) do={/routing rule add dst-address=$d action=lookup-only-in-table table=to-A disabled=no comment="probe:mgmt-A" place-before=[find where comment="phone-probe"]} else={/routing rule set [:pick $x 0] action=lookup-only-in-table table=to-A disabled=no; :if ($boundA) do={/routing rule set [:pick $x 0] dst-address=$d}}
 }
-:put "sonda A/B: 10/14 NAT"
+{
+:local x [/routing rule find where comment="probe:mgmt-B"]
+:local d ($gwB . "/32")
+:if ([:len $x] = 0) do={/routing rule add dst-address=$d action=lookup-only-in-table table=to-B disabled=no comment="probe:mgmt-B" place-before=[find where comment="phone-probe"]} else={/routing rule set [:pick $x 0] action=lookup-only-in-table table=to-B disabled=no; :if ($boundB) do={/routing rule set [:pick $x 0] dst-address=$d}}
+}
+{
+:local x [/routing rule find where comment="probe:health-A"]
+:if ([:len $x] = 0) do={/routing rule add dst-address=9.9.9.9/32 action=lookup-only-in-table table=to-A disabled=no comment="probe:health-A" place-before=[find where comment="phone-probe"]} else={/routing rule set [:pick $x 0] dst-address=9.9.9.9/32 action=lookup-only-in-table table=to-A disabled=no}
+}
+{
+:local x [/routing rule find where comment="probe:health-B"]
+:if ([:len $x] = 0) do={/routing rule add dst-address=149.112.112.112/32 action=lookup-only-in-table table=to-B disabled=no comment="probe:health-B" place-before=[find where comment="phone-probe"]} else={/routing rule set [:pick $x 0] dst-address=149.112.112.112/32 action=lookup-only-in-table table=to-B disabled=no}
+}
+:foreach c in={"probe:phone-local";"probe:mgmt-A";"probe:mgmt-B";"probe:health-A";"probe:health-B"} do={/routing rule move [find where comment=$c] destination=[find where comment="phone-probe"]}
+:put "sonda A/B: 10/14 NAT (y borrar la vieja de fabrica)"
 :if ([:len [/ip firewall nat find where chain="srcnat" and action="masquerade" and out-interface-list="WAN"]] = 0) do={/ip firewall nat add chain=srcnat action=masquerade out-interface-list=WAN comment="probe:masq"}
+/ip firewall nat remove [find where chain="srcnat" and action="masquerade" and src-address="192.168.1.0/24" and out-interface="ether1" and dynamic=no]
 :put "sonda A/B: 11/14 grupo y usuario del celular"
 {
 :local x [/user group find where name="probe-api"]
-:if ([:len $x] = 0) do={/user group add name=probe-api policy=read,write,api comment=probe:api-group} else={/user group set [:pick $x 0] name=probe-api policy=read,write,api comment=probe:api-group}
+:if ([:len $x] = 0) do={/user group add name=probe-api policy=read,write,api,test comment=probe:api-group} else={/user group set [:pick $x 0] name=probe-api policy=read,write,api,test comment=probe:api-group}
 }
 {
 :local x [/user find where name="phone-probe"]
@@ -153,5 +168,6 @@
 /system clock set time-zone-name=America/Bogota
 /system identity set name=hap-sonda
 :if ([/ip settings get rp-filter] != "no") do={:put "AVISO: /ip settings rp-filter no es no"}
+:if ([:len [/ip firewall filter find where action="fasttrack-connection" and disabled=no and hw-offload=yes]] = 0) do={:put "AVISO: no hay fasttrack habilitado con hw-offload (defconf: fasttrack)"}
 :put "sonda A/B: listo. Verifica con apply_probe.py --verify"
 }

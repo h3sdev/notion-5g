@@ -16,7 +16,7 @@ class ProbeSettingsScreen extends StatefulWidget {
 }
 
 class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
-  static const _secret = {'api_key', 'mikrotik_password', 'prod_api_key'};
+  static const _secret = {'api_key', 'mikrotik_password', 'prod_api_key', 'ssh_password_A', 'ssh_password_B'};
   static const _ints = {
     'mikrotik_port',
     'duration_s',
@@ -30,6 +30,8 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
     'location_max_age_s',
     'location_max_age_stationary_s',
     'location_max_accuracy_m',
+    'ssh_port_A',
+    'ssh_port_B',
   };
   static const _bools = {'require_ethernet', 'flush_conntrack', 'local_plan_enabled'};
 
@@ -88,7 +90,8 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
   Map<String, dynamic> _collect() {
     final out = <String, dynamic>{};
     _ctrl.forEach((k, c) {
-      final t = c.text.trim();
+      // Las claves SSH se guardan tal cual (un espacio puede ser parte de la clave).
+      final t = k.startsWith('ssh_password_') ? c.text : c.text.trim();
       out[k] = _ints.contains(k) ? (int.tryParse(t) ?? t) : t;
     });
     _bool.forEach((k, v) => out[k] = v);
@@ -226,6 +229,20 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
                 _field('gateway_check', 'Chequeo de puerta de enlace (host:puerto)',
                     help: 'Vacío = el gateway que el MikroTik tiene para la tabla de la prueba, puerto 80.'),
                 _switch('flush_conntrack', 'Limpiar conexiones rastreadas al cambiar la ruta'),
+                _header('Reinicio de routers (SSH)'),
+                const Text(
+                    'El backend puede pedir reiniciar un router; el celular entra por SSH a su puerta de enlace '
+                    'a través del MikroTik (por el cable, nunca por WiFi). La clave nunca sale del teléfono.',
+                    style: TextStyle(color: Colors.black54)),
+                const SizedBox(height: 8),
+                for (final slot in const ['A', 'B']) ...[
+                  Text('Router $slot', style: const TextStyle(fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 6),
+                  _field('ssh_user_$slot', 'Usuario SSH', hint: 'root'),
+                  _field('ssh_password_$slot', 'Clave SSH'),
+                  _field('ssh_port_$slot', 'Puerto SSH', hint: '22'),
+                  _field('ssh_command_$slot', 'Comando de reinicio', hint: 'reboot'),
+                ],
                 _header('Medición'),
                 _switch('require_ethernet', 'Exigir Ethernet para medir',
                     help: 'Apagado: sin cable se mide por WiFi y el resultado no se atribuye a A ni a B.'),

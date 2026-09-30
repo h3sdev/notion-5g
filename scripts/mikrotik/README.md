@@ -1,8 +1,10 @@
 # MikroTik hAP ac2 como sonda A/B (celular por cable)
 
 El MikroTik decide por cuál router sale el celular: **A = Notion 5G** o **B = Notion 4G**.
-El celular cambia una sola regla (`phone-probe`) antes de cada prueba. Diseño completo en
-[`server/docs/CONTRATO-SONDA-AB.md`](../../server/docs/CONTRATO-SONDA-AB.md) §3.
+El celular cambia una sola regla (`phone-probe`) antes de cada prueba. Además, por un camino
+aparte que no toca las mediciones, el celular entra por SSH a cada router (para reiniciarlo
+cuando el backend lo pide) y le hace un ping de salud. Diseño completo en
+[`server/docs/CONTRATO-SONDA-AB.md`](../../server/docs/CONTRATO-SONDA-AB.md) §3 y §6.1.
 
 | Archivo | Para qué |
 |---|---|
@@ -10,9 +12,15 @@ El celular cambia una sola regla (`phone-probe`) antes de cada prueba. Diseño c
 | `probe-ab.rsc` | Lo mismo como script RouterOS, para pegar en WinBox si no hay Python (generado con `--emit-rsc`) |
 | `test_apply_probe.py` | Pruebas sin equipo (protocolo de la API y un RouterOS falso) |
 
-**Estado (2026-09-29):** la configuración ya está aplicada en el hAP y `--verify` da
-"coincide con el contrato". A sale por `179.19.72.14` (BOG) y B por `186.102.123.189`
-(Movistar, MDE). Falta conectar el celular a `ether3`.
+**Estado (2026-09-29):** la configuración de §3 ya está aplicada en el hAP (A sale por
+`179.19.72.14` (BOG) y B por `186.102.123.189` (Movistar, MDE)) y el celular está en `ether3`.
+**§6.1 ya está aplicado** (reinicio remoto y salud por router; lo aplicó `admin` a mano el
+2026-09-29 20:54, respaldo `flash/pre-mgmt-20260929-205428.rsc`): las 6 reglas en orden, los
+scripts WAN (idénticos a los que genera la herramienta), sin la NAT vieja y `test` en
+`probe-api`. **Una sola diferencia:** en el equipo `probe:mgmt-A`/`probe:mgmt-B` quedaron con
+`table=main` (como decía el contrato) y la herramienta las quiere en `to-A`/`to-B` (ver abajo
+por qué), así que `--dry-run` muestra 2 cambios (`/routing rule set ... table=to-A`/`to-B`) y
+`--verify` sale con 1. Aplicarlos (`--apply`) necesita el visto bueno de Diego.
 
 ## 1. Cableado (ya hecho, no mover)
 
@@ -73,6 +81,10 @@ La contraseña de `admin` también se puede pasar en la variable de entorno `MIK
 | `... --switch A` / `B` / `fallback` | Mueve la regla `phone-probe` a `to-A` / `to-B` / `main` (pruebas a mano) | Sí; el vigilante la devuelve a `main` a los 10 min |
 | `... --emit-rsc > probe-ab.rsc` | Regenera el script `.rsc` | No se conecta |
 
+**Ojo al aplicar:** con la sonda detenida (`--apply` pide `--force` si `phone-probe` no está en
+`main`). Cambiar el `script` de un DHCP client WAN no lo reinició en 7.6 (el 2026-09-29 20:54 el
+log no muestra "lost IP address" tras el cambio), pero igual no se hace si el texto ya coincide.
+
 Opciones útiles: `--host` (por defecto `fe80::de2c:6eff:fef7:7fe9%82`; también sirve
 `192.168.88.1` si el PC tiene IP de administración), `--gw-a`/`--gw-b` (gateway si un
 router está apagado), `--check-gateway arp` (si un router no responde ping desde su LAN),
@@ -100,17 +112,42 @@ del PC. Para volver a uno de esos, súbelo a `flash/` con WinBox (Files) y cárg
 - Administración `192.168.88.1/24` (DHCP sin gateway ni DNS, para que el PC no salga a
   Internet por los routers bajo prueba). Celular `192.168.89.1/24` con DHCP propio.
 - Un **cliente DHCP por WAN** con `add-default-route=no` y un script que, al recibir
-  concesión, pone el gateway real en sus rutas (solo si cambió).
+  concesión, pone el gateway real en sus rutas y en su regla `probe:mgmt-A`/`probe:mgmt-B`
+  (`<gateway>/32`), cada cosa solo si cambió.
 - Tablas `to-A`/`to-B`, cada una con su ruta por defecto `gateway=<gw>%ether2` /
   `<gw>%ether1` **sin** `check-gateway` (forzado a un router caído, el tráfico falla en vez
   de irse por el otro). En `main`, A con distancia 1 y B con 2, ambas con `check-gateway=ping`.
-- Reglas, en este orden: `probe:phone-local` (lo que va al propio celular usa `main`) y
-  **`phone-probe`** (`src-address=192.168.89.0/24 action=lookup-only-in-table`, `table`
-  = `main` en reposo, `to-A`/`to-B` durante una prueba). La herramienta nunca cambia la
-  `table` de una regla existente: eso lo hace el celular.
-- NAT `masquerade` por la lista `WAN`.
-- Usuario `phone-probe` (grupo `probe-api`: solo `read,write,api`, y solo desde
-  `192.168.89.0/24`). El servicio `api` solo acepta `192.168.88.0/24`, `192.168.89.0/24` y
+- Reglas de ruteo, **en este orden** (todas `action=lookup-only-in-table`, que termina la
+  búsqueda: por eso las de gestión y salud van antes de `phone-probe`):
+
+  | `comment` | Regla | Para qué |
+  |---|---|---|
+  | `probe:phone-local` | `dst-address=192.168.89.0/24 table=main` | Lo que va al propio celular (API, DHCP) usa `main` |
+  | `probe:mgmt-A` | `dst-address=<gateway de A>/32 table=to-A` | SSH del celular al Notion 5G, sin importar a qué tabla esté forzada `phone-probe` |
+  | `probe:mgmt-B` | `dst-address=<gateway de B>/32 table=to-B` | Igual para el Notion 4G |
+  | `probe:health-A` | `dst-address=9.9.9.9/32 table=to-A` | Ping de salud: siempre sale por A |
+  | `probe:health-B` | `dst-address=149.112.112.112/32 table=to-B` | Ping de salud: siempre sale por B |
+  | **`phone-probe`** | `src-address=192.168.89.0/24`, `table` = `main` en reposo, `to-A`/`to-B` en una prueba | La que mueve el celular |
+
+  Las reglas nuevas se crean ya en su lugar (`place-before` de la siguiente que exista); si
+  el orden quedara mal, la herramienta lo corrige con `/routing rule move`. Nunca cambia la
+  `table` de `phone-probe`: eso lo hace el celular. Las de gestión usan la tabla **del propio
+  router** (no `main`, como decía el contrato): si ese router está caído el SSH falla en vez de
+  irse por el otro router (y mandar la clave `root` por la red celular de B), y sigue
+  funcionando aunque A y B usaran la misma LAN. El SSH va por la LAN del router y el ping de
+  salud son 3 paquetes por router por minuto: no gasta datos ni altera las mediciones.
+  **Consecuencia:** todo lo que el celular mande a `9.9.9.9`, `149.112.112.112` o al gateway de
+  un router sale siempre por ese router, aunque `phone-probe` esté forzada al otro. Ninguna
+  prueba de medición debe usar esas IP como destino (DNS, ping, etc.).
+- NAT `masquerade` por la lista `WAN`. La regla vieja de fábrica (`masquerade
+  src-address=192.168.1.0/24 out-interface=ether1`) se **borra**: ya no aplica y la sonda pide
+  reglas mínimas.
+- Firewall: el de fábrica, **con `defconf: fasttrack` habilitado y `hw-offload=yes`**. La
+  herramienta no lo cambia; `--dry-run`/`--verify` avisan si falta el fasttrack, si está
+  deshabilitado o sin `hw-offload`, y si hay reglas de filtro, mangle, raw o NAT ajenas (que no
+  son `defconf` ni `probe:`). `--verify` sale con código 1 si el fasttrack tiene problemas.
+- Usuario `phone-probe` (grupo `probe-api`: solo `read,write,api,test` —`test` es para `/ping`
+  por la API, la salud por router—, y solo desde `192.168.89.0/24`). El servicio `api` solo acepta `192.168.88.0/24`, `192.168.89.0/24` y
   `fe80::/10` (la herramienta se niega a quitar `fe80::/10`, y tras cambiarlo prueba una
   conexión nueva; si no entra, lo revierte).
 - Vigilante `probe-rule-watchdog` (cada minuto): si la regla lleva 10 minutos fuera de `main`
@@ -129,7 +166,10 @@ del PC. Para volver a uno de esos, súbelo a `flash/` con WinBox (Files) y cárg
 
 - `Configuración: coincide con el contrato.`
 - Los dos `dhcp-client` en `bound`, cada uno con su gateway (hoy A `192.168.1.1`, B `192.168.2.1`).
-- Las reglas en orden `probe:phone-local` y luego `phone-probe` con `table=main`.
+- Las reglas en orden `probe:phone-local`, `probe:mgmt-A`, `probe:mgmt-B`, `probe:health-A`,
+  `probe:health-B` y `phone-probe` con `table=main`.
+- `fasttrack .id=*8 chain=forward hw-offload=true …` y una línea `fasttrack: N MB acelerados`.
+- `salud A (9.9.9.9 por to-A): recibidos 3/3` y lo mismo para B (`149.112.112.112 por to-B`).
 - `probe:A-default` y `probe:B-default` con `active=true`; en `main`, `probe:main-A` activa.
 - `ping gateway A/B: recibidos 2/2`.
 - `por to-A ... salida <IP>` y `por to-B ... salida <otra IP>`: **las dos IP deben ser
@@ -208,4 +248,13 @@ cuenta como diferencia; el orden de las reglas se corrige; el gateway sigue al D
 conserva con el WAN caído; la MAC del bridge se fija antes de sacar `ether2`; el respaldo va a
 `flash/` y aborta con poca flash; `--apply` aborta si no puede leer un menú (en vez de crear
 duplicados); el vigilante tiene la policy y las condiciones de reinicio correctas; la contraseña
-nueva no se imprime salvo `--show-password`.
+nueva no se imprime salvo `--show-password`. De §6.1: desde la instalación de §3 las 4 reglas
+nuevas se crean con `place-before` de `phone-probe` (y, si el equipo no aceptara
+`place-before`, se agregan al final y se mueven); 60 órdenes al azar de las 6 reglas (con una
+regla ajena en medio) quedan bien tras un `--apply`; un `dst-address` sin `/32` no es
+diferencia; el script WAN actualiza solo su regla `probe:mgmt-*` y es idéntico al aplicado en
+el equipo; A y B con el mismo gateway avisan; un `/ip firewall filter` ilegible no se reporta
+como "falta el fasttrack"; solo se borra la NAT vieja de
+fábrica y las reglas ajenas de filtro/mangle/NAT avisan sin borrarse; faltar el fasttrack,
+tenerlo deshabilitado o sin `hw-offload` avisa y hace fallar `--verify`, sin tocar el firewall;
+`--apply` respalda antes de la primera escritura.

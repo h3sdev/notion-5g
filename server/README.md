@@ -51,13 +51,14 @@ en `~/.config/h3s/credentials.env` en el VPS.
 | `GET /api/v1/commands/next?device_id=` | El router hace *polling* aquí (no puede recibir conexiones entrantes por su NAT celular) y se lleva el comando pendiente más viejo, marcado `claimed`. Solo recibe comandos de agente. |
 | `GET /api/v1/commands/next?probe_id=` | Igual, para una sonda: recibe los comandos de todos sus equipos, cada uno con `routing_table`. Cuenta como señal de vida de la sonda. |
 | `PUT /api/v1/probes/{probe_id}` | Configura una sonda: `{"label":"hAP","runner":"phone","interval_s":900,"duration_s":10,"targets":[{"slot":"A","device_id":"router-R52...","routing_table":"to-A","expected_asn":null},{"slot":"B","device_id":"router-4g","routing_table":"to-B","expected_asn":3816}]}`. `interval_s` = ciclo automático (0 = apagado, mínimo 60). `send_heartbeat` solo para equipos sin agente propio. `runner`: `probe` (script RouterOS, por defecto) o `phone` (celular por cable). **Claves ausentes se conservan**: sin `runner` queda el que tenía; sin `slot` o sin `expected_asn` (clave ausente) cada equipo conserva el suyo (`expected_asn: null` lo borra). En una sonda `phone`, `routing_table` única y distinta de `main`. |
-| `GET /api/v1/probes`, `GET /api/v1/probes/{id}` | Sondas con sus equipos (`slot`, `expected_asn`), `runner`, `online` (consultó en los últimos 3 min), `last_cycle_at` y, si el celular mandó estado, `phone_status`. |
+| `GET /api/v1/probes`, `GET /api/v1/probes/{id}` | Sondas con sus equipos (`slot`, `expected_asn`), `runner`, `online` (consultó en los últimos 3 min), `last_cycle_at` y, si el celular mandó estado, `phone_status`. En sondas `phone`, cada equipo trae además `reboot` (recomendación de reinicio, ver abajo). |
 | `GET /api/v1/probes/{id}/config` | Lo que consulta la propia sonda (sus equipos y a cuáles mandar heartbeat). Cuenta como señal de vida. |
 | `POST /api/v1/probes/{id}/cycle` | Encola una prueba por equipo, en el orden de `targets` (así alternan). Se salta los que ya tienen una prueba abierta. En una sonda `phone` encola órdenes de celular (`selection_reason: alternation`) y la respuesta agrega `order_ids`. |
 | `GET /api/v1/devices/{id}/phone_log` | Historial del celular acompañante (batería, estado de carga, red que usa) que llega con cada ubicación. |
 | `POST /api/v1/commands/{id}/complete` | El router reporta el resultado: `{"status":"done","measurement":{...}}` o `{"status":"failed","error":"..."}`. La ubicación del comando original se fusiona automáticamente en la medición (el módem no tiene GPS propio). **Idempotente**: sobre un comando ya cerrado responde `{"status":"ok","ignored":true}` sin insertar otra medición. Sobre una orden de celular, `400`. |
 | `POST /api/v1/commands/{id}/end_location` | Ubicación del navegador al terminar la prueba (`lat_end`/`lon_end`). Sobre una orden de celular se ignora (`"ignored":true`): el celular tiene su propio fix. |
-| `GET /api/v1/commands` | Lista/filtra comandos por `device_id`/`status`, para depurar. |
+| `GET /api/v1/commands` | Lista/filtra comandos por `device_id`/`status`, para depurar. Incluye (si tienen valor) `completed_at`, `error` y, en órdenes `reboot_router`, `reboot_reason`, `step` y `result`. |
+| `GET /api/v1/devices` | Último estado por equipo. Los equipos de una sonda `phone` traen además `reboot` (ver "Reinicio remoto"). |
 | `GET /api/v1/speedtest/download?bytes=N` | Sink de descarga (por defecto 10 MB, tope 500 MB) para medir velocidad contra este mismo servidor. Devuelve `X-Speedtest-Concurrent`: cuántas pruebas están corriendo a la vez contra este backend. |
 | `POST /api/v1/speedtest/upload` | Sink de subida: lee y descarta el body, devuelve `received_bytes` y `concurrent`. |
 
@@ -78,13 +79,55 @@ agente del router y el script de la sonda nunca las toman. Todas las rutas devue
 | `GET /api/v1/probes/{id}/orders?view=history&limit=50` | Dashboard: todas las órdenes, más nuevas primero, sin barrer. |
 | `POST /api/v1/probes/{id}/orders/ack` | Celular: `{"order_ids":[...]}` (máx. 200) → `pending` pasa a `delivered`. Responde `acked`/`unknown`/`unchanged`. |
 | `POST /api/v1/probes/{id}/orders/cancel` | Dashboard: `{"order_ids":[...]}`, `{"batch_id":"..."}` o `{"all_open":true}` → `pending`/`delivered` pasan a `cancelled` (una `running` no se cancela). Responde `cancelled`/`unknown`/`unchanged`. |
-| `POST /api/v1/probes/{id}/orders/{order_id}/state` | Celular: `{"status":"delivered"\|"running"\|"interrupted"\|"expired","at":"...","result_id":"...","error":null}`. Transición inválida o repetida → `200` con `"ignored":true`. `done`/`failed` solo por `/results` (`400`). Orden desconocida → `404`. |
+| `POST /api/v1/probes/{id}/orders/{order_id}/state` | Celular: `{"status":"delivered"\|"running"\|"interrupted"\|"expired","at":"...","result_id":"...","error":null}`. Transición inválida o repetida → `200` con `"ignored":true`. En pruebas, `done`/`failed` solo por `/results` (`400`); en órdenes `reboot_router` se cierran por acá (ver "Reinicio remoto"). Orden desconocida → `404`. |
 | `POST /api/v1/probes/{id}/results` | Celular: `{"results":[...]}` (máx. 50). **Idempotente** por `result_id`: un reenvío da `"status":"duplicate"` con el mismo `measurement_id`. El servidor decide a qué router se atribuye (tabla confirmada en el MikroTik y sin cambios durante la prueba; por WiFi nunca se atribuye) y clasifica la red por el ASN de `egress_ip` contra `expected_asn` (`net_route`/`confidence`/`reason`). Cierra la orden si estaba abierta o la había cerrado el barrido del servidor. Estado por ítem: `inserted`, `duplicate` o `error` (`retryable`). No usa la IP de la petición ni la ubicación en caché. |
 | `POST /api/v1/probes/{id}/status` | Celular: estado en vivo (máx. 16 KiB). Se guarda el último por sonda; un envío con `seq` menor del mismo servicio se descarta. Cuenta como señal de vida. Responde `{"status":"ok","server_time":"..."}`. |
 | `GET /api/v1/probes/{id}/status` | Dashboard: `{"probe_id","received_at","age_s","online","status"}` (`online` = menos de 60 s; `status: null` si nunca mandó). |
 
 El planificador del backend (cada 30 s) también barre las órdenes vencidas de todas las
 sondas de celular, así el dashboard las ve aunque el celular no consulte.
+
+### Reinicio remoto de un router (contrato §6)
+
+El backend **no** se conecta al router: deja una orden `type: "reboot_router"` en la cola
+del celular de la sonda (misma tabla `commands`, `runner='phone'`). El celular la ve en
+`GET .../orders` (con `slot`, `device_id`, `routing_table`), la ejecuta **entre pruebas**
+por SSH a través del MikroTik y la cierra por `/state`. No genera medición; el agente del
+router y el script de la sonda nunca la toman, y no frena el ciclo de pruebas.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `POST /api/v1/devices/{device_id}/reboot` | Dashboard: `{"order_id":"<uuid>","requested_by":"dashboard","reason":"manual"\|"recommended","force":false}` (todo opcional; `probe_id` solo si el equipo estuviera en varias sondas de celular). Crea la orden para la sonda `phone` que tiene ese equipo: `execute_at` = ahora, `not_after` = +15 min. **Idempotente** por `order_id` (`"existing":true`, sin mirar enfriamiento). `404` si ninguna sonda de celular tiene el equipo. `409` con `"in_progress":true` si ya hay un reinicio abierto de ese equipo (también con `force`), o con `cooldown_until` si hubo uno en los últimos 15 min (salvo `force:true`). `409` también si el `order_id` es de otra orden, y `409` con `"app_outdated":true` si el último estado del celular no trae `routers` (app sin §6: correría el reinicio como una prueba). Responde `{"existing":false,"order":{...}}`. |
+| `POST /api/v1/probes/{id}/orders/{order_id}/state` (reinicio) | Celular: `running` al empezar (opcional `"step":"ssh"`; un `running` repetido con otro `step` o con `result` actualiza el progreso) y al final `{"status":"done","result":{"ssh_ok":true,"host_key_fp":"...","gateway_back_s":95,"internet_back_s":140}}` o `{"status":"failed","error":"ssh-auth"\|"ssh-connect"\|"no-ethernet"\|"mikrotik-unreachable"\|"timeout-back","result":{...}}`. Se acepta también sobre un final blando del barrido (llegó tarde) y sobre `cancelled`: si el celular ya lo corría, manda lo que informa (un `running` la reabre y cancela los otros reinicios pendientes del mismo equipo). Las claves de contraseña del `result` se borran (toda clave con `password`). |
+
+Qué cuenta como "hubo un reinicio" para el enfriamiento: toda orden de reinicio de los
+últimos 15 min salvo `cancelled`, `expired` (nunca se ejecutó), `failed` con un error
+anterior al comando (`ssh-auth`, `ssh-connect`, `no-ethernet`, `mikrotik-unreachable`) e
+`interrupted` con `slot-desconocido`/`tipo-desconocido`, siempre sin `result.ssh_ok = true`.
+Los 15 min corren desde que el celular se llevó la orden (`delivered_at`, o `created_at`).
+
+**Recomendación** (bloque `reboot` en `GET /devices` y en cada equipo de `GET /probes`):
+
+```json
+{"recommended": true, "reason": "Sin conexión hace 12 min: el celular no ve Internet por este router hace 12 min",
+ "offline_since": "2026-09-29T21:48:00Z", "offline_min": 12,
+ "last_reboot_at": null, "last_reboot_status": null, "last_reboot_order_id": null, "last_reboot_step": null, "last_reboot_error": null,
+ "in_progress": false, "cooldown_until": null, "probe_id": "hap-oficina", "slot": "B",
+ "agent_last_seen": null, "phone_online": true,
+ "health": {"internet_ok": false, "gateway_ok": true, "loss_pct": 100, "rtt_ms": null, "checked_at": "...", "down_since": "...", "fresh": true}}
+```
+
+- Se recomienda con **más de 10 min sin conexión**: el agente del router (heartbeat con
+  `source: "router"` en los últimos 7 días) no reporta hace más de 10 min, **o** el celular,
+  con estado fresco (menos de 3 min), dice `routers.<slot>.internet_ok = false` con
+  `down_since` de hace más de 10 min. Esa duración se calcula con `sent_at − down_since`
+  (las dos del reloj del celular) más la edad del estado en el servidor: no mezcla relojes.
+- `gateway_ok = false` agrega a `reason` que el router parece apagado (el SSH probablemente
+  falle). Con un reinicio en curso (`in_progress`) o dentro del enfriamiento
+  (`cooldown_until`) no se recomienda. **Nunca se reinicia solo.**
+- `health` = `routers.<slot>` del último estado del celular (`POST .../status`, se guarda
+  tal cual; un `routers` que no sea objeto se descarta). `last_reboot_*` = el último
+  reinicio que no fue cancelado ni venció sin ejecutarse.
 
 ## Sondas (MikroTik) — modo híbrido
 

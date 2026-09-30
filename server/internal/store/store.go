@@ -1055,6 +1055,9 @@ type DeviceSummary struct {
 	PingMs             *float64 `json:"ping_ms,omitempty"`
 	LossPct            *float64 `json:"loss_pct,omitempty"`
 	UptimeS            *float64 `json:"uptime_s,omitempty"`
+	// Reboot: reinicio remoto y su recomendación (§6.3). Solo en equipos de
+	// una sonda de celular; lo agrega la capa HTTP (store.RebootInfos).
+	Reboot *RebootInfo `json:"reboot,omitempty"`
 }
 
 // onlineThreshold: a partir de cuánto tiempo sin reportar se considera que un
@@ -1275,6 +1278,13 @@ type Command struct {
 	ResultID        string `json:"result_id,omitempty"`
 	ClosedBy        string `json:"closed_by,omitempty"`
 	UpdatedAt       string `json:"updated_at,omitempty"`
+	// Solo de salida: cierre de cualquier comando, y de las órdenes
+	// reboot_router (§6) el motivo, el paso y el resultado JSON del celular.
+	CompletedAt  string          `json:"completed_at,omitempty"`
+	Error        string          `json:"error,omitempty"`
+	RebootReason string          `json:"reboot_reason,omitempty"`
+	Step         string          `json:"step,omitempty"`
+	Result       json.RawMessage `json:"result,omitempty"`
 }
 
 // clearOutputOnly borra los campos que el cliente no puede fijar.
@@ -1283,6 +1293,7 @@ func (c *Command) clearOutputOnly() {
 	c.OrderID, c.BatchID, c.Target, c.Slot = "", "", "", ""
 	c.ExecuteAt, c.NotAfter, c.SelectionReason = "", "", ""
 	c.DeliveredAt, c.StartedAt, c.ResultID, c.ClosedBy, c.UpdatedAt = "", "", "", "", ""
+	c.CompletedAt, c.Error, c.RebootReason, c.Step, c.Result = "", "", "", "", nil
 }
 
 // CreateCommand: `raw` es el body que manda el celular, p.ej.
@@ -1495,7 +1506,8 @@ func (s *Store) ListCommands(ctx context.Context, deviceID, status string, limit
 		limit = 100
 	}
 	q := `SELECT id, created_at, device_id, type, duration_s, lat, lon, gps_accuracy_m, gps_source, requested_by, status, runner, probe_id, routing_table,
-	order_id, batch_id, target, slot, execute_at, not_after, selection_reason, delivered_at, started_at, result_id, closed_by, updated_at
+	order_id, batch_id, target, slot, execute_at, not_after, selection_reason, delivered_at, started_at, result_id, closed_by, updated_at,
+	completed_at, error, reboot_reason, step, result_json
 FROM commands WHERE 1=1`
 	var args []any
 	if deviceID != "" {
@@ -1522,10 +1534,16 @@ FROM commands WHERE 1=1`
 		var lat, lon, acc sql.NullFloat64
 		var gpsSource, requestedBy, runner, probeID, table sql.NullString
 		var orderID, batchID, target, slot, execAt, notAfter, reason, delivered, started, resultID, closedBy, updated sql.NullString
+		var completed, errMsg, rebootReason, step, resultJSON sql.NullString
 		if err := rows.Scan(&c.ID, &c.CreatedAt, &c.DeviceID, &c.Type, &durationS, &lat, &lon, &acc,
 			&gpsSource, &requestedBy, &c.Status, &runner, &probeID, &table,
-			&orderID, &batchID, &target, &slot, &execAt, &notAfter, &reason, &delivered, &started, &resultID, &closedBy, &updated); err != nil {
+			&orderID, &batchID, &target, &slot, &execAt, &notAfter, &reason, &delivered, &started, &resultID, &closedBy, &updated,
+			&completed, &errMsg, &rebootReason, &step, &resultJSON); err != nil {
 			return nil, err
+		}
+		c.CompletedAt, c.Error, c.RebootReason, c.Step = completed.String, errMsg.String, rebootReason.String, step.String
+		if resultJSON.String != "" {
+			c.Result = json.RawMessage(resultJSON.String)
 		}
 		c.OrderID, c.BatchID, c.Target, c.Slot = orderID.String, batchID.String, target.String, slot.String
 		c.ExecuteAt, c.NotAfter, c.SelectionReason = execAt.String, notAfter.String, reason.String

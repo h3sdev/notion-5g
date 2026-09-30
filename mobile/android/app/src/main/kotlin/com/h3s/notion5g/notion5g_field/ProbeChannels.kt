@@ -199,6 +199,7 @@ object ProbeChannels {
             }
             "recentResults" -> reply(result) { ProbeDb.get(ctx).recentResults(call.argument<Int>("limit") ?: 20) }
             "recentEvents" -> reply(result) { ProbeDb.get(ctx).recentEvents(call.argument<Int>("limit") ?: 100) }
+            "recentReboots" -> reply(result) { ProbeDb.get(ctx).recentReboots(call.argument<Int>("limit") ?: 5) }
             else -> result.notImplemented()
         }
     }

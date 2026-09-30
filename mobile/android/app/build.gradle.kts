@@ -35,8 +35,25 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // JSch carga sus algoritmos por nombre (Class.forName): reglas en
+            // proguard-rules.pro para que R8 no los borre ni los renombre.
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+
+    packaging {
+        resources {
+            // Clases de Java 9+ del jar multi-release de JSch: Android no las usa.
+            excludes += setOf("META-INF/versions/**")
+        }
+    }
+}
+
+dependencies {
+    // SSH para reiniciar los routers (contrato §6.2). Fork mantenido de JSch:
+    // todavía acepta ssh-rsa y diffie-hellman-group1/14-sha1 si se habilitan,
+    // que es lo que exige el dropbear viejo del Notion.
+    implementation("com.github.mwiede:jsch:0.2.26")
 }
 
 flutter {

@@ -157,17 +157,41 @@ FACTORY = {
     "/ip/settings": [{"rp-filter": "no", "ip-forward": "true"}],
     "/ipv6/address": [{".id": "*1", "address": "fe80::de2c:6eff:fef7:7fe9/64", "interface": "bridge",
                        "link-local": "true", "dynamic": "true"}],
+    # Firewall de fábrica tal como se leyó en el hAP el 2026-09-29 (contadores omitidos).
+    "/ip/firewall/filter": [
+        {".id": "*D", "chain": "forward", "action": "passthrough", "bytes": "43767534", "dynamic": "true",
+         "comment": "special dummy rule to show fasttrack counters"},
+        {".id": "*1", "chain": "input", "action": "accept", "connection-state": "established,related,untracked",
+         "dynamic": "false", "comment": "defconf: accept established,related,untracked"},
+        {".id": "*2", "chain": "input", "action": "drop", "connection-state": "invalid", "dynamic": "false",
+         "comment": "defconf: drop invalid"},
+        {".id": "*5", "chain": "input", "action": "drop", "in-interface-list": "!LAN", "dynamic": "false",
+         "comment": "defconf: drop all not coming from LAN"},
+        {".id": "*8", "chain": "forward", "action": "fasttrack-connection", "hw-offload": "true",
+         "connection-state": "established,related", "dynamic": "false", "comment": "defconf: fasttrack"},
+        {".id": "*9", "chain": "forward", "action": "accept", "connection-state": "established,related,untracked",
+         "dynamic": "false", "comment": "defconf: accept established,related, untracked"},
+        {".id": "*C", "chain": "forward", "action": "drop", "connection-state": "new",
+         "connection-nat-state": "!dstnat", "in-interface-list": "WAN", "dynamic": "false",
+         "comment": "defconf: drop all from WAN not DSTNATed"}],
+    "/ip/firewall/mangle": [
+        {".id": "*3", "chain": "prerouting", "action": "passthrough", "dynamic": "true",
+         "comment": "special dummy rule to show fasttrack counters"}],
+    "/ip/firewall/raw": [
+        {".id": "*1", "chain": "prerouting", "action": "passthrough", "dynamic": "true",
+         "comment": "special dummy rule to show fasttrack counters"}],
 }
 
 
 class FakeRouter:
     """Implementa `talk()` como Api, sobre menús en memoria."""
 
-    def __init__(self, state):
+    def __init__(self, state, place_before=True):
         self.m = copy.deepcopy(state)
         self.done = {}
         self.next_id = 100
         self.log = []
+        self.place_before = place_before  # False: simula un equipo que rechaza place-before
 
     def talk(self, words):
         path = words[0]
@@ -185,12 +209,21 @@ class FakeRouter:
         if cmd == "add":
             if menu == "/routing/table" and params.get("fib") == "":
                 params["fib"] = ""
+            before = params.pop("place-before", None)
+            if before is not None and not self.place_before:
+                raise ap.ApiError("unknown parameter place-before")
             row = {".id": "*%X" % self.next_id}
             self.next_id += 1
             row.update(params)
             if menu == "/ip/dhcp-client":
                 row.update({"status": "bound", "gateway": "192.168.1.1", "address": "192.168.1.221/24"})
-            items.append(row)
+            if before is not None:
+                idx = next((i for i, r in enumerate(items) if r[".id"] == before), None)
+                if idx is None:
+                    raise ap.ApiError("no such item (place-before)")
+                items.insert(idx, row)
+            else:
+                items.append(row)
             self.done = {"ret": row[".id"]}
             return []
         if cmd == "set":
@@ -234,6 +267,14 @@ class FakeRouter:
 
 def args_for(extra=()):
     return ap.build_parser().parse_args(["--password", "x", "--no-egress-test"] + list(extra))
+
+
+DEPLOYED_WAN_SCRIPT_A = (
+    ':if ($bound=1) do={:local gw ($"gateway-address" . "%" . $interface); :foreach c in={"probe:A-default";'
+    '"probe:main-A"} do={:foreach r in=[/ip route find comment=$c] do={:if ([:tostr [/ip route get $r gateway]] '
+    '!= $gw) do={/ip route set $r gateway=$gw; :log info "probe: $c -> $gw"}}}; :local d ($"gateway-address" . '
+    '"/32"); :foreach r in=[/routing rule find comment="probe:mgmt-A"] do={:if ([:tostr [/routing rule get $r '
+    'dst-address]] != $d) do={/routing rule set $r dst-address=$d; :log info "probe: mgmt-A -> $d"}}}')
 
 
 def quiet(*_a, **_k):
@@ -292,8 +333,21 @@ class PlanTests(unittest.TestCase):
         apply_without_backup(fake, args_for())
         m = fake.m
         rules = [r.get("comment") for r in m["/routing/rule"]]
-        self.assertEqual(rules, ["probe:phone-local", "phone-probe"])
-        probe = m["/routing/rule"][1]
+        self.assertEqual(rules, ap.RULE_ORDER)
+        self.assertEqual(rules, ["probe:phone-local", "probe:mgmt-A", "probe:mgmt-B",
+                                 "probe:health-A", "probe:health-B", "phone-probe"])
+        by = {r["comment"]: r for r in m["/routing/rule"]}
+        self.assertEqual((by["probe:mgmt-A"]["dst-address"], by["probe:mgmt-A"]["table"]),
+                         ("192.168.1.1/32", "to-A"))
+        self.assertEqual((by["probe:mgmt-B"]["dst-address"], by["probe:mgmt-B"]["table"]),
+                         ("192.168.2.1/32", "to-B"))
+        self.assertEqual((by["probe:health-A"]["dst-address"], by["probe:health-A"]["table"]),
+                         ("9.9.9.9/32", "to-A"))
+        self.assertEqual((by["probe:health-B"]["dst-address"], by["probe:health-B"]["table"]),
+                         ("149.112.112.112/32", "to-B"))
+        for c in ap.RULE_ORDER:
+            self.assertEqual(by[c]["action"], "lookup-only-in-table")
+        probe = by["phone-probe"]
         self.assertEqual((probe["table"], probe["action"], probe["src-address"]),
                          ("main", "lookup-only-in-table", "192.168.89.0/24"))
         routes = {r.get("comment"): r for r in m["/ip/route"]}
@@ -308,7 +362,10 @@ class PlanTests(unittest.TestCase):
         self.assertEqual((mg["address"], mg["gateway"], mg["dns-server"]), ("192.168.88.0/24", "", ""))
         user = next(u for u in m["/user"] if u["name"] == "phone-probe")
         self.assertEqual((user["group"], user["address"]), ("probe-api", "192.168.89.0/24"))
-        self.assertIn("api", m["/user/group"][-1]["policy"])
+        self.assertEqual(m["/user/group"][-1]["policy"], "read,write,api,test")
+        # la NAT vieja de fábrica se borra; queda solo el masquerade por WAN
+        self.assertEqual([(n.get("out-interface-list"), n.get("src-address")) for n in m["/ip/firewall/nat"]],
+                         [("WAN", None)])
         # la MAC del bridge se fija ANTES de sacar ether2 (si no, cambia la link-local del PC)
         writes = [(c, menu) for c, menu, _ in fake.log if c != "print"]
         self.assertLess(writes.index(("set", "/interface/bridge")),
@@ -324,14 +381,79 @@ class PlanTests(unittest.TestCase):
             ap.mode_apply(ap.RouterOS(fake), ap.Ctx(args_for(), "apply"), None, quiet)
 
     def test_wrong_rule_order_is_fixed(self):
+        import itertools
+        import random
         fake = FakeRouter(FACTORY)
         apply_without_backup(fake, args_for())
-        rl = fake.m["/routing/rule"]
-        rl.reverse()
-        p, _ = self.plan_for(fake, "verify")
-        self.assertEqual([a.op for _, acts in p for a in acts], ["move"])
+        base = copy.deepcopy(fake.m["/routing/rule"])
+        perms = list(itertools.permutations(range(len(base))))
+        random.Random(7).shuffle(perms)
+        for perm in [tuple(reversed(range(len(base))))] + perms[:60]:
+            fake.m["/routing/rule"] = [copy.deepcopy(base[i]) for i in perm]
+            # una regla ajena en el medio no debe impedir el orden relativo
+            fake.m["/routing/rule"].insert(2, {".id": "*F0", "dst-address": "10.0.0.0/8",
+                                               "action": "lookup", "table": "main", "comment": "otra"})
+            p, ctx = self.plan_for(fake, "verify")
+            ops = [a.op for _, acts in p for a in acts]
+            self.assertEqual(set(ops) - {"move"}, set(), perm)
+            self.assertTrue(any("ajena" in w for w in ctx.warnings))
+            apply_without_backup(fake, args_for())
+            got = [r["comment"] for r in fake.m["/routing/rule"] if r["comment"] in ap.RULE_ORDER]
+            self.assertEqual(got, ap.RULE_ORDER, perm)
+            self.assertEqual(self.plan_for(fake, "verify")[0], [])
+
+    def test_upgrade_from_section3_install_uses_place_before(self):
+        """Estado real al 2026-09-29 (solo §3): las reglas nuevas se crean ya en su lugar, antes de
+        phone-probe, sin /move; y --apply hace el respaldo antes de la primera escritura."""
+        for accepts in (True, False):
+            fake = self.section3_router(accepts)
+            p, _ = self.plan_for(fake)
+            lines = [a.console(True) for _, acts in p for a in acts]
+            probe_id = next(r[".id"] for r in fake.m["/routing/rule"] if r["comment"] == "phone-probe")
+            adds = [l for l in lines if l.startswith("/routing rule add")]
+            self.assertEqual(len(adds), 4, lines)
+            for l in adds:
+                self.assertIn("place-before=" + probe_id, l)
+            self.assertTrue(any(l.startswith("/ip firewall nat remove") for l in lines), lines)
+            self.assertTrue(any("policy=read,write,api,test" in l for l in lines), lines)
+            self.assertEqual(len([l for l in lines if l.startswith("/ip dhcp-client set")]), 2, lines)
+            apply_without_backup(fake, args_for())
+            self.assertEqual([r["comment"] for r in fake.m["/routing/rule"]], ap.RULE_ORDER, accepts)
+            moves = [e for e in fake.log if e[0] == "move"]
+            self.assertEqual(bool(moves), not accepts)  # sin place-before: agrega al final y mueve
+            self.assertEqual(self.plan_for(fake, "verify")[0], [])
+
+    def test_apply_backs_up_before_first_write(self):
+        fake = self.section3_router(True)
+        fake.m["/file"] = [{".id": "*1", "name": "flash", "type": "disk"}]
+        fake.m["/system/resource"] = [{"free-hdd-space": "1601536"}]
+        tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_test_backups")
+        try:
+            ctx = ap.Ctx(args_for(["--skip-download", "--backup-dir", tmp]), "apply")
+            ap.mode_apply(ap.RouterOS(fake), ctx, None, log=quiet)
+        finally:
+            for f in os.listdir(tmp) if os.path.isdir(tmp) else []:
+                os.remove(os.path.join(tmp, f))
+            if os.path.isdir(tmp):
+                os.rmdir(tmp)
+        writes = [(c, menu) for c, menu, _ in fake.log if c != "print"]
+        self.assertEqual(writes[0], ("export", ""))
+        self.assertIn(("save", "/system/backup"), writes)
+        self.assertLess(writes.index(("save", "/system/backup")), writes.index(("remove", "/ip/firewall/nat")))
+
+    def section3_router(self, accepts_place_before):
+        """RouterOS falso con la instalación de §3 ya hecha (como el equipo real antes de §6.1)."""
+        fake = FakeRouter(FACTORY, place_before=accepts_place_before)
         apply_without_backup(fake, args_for())
-        self.assertEqual([r["comment"] for r in fake.m["/routing/rule"]], ["probe:phone-local", "phone-probe"])
+        fake.m["/routing/rule"] = [r for r in fake.m["/routing/rule"]
+                                   if r["comment"] in ("probe:phone-local", "phone-probe")]
+        next(g for g in fake.m["/user/group"] if g["name"] == "probe-api")["policy"] = \
+            "read,write,api,!local,!telnet,!ssh,!ftp,!reboot,!policy,!test"
+        fake.m["/ip/firewall/nat"].insert(0, copy.deepcopy(FACTORY["/ip/firewall/nat"][0]))
+        for c in fake.m["/ip/dhcp-client"]:
+            c["script"] = c["script"].split("; :local d ")[0] + "}"
+        fake.log = []
+        return fake
 
     def test_gateway_follows_dhcp_and_is_kept_when_wan_down(self):
         fake = FakeRouter(FACTORY)
@@ -340,8 +462,11 @@ class PlanTests(unittest.TestCase):
         c["gateway"] = "192.168.10.1"
         p, _ = self.plan_for(fake, "verify")
         sets = [a for _, acts in p for a in acts]
-        self.assertEqual({a.props.get("gateway") for a in sets}, {"192.168.10.1%ether2"})
-        self.assertEqual(len(sets), 2)  # A-default y main-A
+        self.assertEqual({a.props.get("gateway") for a in sets if a.menu == "/ip/route"}, {"192.168.10.1%ether2"})
+        self.assertEqual(len([a for a in sets if a.menu == "/ip/route"]), 2)  # A-default y main-A
+        rule_sets = [a for a in sets if a.menu == "/routing/rule"]
+        self.assertEqual([a.props for a in rule_sets], [{"dst-address": "192.168.10.1/32"}])  # mgmt-A
+        self.assertEqual(len(sets), 3)
         c["status"] = "searching..."
         del c["gateway"]
         p, _ = self.plan_for(fake, "verify")
@@ -445,6 +570,90 @@ class PlanTests(unittest.TestCase):
         ap.egress_test(ap.RouterOS(fake), ctx, log=quiet)
         self.assertTrue(any(ap.TMP_RULE_COMMENT in w for w in ctx.warnings))
 
+    def test_mgmt_dst_without_mask_is_not_a_difference(self):
+        fake = FakeRouter(FACTORY)
+        apply_without_backup(fake, args_for())
+        next(r for r in fake.m["/routing/rule"] if r["comment"] == "probe:mgmt-A")["dst-address"] = "192.168.1.1"
+        self.assertEqual(self.plan_for(fake, "verify")[0], [])
+
+    def test_wan_script_updates_mgmt_rule_only_if_different(self):
+        for slot in ("A", "B"):
+            sc = ap.wan_script(slot)
+            w = ap.WAN[slot]
+            for needle in ('/routing rule find comment="%s"' % w["mgmt"], ':local d ($"gateway-address" . "/32")',
+                           '[:tostr [/routing rule get $r dst-address]] != $d', "dst-address=$d",
+                           '"%s";"%s"' % (w["route"], w["main"])):
+                self.assertIn(needle, sc)
+            other = ap.WAN["B" if slot == "A" else "A"]
+            self.assertNotIn(other["mgmt"], sc)
+            self.assertEqual(sc.count("{"), sc.count("}"))
+        # Texto leído del hAP el 2026-09-29 tras aplicar §6.1: la herramienta no debe reescribirlo.
+        self.assertEqual(ap.wan_script("A"), DEPLOYED_WAN_SCRIPT_A)
+
+    def test_identical_gateways_warn(self):
+        fake = FakeRouter(FACTORY)
+        apply_without_backup(fake, args_for())
+        for c in fake.m["/ip/dhcp-client"]:
+            c.update({"status": "bound", "gateway": "192.168.1.1"})
+        _, ctx = self.plan_for(fake, "verify")
+        self.assertTrue(any("mismo gateway" in w for w in ctx.warnings), ctx.warnings)
+        _, ctx = self.plan_for(FakeRouter(FACTORY))
+        self.assertFalse(any("mismo gateway" in w for w in ctx.warnings), ctx.warnings)
+
+    def test_unreadable_filter_menu_is_not_reported_as_missing_fasttrack(self):
+        fake = FakeRouter(FACTORY)
+        orig = fake.talk
+
+        def talk(words):
+            if words[0] == "/ip/firewall/filter/print":
+                raise ap.ApiError("not enough permissions")
+            return orig(words)
+        fake.talk = talk
+        _, ctx = self.plan_for(fake, "verify")
+        self.assertFalse(ctx.fasttrack_ok)
+        self.assertTrue(any("no se pudo leer" in w for w in ctx.warnings if w.startswith("Fasttrack")),
+                        ctx.warnings)
+
+    def test_only_stale_nat_is_removed_and_foreign_rules_warn(self):
+        state = copy.deepcopy(FACTORY)
+        state["/ip/firewall/nat"].append({".id": "*9", "chain": "dstnat", "action": "dst-nat",
+                                          "to-addresses": "192.168.89.10", "dynamic": "false"})
+        state["/ip/firewall/mangle"].append({".id": "*7", "chain": "prerouting", "action": "mark-routing",
+                                             "new-routing-mark": "to-A", "dynamic": "false"})
+        state["/ip/firewall/filter"].append({".id": "*E", "chain": "forward", "action": "drop",
+                                             "dst-address": "8.8.8.8", "dynamic": "false"})
+        p, ctx = self.plan_for(FakeRouter(state))
+        removes = [a for _, acts in p for a in acts if a.op == "remove" and a.menu == "/ip/firewall/nat"]
+        self.assertEqual([a.id for a in removes], ["*2"])
+        for needle in ("ip firewall nat: .id=*9", "ip firewall mangle: .id=*7", "ip firewall filter: .id=*E"):
+            self.assertTrue(any(needle in w for w in ctx.warnings), (needle, ctx.warnings))
+        self.assertTrue(ctx.fasttrack_ok)
+        # ni las reglas defconf ni las dinámicas (contadores del fasttrack) cuentan como ajenas
+        p, ctx = self.plan_for(FakeRouter(FACTORY))
+        self.assertFalse(any("ajena" in w for w in ctx.warnings), ctx.warnings)
+
+    def test_fasttrack_checks(self):
+        cases = [(None, "no hay regla fasttrack"), ({"disabled": "true"}, "deshabilitada"),
+                 ({"hw-offload": "false"}, "hw-offload"), ({}, None)]
+        for change, needle in cases:
+            state = copy.deepcopy(FACTORY)
+            ft = next(r for r in state["/ip/firewall/filter"] if r.get("comment") == "defconf: fasttrack")
+            if change is None:
+                state["/ip/firewall/filter"].remove(ft)
+            else:
+                ft.update(change)
+            fake = FakeRouter(state)
+            apply_without_backup(fake, args_for())
+            ctx = ap.Ctx(args_for(), "verify")
+            out = []
+            rc = ap.mode_verify(ap.RouterOS(fake), ctx, log=out.append)
+            self.assertEqual(ctx.fasttrack_ok, needle is None, change)
+            self.assertEqual(rc, 0 if needle is None else 1, (change, out))
+            if needle:
+                self.assertTrue(any(needle in w for w in ctx.warnings), ctx.warnings)
+            # el firewall nunca se toca
+            self.assertEqual([e for e in fake.log if e[0] != "print" and "firewall/filter" in e[1]], [])
+
     def test_forbids_api_address_without_link_local(self):
         with self.assertRaises(SystemExit):
             ap.validate_args(args_for(["--api-address", "192.168.88.0/24"]))
@@ -492,7 +701,11 @@ class RscTests(unittest.TestCase):
         self.assertFalse(in_str)
         self.assertEqual((depth_b, depth_s), (0, 0))
         for needle in ('comment="phone-probe"', 'comment="probe:phone-local"', "table=main",
-                       "fe80::/10", "probe-rule-watchdog", '\\$\\"gateway-address\\"', "admin-mac="):
+                       "fe80::/10", "probe-rule-watchdog", '\\$\\"gateway-address\\"', "admin-mac=",
+                       'comment="probe:mgmt-A" place-before=[find where comment="phone-probe"]',
+                       "dst-address=149.112.112.112/32 action=lookup-only-in-table table=to-B",
+                       "policy=read,write,api,test", 'src-address="192.168.1.0/24" and out-interface="ether1"',
+                       'fasttrack-connection', '/routing rule find comment=\\"probe:mgmt-B\\"'):
             self.assertIn(needle, rsc)
         self.assertNotIn("\t", rsc)
 

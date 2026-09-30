@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Configura el MikroTik hAP ac2 (RouterOS 7.6) como sonda A/B del celular por cable.
 
-Implementa la sección 3 de server/docs/CONTRATO-SONDA-AB.md ("forma A" de
+Implementa las secciones 3 y 6.1 de server/docs/CONTRATO-SONDA-AB.md ("forma A" de
 PLAN-SONDA-AB.md). Solo biblioteca estándar de Python (corre en el Python de Windows,
 porque WSL no alcanza direcciones IPv6 link-local).
 
@@ -80,18 +80,33 @@ WATCHDOG_NAME = "probe-rule-watchdog"
 # con policy+test sí. Probado en el equipo el 2026-09-29.
 WATCHDOG_POLICY = "read,write,policy,test"
 API_GROUP = "probe-api"
+# `test` es necesario para /ping por la API (salud por router del celular, contrato §6.1).
+API_GROUP_POLICY = "read,write,api,test"
 API_USER = "phone-probe"
 API_ADDRESS_DEFAULT = "192.168.88.0/24,192.168.89.0/24,fe80::/10"
 
 # Slot A = ether2 (Notion 5G), slot B = ether1 (Notion 4G). Ver "Hallazgos" del contrato.
+# mgmt: regla dst=<gateway>/32 (SSH del celular al router, contrato §6.1); health: regla
+# dst=<IP de salud>/32 que siempre sale por ese router (ping de salud del celular).
 WAN = {
     "A": {"iface": "ether2", "table": "to-A", "default_gw": "192.168.1.1",
           "route": "probe:A-default", "main": "probe:main-A", "main_distance": "1",
-          "comment": "probe:wan-A", "egress_ip": "1.0.0.1"},
+          "comment": "probe:wan-A", "egress_ip": "1.0.0.1",
+          "mgmt": "probe:mgmt-A", "health": "probe:health-A", "health_ip": "9.9.9.9"},
     "B": {"iface": "ether1", "table": "to-B", "default_gw": "192.168.2.1",
           "route": "probe:B-default", "main": "probe:main-B", "main_distance": "2",
-          "comment": "probe:wan-B", "egress_ip": "1.1.1.1"},
+          "comment": "probe:wan-B", "egress_ip": "1.1.1.1",
+          "mgmt": "probe:mgmt-B", "health": "probe:health-B", "health_ip": "149.112.112.112"},
 }
+
+# Orden obligatorio de las reglas de ruteo de la sonda (contrato §6.1). Todas terminan la
+# búsqueda (lookup-only-in-table), así que las de gestión y salud deben ir antes de phone-probe.
+RULE_ORDER = [RULE_LOCAL_COMMENT, WAN["A"]["mgmt"], WAN["B"]["mgmt"],
+              WAN["A"]["health"], WAN["B"]["health"], RULE_COMMENT]
+
+# Firewall: reglas mínimas, fasttrack de fábrica habilitado (contrato §6.1).
+FASTTRACK_COMMENT = "defconf: fasttrack"
+FASTTRACK_DUMMY = "special dummy rule to show fasttrack counters"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PASSWORD_FILE = os.path.join(BASE_DIR, "phone-probe-password.txt")
@@ -104,12 +119,22 @@ PASSWORD = object()  # marcador: la contraseña de phone-probe se resuelve al ej
 
 
 def wan_script(slot):
-    """Script del DHCP client de cada WAN (contrato §3.2): corrige el gateway de sus dos rutas."""
+    """Script del DHCP client de cada WAN (contrato §3.2 y §6.1): corrige el gateway de sus dos
+    rutas y el dst-address de su regla probe:mgmt-<slot>, cada cosa solo si difiere (así no escribe
+    la flash en cada renovación). En 7.6 la regla muestra el /32 con la máscara (leído en el equipo
+    el 2026-09-29). El texto es el mismo que ya quedó aplicado en el hAP ese día: cambiarlo haría
+    un `set script=` (escritura en la flash) sin ganar nada."""
     w = WAN[slot]
     return (':if ($bound=1) do={:local gw ($"gateway-address" . "%" . $interface); '
             ':foreach c in={"ROUTE";"MAIN"} do={:foreach r in=[/ip route find comment=$c] do={'
             ':if ([:tostr [/ip route get $r gateway]] != $gw) do={/ip route set $r gateway=$gw; '
-            ':log info "probe: $c -> $gw"}}}}').replace("ROUTE", w["route"]).replace("MAIN", w["main"])
+            ':log info "probe: $c -> $gw"}}}; '
+            ':local d ($"gateway-address" . "/32"); '
+            ':foreach r in=[/routing rule find comment="MGMT"] do={'
+            ':if ([:tostr [/routing rule get $r dst-address]] != $d) do={/routing rule set $r dst-address=$d; '
+            ':log info "probe: SHORT -> $d"}}}'
+            ).replace("ROUTE", w["route"]).replace("MAIN", w["main"]).replace("MGMT", w["mgmt"]) \
+        .replace("SHORT", w["mgmt"].split(":", 1)[1])
 
 
 def watchdog_script(minutes, user=API_USER):
@@ -337,6 +362,8 @@ FLAG_PROPS = {"disabled", "dynamic", "inactive", "invalid"}
 LIST_PROPS = {"servers", "dns-server", "address", "ranges"}
 POLICY_PROPS = {"policy"}
 SCRIPT_PROPS = {"script", "on-event"}
+# RouterOS puede devolver un /32 sin la máscara ("192.168.1.1"): se comparan como redes.
+NET_PROPS = {"dst-address", "src-address"}
 
 
 def norm(v):
@@ -366,6 +393,11 @@ def same(key, have, want):
         return split_list(have) == split_list(want)
     if key in SCRIPT_PROPS:
         return " ".join(str(have).split()) == " ".join(str(want).split())
+    if key in NET_PROPS and have and want:
+        try:
+            return ipaddress.ip_network(have, strict=False) == ipaddress.ip_network(want, strict=False)
+        except ValueError:
+            pass
     return norm(have) == norm(want)
 
 
@@ -464,6 +496,7 @@ class Ctx:
         self.phone_password = None
         self.password_generated = False
         self.password_saved = False
+        self.fasttrack_ok = True
 
     def warn(self, msg):
         if msg not in self.warnings:
@@ -664,59 +697,136 @@ def phase_routes(st, ctx):
     return acts
 
 
+def rule_by(rl, comment):
+    return first([r for r in rl if r.get("comment") == comment])
+
+
+def place_before(rl, comment):
+    """.id de la primera regla que ya existe y va después de `comment` en RULE_ORDER (para crear la
+    regla ya en su lugar con place-before), o None si ninguna existe (se agrega al final)."""
+    for c in RULE_ORDER[RULE_ORDER.index(comment) + 1:]:
+        r = rule_by(rl, c)
+        if r is not None:
+            return r.get(".id")
+    return None
+
+
+def mgmt_dst(st, ctx, slot, existing):
+    """dst-address de probe:mgmt-<slot>: el gateway del DHCP client del WAN (/32), o --gw-x, o el
+    que ya tiene la regla si el WAN está caído (el script WAN lo corrige al volver), o el por
+    defecto del parámetro."""
+    w = WAN[slot]
+    gw, bound = wan_gateway(st, ctx, slot)
+    forced = getattr(ctx.args, "gw_" + slot.lower())
+    if bound:
+        return gw + "/32"
+    if forced:
+        return forced + "/32"
+    if existing is not None and existing.get("dst-address"):
+        return existing["dst-address"]
+    ctx.warn("%s (%s) no está bound: la regla %s se crea con %s/32 por defecto; el script WAN la "
+             "corrige en la primera concesión (o usa --gw-%s)."
+             % (w["iface"], slot, w["mgmt"], w["default_gw"], slot.lower()))
+    return w["default_gw"] + "/32"
+
+
 def phase_rules(st, ctx):
     rl = st.get("/routing/rule", [])
     acts = []
     for r in rl:
         if r.get("comment") == TMP_RULE_COMMENT:
             acts.append(Action("remove", "/routing/rule", r.get(".id"), {}, "regla temporal olvidada"))
-    probe = [r for r in rl if r.get("comment") == RULE_COMMENT]
-    if len(probe) > 1:
-        ctx.warn("Hay %d reglas con comment=%s; el celular exige exactamente una. Borra las sobrantes "
-                 "a mano." % (len(probe), RULE_COMMENT))
-    acts += ensure("/routing/rule", first([r for r in rl if r.get("comment") == RULE_LOCAL_COMMENT]),
-                   {"dst-address": PHONE_NET, "action": "lookup-only-in-table", "table": "main",
-                    "disabled": "no", "comment": RULE_LOCAL_COMMENT}, "regla local del celular")
+    for c in RULE_ORDER:
+        n = len([r for r in rl if r.get("comment") == c])
+        if n > 1:
+            ctx.warn("Hay %d reglas con comment=%s (se espera una; el celular exige exactamente una "
+                     "phone-probe). Borra las sobrantes a mano." % (n, c))
+    for r in static(rl):
+        if r.get("comment") not in RULE_ORDER and r.get("comment") != TMP_RULE_COMMENT:
+            ctx.warn("Regla de ruteo ajena (%s): puede desviar el tráfico del celular o del propio "
+                     "MikroTik; revísala (no se borra)." % pick(r, (".id", "src-address", "dst-address",
+                                                                   "action", "table", "comment")))
+    specs = [(RULE_LOCAL_COMMENT, {"dst-address": PHONE_NET, "table": "main"}, None, "regla local del celular")]
+    dsts = {}
+    for slot in ("A", "B"):
+        w = WAN[slot]
+        # Camino segregado para el SSH del celular al router (contrato §6.1): va por la tabla del
+        # propio router, no por main (ver "Desviaciones §6" del contrato).
+        dsts[slot] = mgmt_dst(st, ctx, slot, rule_by(rl, w["mgmt"]))
+        specs.append((w["mgmt"], {"dst-address": dsts[slot], "table": w["table"]}, None,
+                      "gestión de %s (SSH)" % slot))
+    if same("dst-address", dsts["A"], dsts["B"]):
+        ctx.warn("A y B tienen el mismo gateway (%s): %s y %s quedan con el mismo dst-address, gana "
+                 "%s y el SSH/ping al router B no es posible (iría a A). Cambia la LAN de uno de los "
+                 "routers (p. ej. a 192.168.10.1/24) y vuelve a correr la herramienta."
+                 % (dsts["A"], WAN["A"]["mgmt"], WAN["B"]["mgmt"], WAN["A"]["mgmt"]))
+    for slot in ("A", "B"):
+        w = WAN[slot]
+        specs.append((w["health"], {"dst-address": w["health_ip"] + "/32", "table": w["table"]}, None,
+                      "salud de %s" % slot))
     # En phone-probe NO se compara `table` (la mueve el celular); solo se pone main al crearla.
-    acts += ensure("/routing/rule", first(probe),
-                   {"src-address": PHONE_NET, "action": "lookup-only-in-table", "disabled": "no",
-                    "comment": RULE_COMMENT}, "regla phone-probe", create_extra={"table": "main"})
+    specs.append((RULE_COMMENT, {"src-address": PHONE_NET}, {"table": "main"}, "regla phone-probe"))
+    for comment, props, create_extra, label in specs:
+        want = dict(props)
+        want.update({"action": "lookup-only-in-table", "disabled": "no", "comment": comment})
+        row = rule_by(rl, comment)
+        extra = dict(create_extra or {})
+        if row is None:
+            pb = place_before(rl, comment)
+            if pb:
+                extra["place-before"] = pb
+        acts += ensure("/routing/rule", row, want, label, create_extra=extra)
     return acts
 
 
 def phase_rules_order(st, ctx):
+    """Mueve las reglas de la sonda hasta que queden en el orden de RULE_ORDER. Se recorre de atrás
+    hacia adelante: si una regla está después de la siguiente que existe, va justo antes de ella."""
     rl = st.get("/routing/rule", [])
-    ids = [r.get("comment") for r in rl]
-    has_local = RULE_LOCAL_COMMENT in ids
-    has_probe = RULE_COMMENT in ids
-    if has_local and has_probe:
-        li, pi = ids.index(RULE_LOCAL_COMMENT), ids.index(RULE_COMMENT)
-        if li > pi:
-            return [Action("move", "/routing/rule", rl[li].get(".id"),
-                           {"destination": rl[pi].get(".id")}, "orden de reglas",
-                           note="probe:phone-local debe ir antes de phone-probe")]
-    elif has_probe and not has_local and ctx.mode != "apply":
-        return [Action("move", "/routing/rule", "<probe:phone-local nueva>",
-                       {"destination": first([r for r in rl if r.get("comment") == RULE_COMMENT]).get(".id")},
-                       "orden de reglas", note="la regla nueva se crea al final y hay que subirla")]
-    return []
+    present = [c for c in RULE_ORDER if rule_by(rl, c) is not None]
+    id_of = {c: rule_by(rl, c).get(".id") for c in present}
+    sim = [r.get(".id") for r in rl]
+    acts = []
+    for i in range(len(present) - 2, -1, -1):
+        c, nxt = present[i], present[i + 1]
+        if sim.index(id_of[c]) > sim.index(id_of[nxt]):
+            acts.append(Action("move", "/routing/rule", id_of[c], {"destination": id_of[nxt]},
+                               "orden de reglas", note="%s debe ir antes de %s" % (c, nxt)))
+            sim.remove(id_of[c])
+            sim.insert(sim.index(id_of[nxt]), id_of[c])
+    return acts
 
 
 def phase_nat(st, ctx):
-    ok = [n for n in st.get("/ip/firewall/nat", [])
+    nat = st.get("/ip/firewall/nat", [])
+    acts = []
+    # Regla vieja de fábrica (masquerade de la LAN 192.168.1.0/24 por ether1): ya no aplica desde que
+    # la administración pasó a 192.168.88.0/24; se borra para dejar reglas mínimas (contrato §6.1).
+    for n in static(nat):
+        if is_stale_nat(n):
+            acts.append(Action("remove", "/ip/firewall/nat", n.get(".id"), {}, "NAT vieja de fábrica",
+                               note="masquerade src-address=%s out-interface=%s"
+                               % (n.get("src-address"), n.get("out-interface"))))
+    ok = [n for n in nat
           if n.get("chain") == "srcnat" and n.get("action") == "masquerade"
           and n.get("out-interface-list") == "WAN" and not n.get("src-address")
           and not is_true(n.get("disabled"))]
-    if ok:
-        return []
-    return [Action("add", "/ip/firewall/nat", None,
-                   {"chain": "srcnat", "action": "masquerade", "out-interface-list": "WAN",
-                    "comment": "probe:masq"}, "NAT")]
+    if not ok:
+        acts.append(Action("add", "/ip/firewall/nat", None,
+                           {"chain": "srcnat", "action": "masquerade", "out-interface-list": "WAN",
+                            "comment": "probe:masq"}, "NAT"))
+    return acts
+
+
+def is_stale_nat(n):
+    return (n.get("chain") == "srcnat" and n.get("action") == "masquerade"
+            and n.get("src-address") == OLD_MGMT_NET and n.get("out-interface") == WAN["B"]["iface"]
+            and not str(n.get("comment", "")).startswith("probe:"))
 
 
 def phase_users(st, ctx):
     acts = ensure("/user/group", first(rows(st, "/user/group", name=API_GROUP)),
-                  {"name": API_GROUP, "policy": "read,write,api", "comment": "probe:api-group"},
+                  {"name": API_GROUP, "policy": API_GROUP_POLICY, "comment": "probe:api-group"},
                   "grupo de la API")
     u = first(rows(st, "/user", name=API_USER))
     acts += ensure("/user", u, {"name": API_USER, "group": API_GROUP, "address": PHONE_NET,
@@ -778,6 +888,61 @@ def phase_checks(st, ctx):
     return acts
 
 
+def fasttrack_problems(st):
+    """Lista de problemas del fasttrack de fábrica (vacía = bien)."""
+    if "/ip/firewall/filter" in st.get(UNREAD, ()):
+        return ["no se pudo leer /ip firewall filter (¿permisos del usuario?): no sé si está"]
+    ft = [r for r in static(st.get("/ip/firewall/filter", []))
+          if r.get("action") == "fasttrack-connection"]
+    if not ft:
+        return ["no hay regla fasttrack-connection ('%s') en /ip firewall filter" % FASTTRACK_COMMENT]
+    on = [r for r in ft if not is_true(r.get("disabled"))]
+    if not on:
+        return ["la regla fasttrack (%s) está deshabilitada" % ft[0].get(".id")]
+    out = []
+    r = on[0]
+    if not is_true(r.get("hw-offload")):
+        out.append("la regla fasttrack (%s) no tiene hw-offload=yes" % r.get(".id"))
+    if r.get("chain") != "forward":
+        out.append("la regla fasttrack (%s) está en chain=%s, no en forward" % (r.get(".id"), r.get("chain")))
+    return out
+
+
+def foreign_firewall_rules(st):
+    """[(menú, fila)] de reglas estáticas de firewall que no son de fábrica ni de la sonda."""
+    out = []
+    for menu in ("/ip/firewall/filter", "/ip/firewall/mangle", "/ip/firewall/raw", "/ip/firewall/nat"):
+        for r in static(st.get(menu, [])):
+            c = str(r.get("comment", ""))
+            if c.startswith("defconf") or c.startswith("probe:"):
+                continue
+            if menu == "/ip/firewall/nat" and is_stale_nat(r):
+                continue  # la borra phase_nat
+            if menu == "/ip/firewall/nat" and r.get("chain") == "srcnat" and r.get("action") == "masquerade" \
+                    and r.get("out-interface-list") == "WAN" and not r.get("src-address"):
+                continue  # el masquerade por WAN que la sonda reutiliza
+            out.append((menu, r))
+    return out
+
+
+def phase_firewall(st, ctx):
+    """Solo avisa (contrato §6.1): fasttrack presente, habilitado y con hw-offload, y sin reglas de
+    firewall/mangle ajenas. No borra ni cambia nada del firewall."""
+    probs = fasttrack_problems(st)
+    ctx.fasttrack_ok = not probs
+    for p in probs:
+        ctx.warn("Fasttrack: %s. Sin fasttrack todo el tráfico pasa por la CPU del hAP (baja la "
+                 "velocidad medida y se pueden cortar las sesiones SSH/API). Revísalo en WinBox "
+                 "(no se cambia solo)." % p)
+    for menu, r in foreign_firewall_rules(st):
+        ctx.warn("Regla ajena en /%s: %s. La sonda pide reglas mínimas (una regla de mangle o de "
+                 "filtro puede desactivar el fasttrack o desviar el tráfico); revísala (no se borra)."
+                 % (" ".join(p for p in menu.split("/") if p),
+                    pick(r, (".id", "chain", "action", "src-address", "dst-address", "in-interface",
+                             "out-interface", "new-routing-mark", "comment", "disabled"))))
+    return []
+
+
 PHASES = [
     ("MAC del bridge", phase_bridge_mac),
     ("tablas", phase_tables),
@@ -790,6 +955,7 @@ PHASES = [
     ("reglas", phase_rules),
     ("orden de reglas", phase_rules_order),
     ("NAT", phase_nat),
+    ("firewall (solo avisos)", phase_firewall),
     ("grupo y usuario", phase_users),
     ("vigilante", phase_watchdog),
     ("servicio API", phase_service),
@@ -802,11 +968,13 @@ MENUS = [
     "/ip/address", "/ip/pool", "/ip/dhcp-server", "/ip/dhcp-server/network", "/ip/dhcp-client",
     "/ip/route", "/routing/rule", "/ip/firewall/nat", "/user/group", "/user", "/system/scheduler",
     "/ip/service", "/ip/dns", "/system/ntp/client", "/system/clock", "/system/identity",
-    "/ip/settings", "/ipv6/address",
+    "/ip/settings", "/ipv6/address", "/ip/firewall/filter", "/ip/firewall/mangle", "/ip/firewall/raw",
 ]
 
 
-OPTIONAL_MENUS = {"/ipv6/address", "/ip/settings"}  # solo se usan para avisos
+OPTIONAL_MENUS = {"/ipv6/address", "/ip/settings", "/ip/firewall/filter", "/ip/firewall/mangle",
+                  "/ip/firewall/raw"}  # solo se usan para avisos
+UNREAD = "_unread"  # clave del estado: menús que no se pudieron leer (se trataron como vacíos)
 
 
 def read_state(ros, ctx=None):
@@ -820,6 +988,7 @@ def read_state(ros, ctx=None):
             if ctx is not None and ctx.mode == "apply" and m not in OPTIONAL_MENUS:
                 raise ApiError("no se pudo leer %s (%s): no aplico sobre un estado incompleto" % (m, e))
             st[m] = []
+            st.setdefault(UNREAD, []).append(m)  # lista: el estado va al volcado JSON
             if ctx is not None:
                 ctx.warn("No se pudo leer %s: %s" % (m, e))
     return st
@@ -870,9 +1039,15 @@ def execute(ros, act, ctx, log=print):
     if act.op == "add":
         try:
             ros.add(act.menu, props)
-        except ApiError:
+        except ApiError as e:
             if act.menu == "/routing/table" and props.get("fib") == "":
                 props["fib"] = "yes"
+                ros.add(act.menu, props)
+            elif "place-before" in props:
+                # Si el equipo no acepta place-before, se agrega al final y la fase "orden de
+                # reglas" la sube con /routing/rule/move.
+                log("    (place-before rechazado: %s; se agrega al final y se reordena)" % e)
+                del props["place-before"]
                 ros.add(act.menu, props)
             else:
                 raise
@@ -1160,6 +1335,17 @@ def report(ros, ctx, log=print):
     if ntp:
         log("  ntp " + pick(ntp, ("enabled", "status", "synced-server", "system-offset")))
 
+    ft = [r for r in ros.print("/ip/firewall/filter") if r.get("action") == "fasttrack-connection"
+          and not is_true(r.get("dynamic"))]
+    dummy = first([r for r in ros.print("/ip/firewall/filter")
+                   if is_true(r.get("dynamic")) and r.get("comment") == FASTTRACK_DUMMY])
+    for r in ft:
+        log("  fasttrack " + pick(r, (".id", "chain", "hw-offload", "connection-state", "disabled", "comment")))
+    if not ft:
+        log("  fasttrack: NO HAY regla fasttrack-connection")
+    if dummy is not None:
+        log("  fasttrack: %.1f MB acelerados desde el arranque" % (int(dummy.get("bytes", "0") or 0) / 1e6))
+
     log("== pruebas")
     main_routes = {r.get("comment"): r for r in ros.print("/ip/route", {"dst-address": "0.0.0.0/0"})}
     for slot in ("A", "B"):
@@ -1181,6 +1367,7 @@ def report(ros, ctx, log=print):
                          "router encendido, prueba --check-gateway arp." % slot)
         except ApiError as e:
             log("  ping gateway %s: error %s" % (slot, e))
+    health_test(ros, ctx, log)
     if not ctx.args.no_egress_test:
         egress_test(ros, ctx, log)
     wr = windows_default_route(ctx.args.host)
@@ -1188,6 +1375,23 @@ def report(ros, ctx, log=print):
         ctx.warn("El adaptador del PC hacia el MikroTik tiene puerta de enlace %s: el PC podría salir "
                  "a Internet por los routers bajo prueba. Corre 'ipconfig /renew' en ese adaptador "
                  "(la red de administración ya no entrega gateway) o sube su métrica." % ", ".join(wr))
+
+
+def health_test(ros, ctx, log=print):
+    """Ping de salud por router (contrato §6.1): las reglas probe:health-<slot> lo mandan siempre por
+    su router. Es lo mismo que hace el celular en reposo (3 paquetes por router)."""
+    for slot in ("A", "B"):
+        w = WAN[slot]
+        if not ros.print("/routing/rule", {"comment": w["health"]}):
+            log("  salud %s: falta la regla %s" % (slot, w["health"]))
+            continue
+        try:
+            rr = ros.run("/ping", {"address": w["health_ip"], "count": "3"})
+            last = rr[-1] if rr else {}
+            log("  salud %s (%s por %s): recibidos %s/%s, promedio %s" % (
+                slot, w["health_ip"], w["table"], last.get("received"), last.get("sent"), last.get("avg-rtt")))
+        except ApiError as e:
+            log("  salud %s: error %s" % (slot, e))
 
 
 def egress_test(ros, ctx, log=print):
@@ -1293,7 +1497,7 @@ def emit_rsc(args):
     L = [
         "# probe-ab.rsc - sonda A/B del celular por cable (hAP ac2, RouterOS 7.6)",
         "# GENERADO por: python apply_probe.py --emit-rsc   (no editar a mano; regenerar)",
-        "# Contrato: server/docs/CONTRATO-SONDA-AB.md, seccion 3.",
+        "# Contrato: server/docs/CONTRATO-SONDA-AB.md, secciones 3 y 6.1.",
         "#",
         "# Lo recomendado es apply_probe.py --apply (hace respaldo, compara y solo cambia lo que",
         "# difiere). Este script es la alternativa manual e idempotente (se puede correr varias",
@@ -1305,8 +1509,9 @@ def emit_rsc(args):
         "# sube el archivo a Files y corre  /import file-name=probe-ab.rsc   (o pegalo en la",
         "# terminal de WinBox). Todo va en un solo bloque { }: si algo falla, se detiene.",
         "#",
-        "# Diferencias con apply_probe.py: no compara (siempre hace set); la regla NAT se busca",
-        "# sin mirar src-address; no hace las verificaciones finales (usa --verify).",
+        "# Diferencias con apply_probe.py: no compara (siempre hace set y mueve las reglas); la",
+        "# regla NAT se busca sin mirar src-address; no avisa de reglas de firewall ajenas ni hace",
+        "# las verificaciones finales (usa --verify).",
         "",
         "{",
         ':local phonePass "CAMBIAR-ESTA-CLAVE"',
@@ -1397,27 +1602,44 @@ def emit_rsc(args):
               '/ip route set [:pick $x 0] %s; :if ($%s) do={/ip route set [:pick $x 0] gateway=%s}}'
               % (base, gwexpr, comment, base, bvar, gwexpr),
               "}"]
-    L.append(':put "sonda A/B: 9/14 reglas de ruteo"')
+    L.append(':put "sonda A/B: 9/14 reglas de ruteo (celular, gestion y salud por router)"')
     L += rsc_ensure("/routing rule", ['comment="%s"' % RULE_LOCAL_COMMENT],
                     {"dst-address": PHONE_NET, "action": "lookup-only-in-table", "table": "main",
                      "disabled": "no", "comment": RULE_LOCAL_COMMENT})
     L += rsc_ensure("/routing rule", ['comment="%s"' % RULE_COMMENT],
                     {"src-address": PHONE_NET, "action": "lookup-only-in-table", "disabled": "no",
                      "comment": RULE_COMMENT}, create={"table": "main"})
-    L += ["{", ":local seenProbe false", ":local wrong false",
-          ':foreach r in=[/routing rule find] do={:local c [/routing rule get $r comment]; '
-          ':if ($c = "%s") do={:set seenProbe true}; :if (($c = "%s") && $seenProbe) do={:set wrong true}}'
-          % (RULE_COMMENT, RULE_LOCAL_COMMENT),
-          ':if ($wrong) do={/routing rule move [find where comment="%s"] destination=[find where comment="%s"]}'
-          % (RULE_LOCAL_COMMENT, RULE_COMMENT),
-          "}"]
-    L.append(':put "sonda A/B: 10/14 NAT"')
+    for slot, var, bvar in (("A", "gwA", "boundA"), ("B", "gwB", "boundB")):
+        w = WAN[slot]
+        base = "action=lookup-only-in-table table=%s disabled=no" % w["table"]
+        L += ["{",
+              ':local x [/routing rule find where comment="%s"]' % w["mgmt"],
+              ':local d ($%s . "/32")' % var,
+              ':if ([:len $x] = 0) do={/routing rule add dst-address=$d %s comment="%s" '
+              'place-before=[find where comment="%s"]} else={/routing rule set [:pick $x 0] %s; '
+              ':if ($%s) do={/routing rule set [:pick $x 0] dst-address=$d}}'
+              % (base, w["mgmt"], RULE_COMMENT, base, bvar),
+              "}"]
+    for slot in ("A", "B"):
+        w = WAN[slot]
+        base = "dst-address=%s/32 action=lookup-only-in-table table=%s disabled=no" % (w["health_ip"], w["table"])
+        L += ["{",
+              ':local x [/routing rule find where comment="%s"]' % w["health"],
+              ':if ([:len $x] = 0) do={/routing rule add %s comment="%s" place-before=[find where comment="%s"]} '
+              'else={/routing rule set [:pick $x 0] %s}' % (base, w["health"], RULE_COMMENT, base),
+              "}"]
+    # Orden final: cada una justo antes de phone-probe, en el orden del contrato (§6.1).
+    L.append(':foreach c in={%s} do={/routing rule move [find where comment=$c] destination=[find where comment="%s"]}'
+             % (";".join('"%s"' % c for c in RULE_ORDER[:-1]), RULE_COMMENT))
+    L.append(':put "sonda A/B: 10/14 NAT (y borrar la vieja de fabrica)"')
     L.append(':if ([:len [/ip firewall nat find where chain="srcnat" and action="masquerade" and '
              'out-interface-list="WAN"]] = 0) do={/ip firewall nat add chain=srcnat action=masquerade '
              'out-interface-list=WAN comment="probe:masq"}')
+    L.append('/ip firewall nat remove [find where chain="srcnat" and action="masquerade" and '
+             'src-address="%s" and out-interface="%s" and dynamic=no]' % (OLD_MGMT_NET, WAN["B"]["iface"]))
     L.append(':put "sonda A/B: 11/14 grupo y usuario del celular"')
     L += rsc_ensure("/user group", ['name="%s"' % API_GROUP],
-                    {"name": API_GROUP, "policy": "read,write,api", "comment": "probe:api-group"})
+                    {"name": API_GROUP, "policy": API_GROUP_POLICY, "comment": "probe:api-group"})
     L += ["{",
           ':local x [/user find where name="%s"]' % API_USER,
           ':if ([:len $x] = 0) do={/user add name=%s group=%s address=%s password=$phonePass comment="probe:phone-user"} '
@@ -1437,6 +1659,9 @@ def emit_rsc(args):
     L.append("/system clock set time-zone-name=%s" % TIME_ZONE)
     L.append("/system identity set name=%s" % IDENTITY)
     L.append(':if ([/ip settings get rp-filter] != "no") do={:put "AVISO: /ip settings rp-filter no es no"}')
+    L.append(':if ([:len [/ip firewall filter find where action="fasttrack-connection" and disabled=no and '
+             'hw-offload=yes]] = 0) do={:put "AVISO: no hay fasttrack habilitado con hw-offload (%s)"}'
+             % FASTTRACK_COMMENT)
     L.append(':put "sonda A/B: listo. Verifica con apply_probe.py --verify"')
     L.append("}")
     return "\n".join(L) + "\n"
@@ -1494,7 +1719,9 @@ def mode_verify(ros, ctx, log=print):
         log("Configuración: coincide con el contrato.")
     report(ros, ctx, log)
     print_warnings(ctx, log)
-    return 1 if n else 0
+    if not ctx.fasttrack_ok:
+        log("Fasttrack con problemas (ver AVISO arriba).")
+    return 1 if n or not ctx.fasttrack_ok else 0
 
 
 def mode_apply(ros, ctx, connect, log=print):
@@ -1547,7 +1774,7 @@ def mode_switch(ros, ctx, target, log=print):
 
 def build_parser():
     p = argparse.ArgumentParser(
-        description="Configura el hAP ac2 como sonda A/B (contrato §3). Por defecto: dry-run.",
+        description="Configura el hAP ac2 como sonda A/B (contrato §3 y §6.1). Por defecto: dry-run.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Volver atrás: /system backup load name=flash/pre-probe-<fecha>.backup (reinicia el equipo).")
     m = p.add_mutually_exclusive_group()

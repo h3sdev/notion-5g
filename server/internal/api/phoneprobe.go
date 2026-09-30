@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/netip"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -234,6 +235,9 @@ func (s *Server) handleCancelOrders(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/v1/probes/{probe_id}/orders/{order_id}/state — cambios de estado
 // sin resultado: {"status":"running","at":"...","result_id":"...","error":null}.
+// Una orden reboot_router (§6) además acepta "step" (progreso) y se cierra por
+// acá: {"status":"done","result":{"ssh_ok":true,...}} o
+// {"status":"failed","error":"ssh-auth","result":{...}}.
 func (s *Server) handleOrderState(w http.ResponseWriter, r *http.Request) {
 	probeID, orderID := r.PathValue("probe_id"), r.PathValue("order_id")
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -247,10 +251,12 @@ func (s *Server) handleOrderState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Status   string  `json:"status"`
-		At       *string `json:"at"`
-		ResultID *string `json:"result_id"`
-		Error    *string `json:"error"`
+		Status   string          `json:"status"`
+		At       *string         `json:"at"`
+		ResultID *string         `json:"result_id"`
+		Error    *string         `json:"error"`
+		Step     *string         `json:"step"`
+		Result   json.RawMessage `json:"result"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeErr(w, http.StatusBadRequest, "JSON inválido: "+err.Error())
@@ -259,11 +265,34 @@ func (s *Server) handleOrderState(w http.ResponseWriter, r *http.Request) {
 	switch req.Status {
 	case "delivered", "running", "interrupted", "expired":
 	case "done", "failed":
-		writeErr(w, http.StatusBadRequest, "done/failed se cierran con /results")
-		return
+		// Solo órdenes reboot_router: el store responde 400 "done/failed se
+		// cierran con /results" si es una prueba.
 	default:
-		writeErr(w, http.StatusBadRequest, "status debe ser delivered, running, interrupted o expired")
+		writeErr(w, http.StatusBadRequest, "status debe ser delivered, running, interrupted o expired (done/failed solo en reboot_router)")
 		return
+	}
+	step := ""
+	if req.Step != nil {
+		step = strings.TrimSpace(*req.Step)
+		if step != "" && !stepRe.MatchString(step) {
+			writeErr(w, http.StatusBadRequest, "step inválido (minúsculas, números, '_' y '-', hasta 32)")
+			return
+		}
+	}
+	var result json.RawMessage
+	if t := bytes.TrimSpace(req.Result); len(t) > 0 && !bytes.Equal(t, []byte("null")) {
+		var obj map[string]any
+		dec := json.NewDecoder(bytes.NewReader(t))
+		dec.UseNumber()
+		if err := dec.Decode(&obj); err != nil || obj == nil {
+			writeErr(w, http.StatusBadRequest, "result debe ser un objeto JSON")
+			return
+		}
+		stripSecrets(obj) // la clave SSH nunca va al backend (§6.2)
+		if result, err = json.Marshal(obj); err != nil {
+			writeErr(w, http.StatusBadRequest, "result inválido")
+			return
+		}
 	}
 	var at *time.Time
 	if req.At != nil && strings.TrimSpace(*req.At) != "" {
@@ -285,7 +314,9 @@ func (s *Server) handleOrderState(w http.ResponseWriter, r *http.Request) {
 	if req.Error != nil {
 		errMsg = *req.Error
 	}
-	cur, ignored, err := s.store.SetPhoneOrderState(ctx, probeID, orderID, req.Status, at, resultID, errMsg, time.Now())
+	cur, ignored, err := s.store.SetPhoneOrderState(ctx, probeID, orderID, store.PhoneStateUpdate{
+		Status: req.Status, At: at, ResultID: resultID, Error: errMsg, Step: step, Result: result,
+	}, time.Now())
 	if err != nil {
 		writeStoreErr(w, err, "estado de orden")
 		return
@@ -759,14 +790,25 @@ func nilIfEmpty(s string) any {
 
 // secretKeys: nunca se guardan en el estado en vivo ni en resultados (el
 // celular no debería mandarlas; esto es una segunda barrera). "password" cubre
-// un {"mikrotik":{"password":...}} anidado.
-var secretKeys = map[string]bool{"api_key": true, "prod_api_key": true, "mikrotik_password": true, "password": true}
+// un {"mikrotik":{"password":...}} anidado. Además isSecretKey borra
+// cualquier clave que contenga "password"/"passwd" (p. ej. ssh_password_A y
+// ssh_password_B, como las guarda la app, §6.2), sin importar mayúsculas.
+var secretKeys = map[string]bool{"api_key": true, "prod_api_key": true, "mikrotik_password": true, "password": true,
+	"ssh_password": true, "pass": true, "pwd": true, "secret": true}
+
+func isSecretKey(k string) bool {
+	l := strings.ToLower(k)
+	return secretKeys[l] || strings.Contains(l, "password") || strings.Contains(l, "passwd")
+}
+
+// stepRe: paso de una orden reboot_router (ssh, waiting_back…).
+var stepRe = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 
 func stripSecrets(v any) {
 	switch t := v.(type) {
 	case map[string]any:
 		for k, x := range t {
-			if secretKeys[k] {
+			if isSecretKey(k) {
 				delete(t, k)
 				continue
 			}
@@ -800,6 +842,13 @@ func (s *Server) handlePostProbeStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stripSecrets(obj)
+	// Salud por router (§6.2): "routers" debe ser un objeto {"A":{...},...};
+	// si viene con otra forma se descarta ese bloque (no el estado entero).
+	if v, ok := obj["routers"]; ok && v != nil {
+		if _, isObj := v.(map[string]any); !isObj {
+			delete(obj, "routers")
+		}
+	}
 	u := store.ProbeStatusUpdate{
 		MeasuredBy:       objStr(obj, "measured_by"),
 		Phase:            objStr(obj, "phase"),

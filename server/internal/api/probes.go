@@ -76,6 +76,7 @@ func (s *Server) handleListProbes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.attachPhoneStatus(ctx, probes)
+	s.attachProbeReboot(ctx, probes)
 	writeJSON(w, http.StatusOK, probes)
 }
 
@@ -133,6 +134,7 @@ func (s *Server) writeProbe(ctx context.Context, w http.ResponseWriter, probeID 
 		return
 	}
 	s.attachPhoneStatus(ctx, probes)
+	s.attachProbeReboot(ctx, probes)
 	writeJSON(w, http.StatusOK, probes[0])
 }
 

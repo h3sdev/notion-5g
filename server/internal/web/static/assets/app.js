@@ -328,14 +328,21 @@
     state.devices.forEach(function (d) {
       var tr = document.createElement("tr");
       tr.className = "device-row";
-      tr.addEventListener("click", function () {
+      tr.addEventListener("click", function (e) {
+        // los botones de reinicio de la celda "Estado" no abren el detalle
+        if (e.target && e.target.closest && e.target.closest(".reboot-ctl button")) return;
         showDetail(d.device_id);
       });
       tr.innerHTML =
         '<td data-label="Equipo">' +
         escapeHtml(d.device_id) +
-        '</td><td data-label="Estado">' +
+        '</td><td data-label="Estado"><div class="state-cell">' +
         onlineBadge(d) +
+        '<div class="reboot-ctl" data-reboot-cell="' +
+        escapeHtml(d.device_id) +
+        '">' +
+        rebootBlockHtml(d.device_id, true) +
+        "</div></div>" +
         '</td><td data-label="Última vez visto">' +
         fmtDate(d.last_seen) +
         '</td><td data-label="Operador">' +
@@ -465,6 +472,7 @@
     probeSpeedtestStatusEl.textContent = "";
     updateProbeActions(deviceId);
     showView("detail");
+    renderRebootDetail();
     if (!fromHash) location.hash = "#/device/" + encodeURIComponent(deviceId);
     loadDetail(deviceId);
     // Qué red está usando ESTE navegador ahora mismo, comparada con la del
@@ -1230,11 +1238,15 @@
         (c.runner === "probe"
           ? ' <span class="muted">vía sonda ' + escapeHtml(c.probe_id || "") + " (" + escapeHtml(c.routing_table || "") + ")</span>"
           : "") +
-        (c.runner === "phone"
-          ? ' <span class="muted">vía celular ' + escapeHtml(c.probe_id || "") + " (" + escapeHtml(c.routing_table || (c.target === "next" ? "siguiente disponible" : c.slot || "")) + ")</span>"
-          : "") +
+        (c.runner === "phone" && isRebootOrder(c)
+          ? ' <span class="muted">vía celular ' + escapeHtml(c.probe_id || "") + " (SSH por el MikroTik)</span>"
+          : c.runner === "phone"
+            ? ' <span class="muted">vía celular ' + escapeHtml(c.probe_id || "") + " (" + escapeHtml(c.routing_table || (c.target === "next" ? "siguiente disponible" : c.slot || "")) + ")</span>"
+            : "") +
         '</td><td data-label="Estado">' +
-        (c.runner === "phone" ? orderStatusBadge(c) + (c.error ? ' <span class="muted">' + escapeHtml(c.error) + "</span>" : "") : escapeHtml(c.status)) +
+        (c.runner === "phone"
+          ? (isRebootOrder(c) ? rebootStatusBadge(c) : orderStatusBadge(c)) + (c.error ? ' <span class="muted">' + escapeHtml(c.error) + "</span>" : "")
+          : escapeHtml(c.status)) +
         '</td><td data-label="Pedido por">' +
         escapeHtml(c.requested_by || "—") +
         "</td>";
@@ -1898,6 +1910,7 @@
     return apiFetch("/api/v1/probes")
       .then(function (probes) {
         state.probes = probes || [];
+        state.probesAt = Date.now();
         clearBanner(probeErrorEl);
         renderProbes();
         if (state.view === "detail") updateProbeActions(state.selectedDeviceId);
@@ -2124,6 +2137,7 @@
       }
       probesListEl.appendChild(card);
     });
+    renderRebootViews();
     if (focused && document.contains(focused)) {
       try {
         focused.focus({ preventScroll: true });
@@ -2772,6 +2786,10 @@
     root.appendChild(ui.alertsEl);
     ui.statusEl = el("div", "phone-status", '<span class="muted">leyendo el estado del celular...</span>');
     root.appendChild(ui.statusEl);
+    // salud de cada router y reinicio remoto (§6.4)
+    ui.routersEl = el("div", "phone-routers");
+    root.appendChild(ui.routersEl);
+    root.addEventListener("click", onRebootClick);
 
     // -- controles
     var ctl = el("div", "phone-controls");
@@ -3108,11 +3126,20 @@
   }
 
   function phoneTick() {
-    if (state.view !== "list" || document.hidden || !state.apiKey) return;
+    if (document.hidden || !state.apiKey) return;
+    // En el detalle de un equipo solo se refresca la sonda de celular que lo
+    // mide (salud del router y progreso de un reinicio, §6.4).
+    var only = null;
+    if (state.view !== "list") {
+      var dm = state.selectedDeviceId ? phoneProbeForDevice(state.selectedDeviceId) : null;
+      if (!dm) return;
+      only = dm.probe.probe_id;
+    }
     state.phoneTick++;
     var lists = state.phoneTick % PHONE_LISTS_EVERY === 0;
     (state.probes || []).forEach(function (p) {
       if (!isPhoneProbe(p)) return;
+      if (only !== null && p.probe_id !== only) return;
       var ui = state.phone[p.probe_id];
       if (!ui) return;
       refreshPhoneStatus(ui);
@@ -3154,6 +3181,7 @@
             : 'El celular todavía no reportó su estado. Actívalo en la app ("Sonda A/B") con esta sonda (' + p.probe_id + ")."
         ) +
         "</span>";
+      renderRebootViews();
       return;
     }
     var age = statusAge(ui);
@@ -3196,7 +3224,9 @@
     }
     h.push(
       '<div class="phone-phase">' +
-        '<span class="phone-phase-name phase-' + escapeHtml(phase) + '">' + escapeHtml(PHASE_ES[phase] || phase || "—") + "</span>" +
+        '<span class="phone-phase-name phase-' + escapeHtml(phase) + '">' +
+          escapeHtml(PHASE_ES[phase] || (/^reboot/.test(phase) ? "Reiniciando un router" : phase) || "—") +
+          "</span>" +
         (s.phase_detail ? ' <span class="phone-phase-detail">' + escapeHtml(s.phase_detail) + "</span>" : "") +
         (inPhase !== null ? ' <span class="muted">· ' + fmtDur(inPhase) + " en esta fase</span>" : "") +
         "</div>"
@@ -3205,7 +3235,8 @@
     PHASE_STEPS.forEach(function (st, i) {
       if (st[0] === phase) stepIdx = i;
     });
-    if (stepIdx !== -1 || s.current_order) {
+    // (un reinicio muestra sus propios pasos en "Routers: salud y reinicio")
+    if (stepIdx !== -1 || (s.current_order && s.current_order.type !== "reboot_router")) {
       h.push(
         '<div class="phone-steps">' +
           PHASE_STEPS.map(function (st, i) {
@@ -3220,14 +3251,16 @@
     var co = s.current_order;
     if (co) {
       var slot = co.slot || (co.target !== "next" && co.target !== "wifi" ? co.target : null);
-      var who = co.net_path === "wifi" || co.target === "wifi"
+      var who = co.type === "reboot_router"
+        ? "Reiniciando router " + (slot || "?") + (co.label || slotLabel(p, slot) ? " (" + (co.label || slotLabel(p, slot)) + ")" : "") + " por SSH"
+        : co.net_path === "wifi" || co.target === "wifi"
         ? "Midiendo por WiFi (no se atribuye a ningún router)"
         : slot
           ? "Midiendo router " + slot + (co.label || slotLabel(p, slot) ? " (" + (co.label || slotLabel(p, slot)) + ")" : "")
           : "Eligiendo router (siguiente disponible)";
       var bits = [escapeHtml(who)];
       if (co.routing_table) bits.push("tabla <code>" + escapeHtml(co.routing_table) + "</code>");
-      bits.push(escapeHtml(selectionEs(co.selection_reason)) + (co.requested_by ? ' <span class="muted">(' + escapeHtml(co.requested_by) + ")</span>" : ""));
+      bits.push(escapeHtml(selectionEs(co.type === "reboot_router" ? rebootReasonOf(co) : co.selection_reason)) + (co.requested_by ? ' <span class="muted">(' + escapeHtml(co.requested_by) + ")</span>" : ""));
       if (co.attempt > 1) bits.push(badge("st-warn", "INTENTO " + co.attempt));
       if (co.started_at) bits.push('<span class="muted">desde ' + fmtTime(co.started_at) + "</span>");
       h.push('<div class="phone-current">' + bits.join(" · ") + "</div>");
@@ -3245,6 +3278,7 @@
     if (ui.statusErr) h.push('<div class="muted">⚠ último intento de lectura falló: ' + escapeHtml(ui.statusErr) + "</div>");
 
     ui.statusEl.innerHTML = h.join("");
+    renderRebootViews();
   }
 
   function card(title, rows) {
@@ -3447,10 +3481,12 @@
     var tbody = ui.ordersEl.querySelector("tbody");
     ui.orders.forEach(function (o) {
       var tr = document.createElement("tr");
+      var reboot = isRebootOrder(o);
       var target =
         o.target === "next"
           ? "Siguiente" + (o.slot ? " → " + o.slot : "")
           : o.target || o.slot || "—";
+      if (reboot) target = "Reiniciar " + (o.slot || o.target || "");
       var lbl = o.slot ? slotLabel(p, o.slot) : "";
       var seq = o.batch_id && o.order_id && o.batch_id !== o.order_id ? /-(\d{1,2})$/.exec(o.order_id) : null;
       var detail = [];
@@ -3459,7 +3495,10 @@
       if (o.not_after && (o.status === "pending" || o.status === "delivered")) detail.push("vence " + fmtTime(o.not_after));
       if (o.completed_at) detail.push("cerró " + fmtTime(o.completed_at));
       if (o.measurement_id) detail.push("medición #" + escapeHtml(String(o.measurement_id)));
-      if (o.error) detail.push('<span class="phone-err">' + escapeHtml(o.error) + "</span>");
+      if (reboot) {
+        detail = ['<span class="reboot-progress">' + rebootProgressHtml(o, { probe: p, slot: o.slot, target: targetBySlot(p, o.slot) }) + "</span>"];
+        if (o.completed_at) detail.push("cerró " + fmtTime(o.completed_at));
+      } else if (o.error) detail.push('<span class="phone-err">' + escapeHtml(o.error) + "</span>");
       tr.innerHTML =
         '<td data-label="Ejecutar">' +
         fmtTime(o.execute_at || o.created_at) +
@@ -3469,10 +3508,10 @@
         "</strong>" +
         (lbl ? ' <span class="muted">' + escapeHtml(lbl) + "</span>" : "") +
         '</td><td data-label="Motivo">' +
-        escapeHtml(selectionEs(o.selection_reason)) +
+        escapeHtml(selectionEs(reboot ? rebootReasonOf(o) : o.selection_reason)) +
         (seq ? ' <span class="muted">#' + escapeHtml(seq[1]) + "</span>" : "") +
         '</td><td data-label="Estado">' +
-        orderStatusBadge(o) +
+        (reboot ? rebootStatusBadge(o) : orderStatusBadge(o)) +
         (o.closed_by === "server" ? ' <span class="muted">(cerrada por el servidor)</span>' : "") +
         '</td><td data-label="Detalle">' +
         (detail.join(" · ") || "—") +
@@ -3487,6 +3526,7 @@
       }
       tbody.appendChild(tr);
     });
+    renderRebootViews();
   }
 
   // ---- dibujo: resultados (trazabilidad por medición)
@@ -3586,6 +3626,705 @@
         "</tbody></table></div>"
     );
     ui.resultsEl.innerHTML = h.join("");
+  }
+
+  // ---------------------------------------------------------------- reinicio remoto de un router y salud por router
+  //
+  // Contrato §6. El backend no reinicia nada: crea una orden reboot_router
+  // para el celular de la sonda, y el celular le manda `reboot` por SSH al
+  // router a través del MikroTik (camino segregado, no toca las mediciones).
+  // Acá se ve:
+  //   - la salud de cada router según el celular (`status.routers.A/B`: ping a
+  //     Internet por la tabla del router y a su puerta de enlace),
+  //   - la recomendación del backend (`reboot` por equipo en GET /devices y en
+  //     los targets de GET /probes): > 10 min sin conexión,
+  //   - el botón "Reiniciar" (una confirmación si está recomendado, dos si no),
+  //   - el progreso de la orden (recibida → SSH → esperando que vuelva → listo)
+  //     y el último reinicio.
+  // Lo que viene del celular (routers, fase, errores, huella SSH) se escapa
+  // siempre: el backend lo guarda tal cual lo mandó.
+  //
+  // Se muestra en tres lugares con el mismo HTML: la columna "Estado" de la
+  // lista de equipos, la caja "Reinicio remoto" del detalle y el bloque
+  // "Routers" del panel del celular. Los botones usan delegación de eventos
+  // (data-reboot-device), porque esos tres lugares se redibujan seguido.
+
+  var HEALTH_STALE_S = 300; // una verificación más vieja que esto ya no es "la actual"
+  var REBOOT_POLL_MS = 5000;
+  var REBOOT_TRACK_MAX_MS = 25 * 60 * 1000; // not_after (15 min) + vigilancia del celular (5 min) + margen
+  var REBOOT_STEPS = [
+    ["delivered", "Recibida"],
+    ["ssh", "SSH"],
+    ["waiting", "Esperando que vuelva"],
+    ["done", "Listo"],
+  ];
+  var REBOOT_ERROR_ES = {
+    "ssh-auth": "el router rechazó el usuario o la clave SSH",
+    "ssh-connect": "no se pudo conectar por SSH al router (¿apagado o sin LAN?)",
+    "no-ethernet": "el celular no tiene el cable de red conectado",
+    "mikrotik-unreachable": "el celular no alcanzó el MikroTik",
+    "timeout-back": "el router no volvió en 5 min",
+    "vencida-sin-ejecutar": "venció sin que el celular la ejecutara",
+    "sin-cierre": "el celular no la cerró",
+    "slot-desconocido": "el celular no tiene ese router en su sonda",
+    vencida: "venció en el celular sin ejecutarse",
+    cancelada: "cancelada desde el dashboard",
+  };
+  var REBOOT_STATUS_ES = {
+    pending: ["En cola", "st-muted"],
+    delivered: ["Recibida por el celular", "st-info"],
+    claimed: ["Recibida por el celular", "st-info"],
+    running: ["Reiniciando", "st-run"],
+    done: ["Reinicio completado", "st-ok"],
+    failed: ["Reinicio fallido", "st-err"],
+    expired: ["Vencida", "st-warn"],
+    interrupted: ["Interrumpida", "st-warn"],
+    cancelled: ["Cancelada", "st-muted"],
+  };
+  SELECTION_ES.manual = "reinicio manual";
+  SELECTION_ES.recommended = "reinicio recomendado";
+
+  state.reboot = {}; // device_id -> {pending, orderId, order, since, msg, isError, inflight}
+  state.rebootTimer = null;
+
+  function isRebootOrder(o) {
+    return !!o && o.type === "reboot_router";
+  }
+
+  // Busca solo claves propias: `error`/`status` vienen del celular y un
+  // "constructor" no puede traer Object.prototype.
+  function own(map, k) {
+    return k !== null && k !== undefined && Object.prototype.hasOwnProperty.call(map, k) ? map[k] : undefined;
+  }
+
+  function rebootErrorEs(e) {
+    return e ? own(REBOOT_ERROR_ES, e) || String(e) : "";
+  }
+
+  // Motivo de una orden de reinicio: el backend lo expone como reboot_reason.
+  function rebootReasonOf(o) {
+    return o ? o.reboot_reason || o.reason || o.selection_reason || null : null;
+  }
+
+  function isOpenStatus(st) {
+    return st === "pending" || st === "delivered" || st === "claimed" || st === "running";
+  }
+
+  function num(v) {
+    if (v === null || v === undefined || v === "") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  // Sonda de celular que tiene este equipo como target (la que puede
+  // reiniciarlo: el backend responde 404 si no hay ninguna).
+  function phoneProbeForDevice(deviceId) {
+    var ps = state.probes || [];
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      if (!isPhoneProbe(p)) continue;
+      var tw = probeTargetsWithSlots(p).filter(function (x) {
+        return x.t.device_id === deviceId;
+      })[0];
+      if (tw) return { probe: p, target: tw.t, slot: tw.slot };
+    }
+    return null;
+  }
+
+  // El estado del celular más fresco que se tenga: el del panel (se lee cada
+  // 5 s) o, si el panel todavía no existe, el que vino en GET /probes.
+  function phoneStatusFor(p) {
+    var ui = state.phone[p.probe_id];
+    var ps = null;
+    var age = null;
+    if (ui && ui.statusResp) {
+      ps = ui.statusResp;
+      age = statusAge(ui);
+    } else if (p.phone_status) {
+      ps = p.phone_status;
+      var base = typeof ps.age_s === "number" ? ps.age_s : secondsSince(ps.received_at);
+      if (base !== null && base !== undefined && !isNaN(base))
+        age = base + (state.probesAt ? Math.max(0, (Date.now() - state.probesAt) / 1000) : 0);
+    }
+    var s = ps && ps.status ? ps.status : null;
+    var stale = !s || ps.online === false || (age !== null && age > PHONE_STALE_S);
+    return { s: s, age: age, stale: stale };
+  }
+
+  // Segundos entre una hora del celular y AHORA sin mezclar relojes: la
+  // diferencia se mide contra `sent_at` (mismo reloj, el del celular) y se le
+  // suma la edad del estado (medida por el servidor). Sin sent_at, contra el
+  // reloj de este navegador.
+  function phoneSecondsSince(st, iso) {
+    if (!iso) return null;
+    var t = new Date(iso).getTime();
+    if (isNaN(t)) return null;
+    if (st.s && st.s.sent_at) {
+      var sent = new Date(st.s.sent_at).getTime();
+      if (!isNaN(sent)) return Math.max(0, (sent - t) / 1000 + (st.age || 0));
+    }
+    return Math.max(0, (Date.now() - t) / 1000);
+  }
+
+  // Salud de un slot según el celular: {h, st, checkedAgo, old}.
+  function routerHealth(p, slot) {
+    var st = phoneStatusFor(p);
+    var routers = st.s && st.s.routers && typeof st.s.routers === "object" ? st.s.routers : null;
+    var h = routers && Object.prototype.hasOwnProperty.call(routers, slot) ? routers[slot] : null;
+    if (!h || typeof h !== "object") return { h: null, st: st, checkedAgo: null, old: true };
+    var ago = phoneSecondsSince(st, h.checked_at);
+    return { h: h, st: st, checkedAgo: ago, old: st.stale || ago === null || ago > HEALTH_STALE_S };
+  }
+
+  // HTML seguro con la salud de un router. compact = una línea (lista).
+  function healthHtml(rh, compact) {
+    var h = rh.h;
+    if (!h) return compact ? "" : '<span class="muted">el celular todavía no reportó la salud de este router</span>';
+    var parts = [];
+    var rtt = num(h.rtt_ms);
+    var loss = num(h.loss_pct);
+    if (h.internet_ok === true) {
+      parts.push(
+        badge("st-ok", "INTERNET OK", "ping por la tabla del router desde el MikroTik") +
+          (rtt !== null ? " " + escapeHtml(rtt.toFixed(0)) + " ms" : "") +
+          (loss ? ' <span class="muted">(' + escapeHtml(loss.toFixed(0)) + " % pérdida)</span>" : "")
+      );
+    } else if (h.internet_ok === false) {
+      var down = phoneSecondsSince(rh.st, h.down_since);
+      parts.push(badge("st-err", "SIN INTERNET" + (down !== null ? " hace " + fmtDur(down) : "")));
+    } else {
+      parts.push(badge("st-muted", "SALUD SIN VERIFICAR"));
+    }
+    if (h.gateway_ok === false) {
+      parts.push(badge("st-err", "ROUTER NO RESPONDE", "tampoco responde el ping a su puerta de enlace: parece apagado o sin cable"));
+    } else if (h.gateway_ok === true && h.internet_ok === false && !compact) {
+      parts.push('<span class="muted">el router responde en la LAN (el problema es de datos)</span>');
+    }
+    var when = rh.checkedAgo !== null ? "verificado hace " + fmtDur(rh.checkedAgo) : "sin hora de verificación";
+    if (rh.old) parts.push('<span class="muted">· ' + escapeHtml(when) + " (último dato conocido)</span>");
+    else if (!compact) parts.push('<span class="muted">· ' + escapeHtml(when) + "</span>");
+    return '<span class="' + (rh.old ? "health-old" : "") + '">' + parts.join(" ") + "</span>";
+  }
+
+  // Recomendación del backend: la del target de la sonda o la del equipo.
+  function rebootInfo(deviceId, target) {
+    var rb = target && target.reboot && typeof target.reboot === "object" ? target.reboot : null;
+    if (!rb) {
+      var d = deviceById(deviceId);
+      rb = d && d.reboot && typeof d.reboot === "object" ? d.reboot : null;
+    }
+    return rb;
+  }
+
+  function recommendHtml(rb) {
+    if (!rb || !rb.recommended) return "";
+    // offline_min lo calcula el backend con su reloj (el del navegador puede
+    // estar corrido); offline_since solo si no viene.
+    var mins = num(rb.offline_min);
+    if (mins === null && rb.offline_since) {
+      var since = secondsSince(rb.offline_since);
+      if (since !== null) mins = Math.round(since / 60);
+    }
+    var txt = "Reinicio recomendado" + (mins !== null ? ": sin conexión hace " + Math.max(1, mins) + " min" : "");
+    return badge("st-err", txt, rb.reason || "");
+  }
+
+  function lastRebootHtml(rb) {
+    if (!rb || !rb.last_reboot_at) return "";
+    var s = own(REBOOT_STATUS_ES, rb.last_reboot_status);
+    return (
+      '<span class="muted">último reinicio ' +
+      fmtTime(rb.last_reboot_at) +
+      "</span>" +
+      (rb.last_reboot_status ? " " + badge(s ? s[1].replace("st-run", "st-info") : "st-muted", s ? s[0] : String(rb.last_reboot_status)) : "") +
+      (rb.last_reboot_error && !rb.in_progress ? ' <span class="muted">(' + escapeHtml(rebootErrorEs(rb.last_reboot_error)) + ")</span>" : "")
+    );
+  }
+
+  // Resultado de la orden (§6.2 paso 5). El contrato no fija en qué clave del
+  // objeto orden lo expone el backend: se acepta `result` (objeto o texto
+  // JSON), `reboot_result`, `detail` o las claves sueltas en la orden.
+  function rebootResult(o) {
+    if (!o) return null;
+    var keys = ["result", "reboot_result", "detail"];
+    for (var i = 0; i < keys.length; i++) {
+      var v = o[keys[i]];
+      if (typeof v === "string" && v.charAt(0) === "{") {
+        try {
+          v = JSON.parse(v);
+        } catch (e) {
+          v = null;
+        }
+      }
+      if (v && typeof v === "object") return v;
+    }
+    if (o.ssh_ok !== undefined || o.gateway_back_s !== undefined || o.internet_back_s !== undefined) return o;
+    return null;
+  }
+
+  // La orden de reinicio más nueva de este equipo: de la lista de órdenes del
+  // panel del celular o de la que se sigue desde acá (GET /commands).
+  function latestRebootOrder(deviceId, m) {
+    var best = null;
+    var ui = m ? state.phone[m.probe.probe_id] : null;
+    (ui && ui.orders ? ui.orders : []).forEach(function (o) {
+      if (!isRebootOrder(o)) return;
+      if (o.device_id !== deviceId && !(m && o.slot === m.slot && o.device_id === m.probe.probe_id)) return;
+      if (newerOrder(o, best)) best = o;
+    });
+    var tr = state.reboot[deviceId];
+    if (tr && tr.order && newerOrder(tr.order, best)) best = tr.order;
+    return best;
+  }
+
+  // a es más nueva que b: otra orden (id mayor) o la misma con un estado más
+  // reciente (la lista del panel y GET /commands se leen en momentos distintos).
+  function newerOrder(a, b) {
+    if (!b) return true;
+    var ia = a.id || 0;
+    var ib = b.id || 0;
+    if (ia !== ib) return ia > ib;
+    var ca = !isOpenStatus(a.status);
+    var cb = !isOpenStatus(b.status);
+    if (ca !== cb) return ca;
+    return String(a.updated_at || "") > String(b.updated_at || "");
+  }
+
+  // Paso actual de una orden de reinicio: {idx, text, final, cls}.
+  function rebootProgress(o, m) {
+    var st = o.status;
+    var res = rebootResult(o) || {};
+    var err = rebootErrorEs(o.error);
+    if (st === "pending") return { idx: -1, text: "en cola, esperando a que el celular la reciba", final: false };
+    if (st === "delivered" || st === "claimed") {
+      var ph = m ? phoneStatusFor(m.probe) : null;
+      var busy = ph && ph.s && ph.s.current_order && ph.s.current_order.order_id !== o.order_id;
+      return { idx: 0, text: busy ? "recibida; espera a que termine la prueba en curso" : "recibida por el celular", final: false };
+    }
+    if (st === "running") {
+      // Paso: el que el celular guardó en la orden (`step`, §6.3) o, más
+      // fresco, el de su estado en vivo si es esta misma orden (`reboot` o
+      // `current_order`). Pasos de la app: reading_gateway → ssh →
+      // waiting_down → waiting_back → waiting_internet.
+      var step = o.step ? String(o.step) : "";
+      var detail = "";
+      var ps = m ? phoneStatusFor(m.probe) : null;
+      if (ps && ps.s && !ps.stale) {
+        var live = ps.s.reboot && ps.s.reboot.order_id === o.order_id ? ps.s.reboot : null;
+        var co = ps.s.current_order && ps.s.current_order.order_id === o.order_id ? ps.s.current_order : null;
+        var ls = (live && live.step) || (co && (co.step || co.reboot_step)) || "";
+        if (ls) step = String(ls);
+        if ((live || co) && ps.s.phase_detail) detail = String(ps.s.phase_detail);
+      }
+      step = step.toLowerCase();
+      var STEP_TEXT = {
+        received: [1, "recibida; empezando"],
+        reading_gateway: [1, "leyendo en el MikroTik la IP del router"],
+        ssh: [1, "conectando por SSH al router"],
+        waiting_down: [2, "reboot enviado; esperando que se apague"],
+        waiting_back: [2, "reboot enviado; esperando que el router vuelva (hasta 5 min)"],
+        waiting_internet: [2, "el router ya responde; esperando Internet"],
+      };
+      var known = own(STEP_TEXT, step);
+      var idx = known ? known[0] : /wait|back|vuelv|watch|health/.test(step) ? 2 : 1;
+      var text = known ? known[1] : idx === 2 ? "reboot enviado; esperando que el router vuelva (hasta 5 min)" : "conectando por SSH al router";
+      if (res.ssh_ok === true && idx < 2) {
+        idx = 2;
+        text = "reboot enviado; esperando que el router vuelva (hasta 5 min)";
+      }
+      if (idx === 1 && m) {
+        // Sin señal explícita: si el celular ya ve la LAN del router caída
+        // después de empezar, el reboot ya salió.
+        var rh = routerHealth(m.probe, m.slot);
+        var started = o.started_at ? new Date(o.started_at).getTime() : NaN;
+        var checked = rh.h && rh.h.checked_at ? new Date(rh.h.checked_at).getTime() : NaN;
+        if (!step && rh.h && rh.h.gateway_ok === false && !isNaN(started) && !isNaN(checked) && checked > started) {
+          idx = 2;
+          text = "reboot enviado; esperando que el router vuelva (hasta 5 min)";
+        }
+      }
+      return { idx: idx, text: text + (detail ? " · " + detail : ""), final: false };
+    }
+    if (st === "done") {
+      // en segundos hasta 10 min: "95 s" dice más que "2 min"
+      var backDur = function (v) {
+        return v < 600 ? Math.round(Math.max(0, v)) + " s" : fmtDur(v);
+      };
+      var back = [];
+      if (num(res.gateway_back_s) !== null) back.push("LAN en " + backDur(num(res.gateway_back_s)));
+      if (num(res.internet_back_s) !== null) back.push("Internet en " + backDur(num(res.internet_back_s)));
+      return { idx: 4, text: "listo" + (back.length ? ": volvió " + back.join(", ") : ""), final: true, cls: "st-ok" };
+    }
+    var FINAL = { failed: "falló", expired: "venció sin ejecutarse", interrupted: "interrumpida", cancelled: "cancelada" };
+    return {
+      idx: -1,
+      text:
+        (own(FINAL, st) || st || "—") +
+        (o.closed_by === "server" ? " (cerrada por el servidor)" : "") +
+        (err ? ": " + err : "") +
+        (st === "failed" && res.ssh_ok === true ? " (el reboot sí se envió)" : ""),
+      final: true,
+      cls: st === "failed" ? "st-err" : "st-warn",
+    };
+  }
+
+  function rebootStatusBadge(o) {
+    var s = own(REBOOT_STATUS_ES, o.status) || [o.status || "—", "st-muted"];
+    return badge(s[1], s[0], o.status);
+  }
+
+  // Barra de pasos + texto. Solo HTML seguro.
+  function rebootProgressHtml(o, m) {
+    var pr = rebootProgress(o, m);
+    var h = "";
+    if (!pr.final || o.status === "done") {
+      h +=
+        '<span class="phone-steps reboot-steps">' +
+        REBOOT_STEPS.map(function (s, i) {
+          var cls = i === pr.idx ? "step-now" : i < pr.idx ? "step-done" : "";
+          if (o.status === "done") cls = "step-done";
+          return '<span class="phone-step ' + cls + '">' + escapeHtml(s[1]) + "</span>";
+        }).join("") +
+        "</span>";
+    }
+    h += " " + rebootStatusBadge(o) + ' <span class="muted">' + escapeHtml(pr.text) + "</span>";
+    var res = rebootResult(o);
+    if (res && res.host_key_fp)
+      h += ' <span class="muted" title="huella de la llave SSH del router">· huella ' + escapeHtml(String(res.host_key_fp)) + "</span>";
+    if (o.created_at) h += ' <span class="muted">· pedida ' + fmtTime(o.created_at) + "</span>";
+    return h;
+  }
+
+  // Bloque completo de un equipo (lista / detalle / panel). HTML seguro.
+  //   compact: la lista (una línea, sin textos largos).
+  function rebootBlockHtml(deviceId, compact) {
+    var m = phoneProbeForDevice(deviceId);
+    var rb = rebootInfo(deviceId, m && m.target);
+    var bits = [];
+    if (m) {
+      var hh = healthHtml(routerHealth(m.probe, m.slot), compact);
+      if (hh) bits.push(hh);
+    }
+    var rec = recommendHtml(rb);
+    if (rec) bits.push(rec);
+    if (rb && rb.recommended && rb.reason && !compact) bits.push('<span class="muted">' + escapeHtml(rb.reason) + "</span>");
+
+    var o = latestRebootOrder(deviceId, m);
+    var tr = state.reboot[deviceId];
+    var open = o && isOpenStatus(o.status);
+    // Una orden recién cerrada se sigue mostrando un rato; después queda
+    // solo "último reinicio".
+    var recentClosed = o && !open && tr && tr.orderId === o.order_id && tr.since && Date.now() - tr.since < REBOOT_TRACK_MAX_MS;
+    // El backend sabe de un reinicio en curso aunque la orden no esté en las
+    // listas de este navegador (pedido desde otro lado). Si acá ya se la ve
+    // cerrada, manda lo de acá (in_progress se relee cada 20 s).
+    var serverOpen = !open && !!(rb && rb.in_progress) && !(o && o.order_id === rb.last_reboot_order_id && !isOpenStatus(o.status));
+    if (o && (open || recentClosed)) {
+      if (compact) {
+        // lista: solo la insignia y el paso, sin la barra ni los textos largos
+        var pr = rebootProgress(o, m);
+        var stepName = !pr.final && pr.idx >= 0 ? REBOOT_STEPS[pr.idx][1] : "";
+        bits.push(rebootStatusBadge(o) + (stepName ? ' <span class="muted">' + escapeHtml(stepName) + "</span>" : ""));
+      } else bits.push('<span class="reboot-progress">' + rebootProgressHtml(o, m) + "</span>");
+    }
+    else if (tr && tr.orderId && !o) bits.push(badge("st-info", "orden creada") + ' <span class="muted">leyendo su estado...</span>');
+    else if (serverOpen) bits.push(badge("st-run", "Reinicio en curso") + (compact ? "" : ' <span class="muted">pedido ' + fmtTime(rb.last_reboot_at) + "</span>"));
+    else {
+      var last = lastRebootHtml(rb);
+      if (last && !compact) bits.push(last);
+      else if (last && compact && rb.last_reboot_at && secondsSince(rb.last_reboot_at) < 3600) bits.push(last);
+    }
+    if (!compact && !open && !serverOpen && rb && rb.cooldown_until && secondsSince(rb.cooldown_until) < 0)
+      bits.push('<span class="muted">enfriamiento hasta ' + fmtTime(rb.cooldown_until) + " (reiniciar antes pide forzar)</span>");
+
+    if (m) {
+      var busy = !!open || serverOpen || !!(tr && tr.inflight);
+      var cls = rb && rb.recommended ? "btn-primary btn-reboot btn-reboot-rec" : "btn-link btn-reboot";
+      bits.push(
+        '<button type="button" class="' +
+          cls +
+          '" data-reboot-device="' +
+          escapeHtml(deviceId) +
+          '"' +
+          (busy ? " disabled" : "") +
+          ' title="El celular de ' +
+          escapeHtml(m.probe.probe_id) +
+          " le manda reboot por SSH a través del MikroTik" +
+          '">' +
+          (open || serverOpen ? "Reinicio en curso" : tr && tr.inflight ? "Enviando..." : "Reiniciar") +
+          "</button>"
+      );
+    } else if (rec && !compact) {
+      bits.push('<span class="muted">Ninguna sonda con celular tiene este equipo: no se puede reiniciar desde acá.</span>');
+    }
+    if (tr && tr.msg) bits.push('<span class="' + (tr.isError ? "phone-err" : "muted") + '">' + escapeHtml(tr.msg) + "</span>");
+    return bits.join(" ");
+  }
+
+  // ---- dónde se dibuja
+
+  var rebootBoxEl = document.getElementById("reboot-box");
+  var rebootBoxBody = document.getElementById("reboot-box-body");
+
+  // Reemplaza el HTML solo si cambió: estos bloques se redibujan cada 5 s y
+  // un reemplazo en medio de un clic lo perdería.
+  function setHtml(node, html) {
+    if (node._html === html) return;
+    node._html = html;
+    node.innerHTML = html;
+  }
+
+  function renderRebootDetail() {
+    if (!rebootBoxEl) return;
+    var id = state.view === "detail" ? state.selectedDeviceId : null;
+    if (!id) {
+      rebootBoxEl.hidden = true;
+      return;
+    }
+    var m = phoneProbeForDevice(id);
+    var rb = rebootInfo(id, m && m.target);
+    if (!m && !(rb && (rb.recommended || rb.last_reboot_at))) {
+      rebootBoxEl.hidden = true;
+      return;
+    }
+    rebootBoxEl.hidden = false;
+    setHtml(
+      rebootBoxBody,
+      (m
+        ? '<div class="muted">Router ' +
+          escapeHtml(m.slot) +
+          " de " +
+          escapeHtml(probeName(m.probe)) +
+          ". El celular le manda <code>reboot</code> por SSH a través del MikroTik (por la LAN del router, sin tocar las mediciones).</div>"
+        : "") +
+        '<div class="reboot-line">' +
+        rebootBlockHtml(id, false) +
+        "</div>"
+    );
+  }
+
+  function renderRebootListCells() {
+    var cells = devicesTbody.querySelectorAll("[data-reboot-cell]");
+    Array.prototype.forEach.call(cells, function (c) {
+      setHtml(c, rebootBlockHtml(c.getAttribute("data-reboot-cell"), true));
+    });
+  }
+
+  function renderPhoneRouters(ui) {
+    if (!ui || !ui.routersEl) return;
+    var p = ui.probe;
+    var slots = probeTargetsWithSlots(p);
+    if (!slots.length) {
+      setHtml(ui.routersEl, "");
+      return;
+    }
+    setHtml(
+      ui.routersEl,
+      '<div class="phone-sub-head"><span>Routers: salud y reinicio</span></div>' +
+      slots
+        .map(function (x) {
+          return (
+            '<div class="phone-router-row' +
+            (x.t.enabled === false ? " phone-router-off" : "") +
+            '"><strong>' +
+            escapeHtml(x.slot) +
+            "</strong> " +
+            '<span class="muted">' +
+            escapeHtml(x.t.label || x.t.device_id) +
+            "</span> " +
+            rebootBlockHtml(x.t.device_id, false) +
+            "</div>"
+          );
+        })
+        .join("")
+    );
+  }
+
+  function renderRebootViews() {
+    Object.keys(state.phone).forEach(function (k) {
+      renderPhoneRouters(state.phone[k]);
+    });
+    if (state.view === "list") renderRebootListCells();
+    renderRebootDetail();
+  }
+
+  // ---- acción
+
+  function rebootSay(deviceId, msg, isError) {
+    var tr = state.reboot[deviceId] || (state.reboot[deviceId] = {});
+    tr.msg = msg || "";
+    tr.isError = !!isError;
+    renderRebootViews();
+  }
+
+  function confirmReboot(deviceId, m, rb) {
+    var name = (m.target.label ? m.target.label + " (" + deviceId + ")" : deviceId) + ", router " + m.slot + " de " + m.probe.probe_id;
+    var rh = routerHealth(m.probe, m.slot);
+    var off = rh.h && rh.h.gateway_ok === false && !rh.old;
+    var base =
+      "¿Reiniciar " + name + "?\n\n" +
+      "El celular le manda `reboot` por SSH a través del MikroTik cuando termine la prueba que esté midiendo " +
+      "(nunca en medio de una). El router queda sin servicio 1 a 3 minutos y, mientras el celular espera " +
+      "que vuelva (hasta 5 min), no mide ninguno de los routers." +
+      (off ? "\n\n⚠ El router no responde ni en la LAN: parece apagado, así que el SSH probablemente falle." : "");
+    if (rb && rb.recommended) {
+      return window.confirm(base + "\n\nRecomendado: " + (rb.reason || "lleva más de 10 min sin conexión") + ".");
+    }
+    if (!window.confirm(base + "\n\n⚠ NO está recomendado: el equipo no lleva más de 10 min sin conexión.")) return false;
+    return window.confirm("Segunda confirmación: el reinicio de " + name + " no está recomendado. ¿Reiniciarlo de todas formas?");
+  }
+
+  // POST /api/v1/devices/{id}/reboot con un order_id generado UNA vez por
+  // intento: un error de red o 5xx deja el id guardado y el próximo clic lo
+  // reenvía (el backend es idempotente por order_id, no se duplica). El id
+  // guardado se reusa aunque cambie la recomendación (el backend devuelve la
+  // orden que ya existe sin mirar el cuerpo), pero vence a los
+  // REBOOT_RETRY_MS: un clic mucho después es un pedido nuevo, no el
+  // reintento de uno viejo que quizá ya se ejecutó (el backend igual frena un
+  // duplicado con el 409 de "en curso" o del enfriamiento).
+  var REBOOT_RETRY_MS = 3 * 60 * 1000;
+
+  function adoptRebootOrder(tr, o) {
+    tr.orderId = o.order_id;
+    tr.order = o.status ? o : null;
+    tr.since = Date.now();
+  }
+
+  function sendReboot(deviceId, force) {
+    var m = phoneProbeForDevice(deviceId);
+    if (!m) return;
+    var rb = rebootInfo(deviceId, m.target);
+    var tr = state.reboot[deviceId] || (state.reboot[deviceId] = {});
+    if (tr.inflight) return;
+    var reason = rb && rb.recommended ? "recommended" : "manual";
+    if (!tr.pending || Date.now() - tr.pending.at > REBOOT_RETRY_MS) tr.pending = { id: newUuid() };
+    tr.pending.at = Date.now();
+    tr.inflight = true;
+    tr.msg = "enviando la orden de reinicio...";
+    tr.isError = false;
+    renderRebootViews();
+    phoneApi("POST", "/api/v1/devices/" + encodeURIComponent(deviceId) + "/reboot", {
+      order_id: tr.pending.id,
+      requested_by: "dashboard",
+      reason: reason,
+      force: !!force,
+    }).then(function (r) {
+      tr.inflight = false;
+      if (r.ok) {
+        var d = r.data || {};
+        var o = d.order || (d.orders && d.orders[0]) || (d.order_id ? d : null);
+        adoptRebootOrder(tr, o && o.order_id ? o : { order_id: tr.pending.id });
+        tr.pending = null;
+        tr.msg = d.existing
+          ? o && o.status && !isOpenStatus(o.status)
+            ? "esa orden ya existía y está cerrada; toca Reiniciar otra vez para pedir un reinicio nuevo"
+            : "la orden ya estaba creada (no se duplicó)"
+          : "";
+        var ph = phoneStatusFor(m.probe);
+        if (!d.existing && ph.stale) tr.msg = "⚠ el celular no está reportando: se ejecuta cuando vuelva (vence en 15 min)";
+        renderRebootViews();
+        var ui = state.phone[m.probe.probe_id];
+        if (ui) refreshPhoneLists(ui);
+        refreshDevices(); // in_progress / último reinicio nuevos
+        startRebootTimer();
+        return;
+      }
+      if (r.status === 0 || r.status >= 500) {
+        rebootSay(deviceId, "No se pudo enviar: " + r.error + " Vuelve a tocar Reiniciar: se reenvía la misma orden, no se duplica.", true);
+        return;
+      }
+      tr.pending = null;
+      if (endpointMissing(r)) {
+        rebootSay(deviceId, "El backend todavía no acepta reinicios (falta POST /devices/{id}/reboot).", true);
+        return;
+      }
+      var cd = r.status === 409 && r.data && typeof r.data === "object" ? r.data : null;
+      if (cd && cd.in_progress) {
+        // Ya hay un reinicio en curso (pedido desde otro lado o antes): se lo
+        // sigue; forzar no sirve (el backend también lo rechaza con force).
+        if (cd.order && cd.order.order_id) {
+          if (!cd.order.type) cd.order.type = "reboot_router";
+          adoptRebootOrder(tr, cd.order);
+          startRebootTimer();
+        }
+        refreshDevices();
+        rebootSay(deviceId, "Ya hay un reinicio en curso para este equipo: no se pidió otro.", false);
+        return;
+      }
+      if (r.status === 409 && !force && cd && (cd.cooldown_until || cd.last_reboot_at) && !/order_id/i.test(r.error || "")) {
+        // Enfriamiento de 15 min (§6.3): se ofrece forzar.
+        renderRebootViews();
+        if (window.confirm("El backend no lo reinicia: " + r.error + "\n\nHubo un reinicio de este equipo hace menos de 15 min. ¿Forzar otro reinicio igual?")) {
+          sendReboot(deviceId, true);
+        } else rebootSay(deviceId, "No se reinició: " + r.error, true);
+        return;
+      }
+      rebootSay(deviceId, "No se pudo reiniciar: " + r.error, true);
+    });
+  }
+
+  function onRebootClick(e) {
+    var btn = e.target && e.target.closest ? e.target.closest("button[data-reboot-device]") : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.disabled) return;
+    var deviceId = btn.getAttribute("data-reboot-device");
+    var m = phoneProbeForDevice(deviceId);
+    if (!m) return;
+    var o = latestRebootOrder(deviceId, m);
+    if (o && isOpenStatus(o.status)) return;
+    if (!confirmReboot(deviceId, m, rebootInfo(deviceId, m.target))) return;
+    sendReboot(deviceId, false);
+  }
+
+  devicesTbody.addEventListener("click", onRebootClick);
+  if (rebootBoxEl) rebootBoxEl.addEventListener("click", onRebootClick);
+
+  // ---- seguimiento de la orden (también en el detalle, donde el panel del
+  // celular no refresca su lista de órdenes)
+
+  function trackedOpen(deviceId) {
+    var tr = state.reboot[deviceId];
+    if (!tr || !tr.orderId || !tr.since) return false;
+    if (Date.now() - tr.since > REBOOT_TRACK_MAX_MS) return false;
+    var o = latestRebootOrder(deviceId, phoneProbeForDevice(deviceId));
+    return !o || o.order_id !== tr.orderId || isOpenStatus(o.status);
+  }
+
+  function rebootTick() {
+    if (document.hidden || !state.apiKey) return;
+    var any = false;
+    Object.keys(state.reboot).forEach(function (deviceId) {
+      if (!trackedOpen(deviceId)) return;
+      any = true;
+      var tr = state.reboot[deviceId];
+      if (tr.polling) return;
+      tr.polling = true;
+      phoneApi("GET", "/api/v1/commands?device_id=" + encodeURIComponent(deviceId) + "&limit=30").then(function (r) {
+        tr.polling = false;
+        if (!r.ok || !Array.isArray(r.data)) return;
+        var o = r.data.filter(function (c) {
+          return c && c.order_id === tr.orderId;
+        })[0];
+        if (o) {
+          if (!o.type) o.type = "reboot_router";
+          tr.order = o;
+        }
+        if (o && !isOpenStatus(o.status)) refreshDevices(); // último reinicio / recomendación nuevos
+        renderRebootViews();
+      });
+    });
+    if (!any) stopRebootTimer();
+  }
+
+  function startRebootTimer() {
+    if (!state.rebootTimer) state.rebootTimer = setInterval(rebootTick, REBOOT_POLL_MS);
+  }
+
+  function stopRebootTimer() {
+    if (state.rebootTimer) clearInterval(state.rebootTimer);
+    state.rebootTimer = null;
   }
 
   // ---------------------------------------------------------------- prueba de velocidad (navegador)

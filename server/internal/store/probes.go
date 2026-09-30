@@ -88,6 +88,9 @@ type ProbeTarget struct {
 	// ExpectedASN: ASN esperado de la salida de ese router. Ausente en el PUT
 	// = se conserva el que tenía; null = se borra.
 	ExpectedASN OptASN `json:"expected_asn"`
+	// Reboot: solo de salida (GET /probes, sondas de celular, §6.3). Lo
+	// agrega la capa HTTP; UpsertProbe lo ignora.
+	Reboot *RebootInfo `json:"reboot,omitempty"`
 }
 
 func (t ProbeTarget) isEnabled() bool { return t.Enabled == nil || *t.Enabled }

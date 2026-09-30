@@ -51,6 +51,9 @@ object ProbeState {
     // GPS (último fix de una prueba)
     @Volatile var lastGps: JSONObject? = null
 
+    /// Reinicio en curso (§6.2), o null: lo arma el worker paso a paso.
+    @Volatile var reboot: JSONObject? = null
+
     // Plan local
     @Volatile var localPlanActive = false
     @Volatile var localPlanNextMs = 0L
@@ -106,6 +109,7 @@ object ProbeStatus {
         "download" to "Descargando", "upload" to "Subiendo", "storing" to "Guardando",
         "restoring_route" to "Volviendo a respaldo", "uploading" to "Enviando resultado",
         "backoff" to "Sin backend, reintentando", "stopped" to "Detenida",
+        "rebooting" to "Reiniciando router",
     )
 
     fun phaseName(p: String): String = PHASE_NAMES[p] ?: p
@@ -138,6 +142,9 @@ object ProbeStatus {
         o.putN("phase_detail", if (running) st.phaseDetail else null)
         o.putN("current_order", if (running && phase !in setOf("idle", "backoff", "stopped")) st.currentOrder else null)
         o.put("mikrotik", st.mikrotikJson(s.str("mikrotik_host")))
+        // Salud por router (§6.2) y reinicio en curso.
+        o.put("routers", RouterHealth.json(db, MikrotikOps.targets(db, s)))
+        o.putN("reboot", if (running) st.reboot else null)
 
         o.put("net", JSONObject()
             .put("require_ethernet", s.requireEthernet)
@@ -161,6 +168,7 @@ object ProbeStatus {
             .put("orders_pending", db.countOpenOrders())
             .putN("next_order_at", next?.let { Rfc3339.format(it.executeAtMs - (offset ?: 0L)) })
             .putN("next_order_target", next?.target)
+            .putN("next_order_type", next?.type)
             .put("results_pending", db.countResults("pending"))
             .put("results_rejected", db.countResults("rejected"))
             .put("outbox_pending", db.countOutbox()))

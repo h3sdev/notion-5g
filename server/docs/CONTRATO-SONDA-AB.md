@@ -1843,3 +1843,318 @@ contrato dejaba abierto:
   `hap-oficina` quedó con `expected_asn = 271773` (WOM, confirmado por Team Cymru para
   179.19.72.14) y etiqueta "Notion 5G (WOM)"; antes estaba sin ASN esperado. `server/.env`
   (API key local) queda fuera de git con `server/.gitignore`.
+
+---
+
+## 6. Reinicio remoto de un router y salud por router (addendum 2026-09-29, pedido de Diego)
+
+**Pedido:** desde el backend (en la nube; hoy el local) poder **reiniciar un router bajo prueba**, y que el backend **lo recomiende si el equipo lleva más de 10 min sin conexión**. El comando se ejecuta **por SSH** (`root` / clave de fábrica —fuera del repo—, puerto 22; dropbear viejo: exige `ssh-rsa` y kex `diffie-hellman-group1-sha1`/`group14-sha1`), pero **no lo lanza el backend**: el backend le da la señal al **celular**, y el celular lo ejecuta **a través del MikroTik por un camino segregado** que no altera las mediciones. El MikroTik debe quedar con **reglas mínimas y fasttrack habilitado** (ya lo está: regla `defconf: fasttrack` con `hw-offload`, ~43 MB acelerados al 2026-09-29; no se agregan reglas de firewall/mangle que lo rompan).
+
+### 6.1 MikroTik (herramienta `scripts/mikrotik/apply_probe.py`, idempotente, mismo estilo que §3.2)
+
+Reglas de ruteo nuevas, **antes** de `phone-probe` (orden final: `probe:phone-local`, `probe:mgmt-A`, `probe:mgmt-B`, `probe:health-A`, `probe:health-B`, `phone-probe`):
+
+| comment | regla | para qué |
+|---|---|---|
+| `probe:mgmt-A` | `dst-address=<gwA>/32 action=lookup-only-in-table table=main` | SSH del celular al Notion 5G por la LAN (ether2), sin importar a qué tabla esté forzada `phone-probe`. |
+| `probe:mgmt-B` | `dst-address=<gwB>/32 action=lookup-only-in-table table=main` | Igual para el 4G (ether1). |
+| `probe:health-A` | `dst-address=9.9.9.9/32 action=lookup-only-in-table table=to-A` | Salud de A: un ping chico desde el MikroTik a 9.9.9.9 siempre sale por A. |
+| `probe:health-B` | `dst-address=149.112.112.112/32 action=lookup-only-in-table table=to-B` | Salud de B (Quad9 secundario) siempre por B. |
+
+- El script de cada DHCP client WAN (§3.2) además actualiza `dst-address` de `probe:mgmt-<A|B>` a `<gateway>/32` si cambió (solo si difiere).
+- El grupo `probe-api` pasa a `policy=read,write,api,test` (`test` es necesario para `/ping` por la API).
+- Se borra la regla NAT vieja `masquerade src-address=192.168.1.0/24 out-interface=ether1` (quedó de fábrica y ya no aplica): reglas mínimas.
+- `--verify` comprueba además que la regla `defconf: fasttrack` exista, esté habilitada y con `hw-offload=yes`, y que no haya reglas de firewall/mangle ajenas (avisa, no borra).
+- Tráfico: el SSH va por la LAN del router (no gasta datos celulares) y el ping de salud son 3 paquetes ICMP por router por minuto: no altera las mediciones.
+
+### 6.2 Celular
+
+- **Salud por router** (en el ciclo de reposo, cada `mikrotik_idle_check_s`, nunca durante una prueba del mismo router): una sesión API → `/ping =address=9.9.9.9 =count=3` y `/ping =address=149.112.112.112 =count=3` (+ `/ping =address=<gw> =count=1` a la puerta de enlace de cada WAN, leída de las rutas). Resultado por slot en el estado en vivo:
+  `"routers": {"A": {"internet_ok": true, "gateway_ok": true, "loss_pct": 0, "rtt_ms": 38.2, "checked_at": "...", "down_since": null}, "B": {...}}` (`down_since` = primera verificación fallida de la racha actual, lo guarda el celular).
+- **Orden `reboot_router`** (misma cola de órdenes, `type="reboot_router"`, con `slot`/`device_id`): el `probe-worker` la ejecuta **entre pruebas** (nunca en medio de una), así:
+  1. Leer el gateway de la tabla del slot (`/ip/route` de `to-A`/`to-B`) → IP del router.
+  2. Conectar SSH (JSch fork `com.github.mwiede:jsch`, con `ssh-rsa` y kex legacy habilitados) **atado a Ethernet** (`Network.socketFactory`) a `<gw>:22`, usuario/clave de los ajustes por slot (por defecto `root` y la clave de fábrica; la clave nunca va al backend ni a los logs), `StrictHostKeyChecking=no` pero guardando la huella en el resultado.
+  3. Ejecutar `reboot` (comando configurable, por defecto `reboot`), esperar ≤10 s, cerrar.
+  4. Vigilar la salud de ese slot hasta 5 min: registrar `gateway_back_at` e `internet_back_at`.
+  5. Cerrar la orden `done` con `{"ssh_ok":true,"host_key_fp":"...","gateway_back_s":95,"internet_back_s":140}` o `failed` con `error` (`ssh-auth`, `ssh-connect`, `no-ethernet`, `mikrotik-unreachable`, `timeout-back`).
+- La pantalla "Sonda A/B" muestra la salud de A y B (verde/rojo, desde hace cuánto) y las órdenes de reinicio en curso con sus pasos. Ajustes nuevos: usuario/clave/puerto/comando SSH por slot.
+
+### 6.3 Backend
+
+- `POST /api/v1/devices/{device_id}/reboot` `{"order_id":"<uuid>","requested_by":"...","reason":"manual|recommended","force":false}` → crea una orden `reboot_router` para la sonda que tiene ese equipo como target (idempotente por `order_id`; 404 si ningún probe `runner=phone` lo tiene; `not_after` = ahora + 15 min). **Enfriamiento:** 409 si hubo un reinicio de ese equipo en los últimos 15 min, salvo `force=true`.
+- **Recomendación:** `GET /api/v1/devices` y `GET /api/v1/probes/{id}` agregan por equipo `reboot`: `{"recommended": bool, "reason": "...", "offline_since": "...", "last_reboot_at": "...", "last_reboot_status": "..."}`. Se recomienda si **> 10 min** sin conexión, donde "sin conexión" = (heartbeat del agente más viejo que 10 min, si el equipo tiene agente) **o** (salud del celular `internet_ok=false` con `down_since` hace > 10 min y el estado del celular fresco). Si además `gateway_ok=false`, la razón dice que el router parece apagado (el SSH probablemente falle). Nunca se reinicia solo.
+- La orden y su resultado quedan en `commands` como las demás (no genera medición).
+
+### 6.4 Dashboard
+
+- En cada equipo (lista y detalle) y en el panel de la sonda: badge **"Reinicio recomendado: sin conexión hace N min"** y botón **"Reiniciar"** (confirmación; si no está recomendado, pide confirmar dos veces). Muestra el progreso de la orden (recibida → SSH → esperando que vuelva → listo) y el último reinicio.
+- Salud de A y B desde el estado del celular.
+
+## Desviaciones §6
+
+### MikroTik (`scripts/mikrotik/`, 2026-09-29)
+
+- **`probe:mgmt-A`/`probe:mgmt-B` usan la tabla del propio router (`to-A`/`to-B`), no
+  `main`.** Con A funcionando el camino es idéntico (sale por `ether2` hacia `<gwA>`). La
+  diferencia está en los casos raros: (1) con A caído, en `main` la ruta `probe:main-A` queda
+  inactiva por `check-gateway` y el SSH a `192.168.1.1` saldría por B hacia la red celular de
+  Movistar: el celular mandaría usuario y clave SSH a un equipo desconocido, y un `192.168.1.1` que
+  conteste allá daría un `gateway_ok` falso para A. Con `to-A` el paquete falla (no hay
+  respaldo), igual que las pruebas forzadas. (2) Si A y B llegaran a usar la misma LAN, en
+  `main` quedarían dos rutas conectadas al mismo prefijo (§3.2 ya dice "nada debe depender de
+  `main` para llegar a la LAN de un router"); `to-A`/`to-B` nombran la interfaz
+  (`<gw>%ether2`/`%ether1`). Nombres, comentarios, orden y `dst-address` no cambian; ningún otro
+  constructor lee la `table` de estas reglas (el celular lee el gateway de las rutas de
+  `to-A`/`to-B`, §6.2 paso 1). Si A y B tuvieran el **mismo** gateway, dos reglas con el mismo
+  `dst-address` no pueden distinguirse: gana `probe:mgmt-A` y el SSH a B no es posible (la
+  herramienta ya avisa de LAN iguales; habría que cambiar la LAN de uno).
+- Las 4 reglas nuevas se crean con `place-before=<.id de la siguiente regla de la sonda que ya
+  exista>` (hoy `phone-probe`). Si el equipo rechazara `place-before`, se agregan al final y la
+  fase "orden de reglas" las sube con `/routing/rule/move`, recorriendo el orden de atrás hacia
+  adelante (una regla ajena en medio no se mueve y se avisa como "regla de ruteo ajena").
+- En 7.6 la regla muestra el `/32` con la máscara (`192.168.1.1/32`, leído en el equipo), así
+  que el script WAN compara `[:tostr [get dst-address]] != "<gw>/32"`; su texto es idéntico al
+  que ya quedó aplicado en el hAP (no hay `set script=` pendiente). La herramienta igual compara
+  `dst-address`/`src-address` como redes (con o sin `/32` es lo mismo).
+- La NAT vieja se identifica por `chain=srcnat action=masquerade src-address=192.168.1.0/24
+  out-interface=ether1` y sin comentario `probe:`; solo esa se borra.
+- **Reglas ajenas:** se avisa por cualquier regla estática de `/ip firewall filter`, `mangle`,
+  `raw` o `nat` cuyo comentario no empiece con `defconf` ni `probe:` (el masquerade por `WAN`
+  sin comentario que la sonda reutiliza tampoco cuenta). También se avisa por reglas de ruteo
+  ajenas. Nada de eso se borra.
+- **Fasttrack:** los avisos salen también en `--dry-run`/`--apply` (no solo en `--verify`).
+  `--verify` sale con código 1 si falta la regla `fasttrack-connection`, está deshabilitada, no
+  tiene `hw-offload=yes` o no está en `chain=forward`, e imprime los MB acelerados (contador de
+  la regla dinámica "special dummy rule to show fasttrack counters"). `--verify` hace además el
+  ping de salud (3 paquetes a 9.9.9.9 y 149.112.112.112) si existen las reglas.
+- `place-before` existe en `/routing/rule/add` de 7.6 (visto con `/console/inspect`, sin
+  escribir). La herramienta avisa si A y B quedan con el mismo gateway.
+- Estado (leído 2026-09-29 tras la revisión): §6.1 **ya está aplicado** en el hAP (`admin`,
+  20:54, respaldo `flash/pre-mgmt-20260929-205428.rsc`) con `probe:mgmt-A/B` en `table=main`.
+  `--dry-run` da exactamente 2 cambios: `table=to-A`/`table=to-B` en esas dos reglas (la
+  desviación de arriba); aplicarlos necesita el visto bueno de Diego. Fasttrack OK (`*8`,
+  `hw-offload=true`) y sin reglas ajenas. El cambio de `script` de los DHCP client no los
+  reinició (el log no muestra "lost IP address").
+- Todo lo que el celular mande a `9.9.9.9`, `149.112.112.112` o al gateway de un router sale
+  siempre por ese router aunque `phone-probe` esté forzada al otro: ninguna prueba de medición
+  debe usar esas IP como destino.
+
+> **§6.1 YA APLICADO en el MikroTik (2026-09-29 20:54, agente principal, con aprobación de Diego):** respaldo `flash/pre-mgmt-20260929-205428.rsc`; reglas `probe:mgmt-A` (192.168.1.1/32→main), `probe:mgmt-B` (192.168.2.1/32→main), `probe:health-A` (9.9.9.9/32→to-A), `probe:health-B` (149.112.112.112/32→to-B) antes de `phone-probe`; scripts WAN con la actualización de `probe:mgmt-<tag>`; `probe-api` = `read,write,api,test`; NAT viejo borrado. Salud: to-A 0 % pérdida 30 ms, to-B 0 % 61 ms. `apply_probe.py --dry-run` debe dar cero cambios sobre esto.
+
+### Dashboard (`server/internal/web/static/`, 2026-09-29)
+
+Nada de nombres, rutas ni enumeraciones cambió. Lo que el dashboard **lee** donde §6 no
+fija la forma (si falta, degrada sin romperse):
+
+- `reboot` por equipo: de `targets[].reboot` en `GET /api/v1/probes` (lista) y, si no
+  viene, de `reboot` del equipo en `GET /api/v1/devices`. El badge dice "Reinicio
+  recomendado: sin conexión hace N min" con N = `offline_min` (reloj del servidor; solo
+  si falta se calcula de `offline_since` con el reloj del navegador); `reason` va en el
+  tooltip y, en el detalle y el panel, como texto. `in_progress` deshabilita "Reiniciar"
+  aunque la orden no esté en las listas de este navegador (pedida desde otro lado), salvo
+  que acá ya se vea cerrada esa misma orden (`last_reboot_order_id`); `cooldown_until` se
+  muestra como "enfriamiento hasta HH:MM"; `last_reboot_error` va junto al último reinicio.
+- Respuesta de `POST /api/v1/devices/{id}/reboot`: `{"existing","order"}` (acepta también
+  `orders:[orden]` o la orden sola). `existing: true` con la orden ya cerrada se avisa
+  ("toca Reiniciar otra vez para pedir uno nuevo"). `409` con `in_progress: true`: no se
+  ofrece forzar (el backend lo rechaza igual); se sigue la `order` que viene en la
+  respuesta. `409` con `cooldown_until`/`last_reboot_at` (enfriamiento): se ofrece reenviar
+  con `force: true` (otra confirmación). `409` por `order_id` en uso: solo el error. Error
+  de red/5xx: el siguiente clic reenvía el mismo `order_id` (aunque haya cambiado la
+  recomendación), hasta 3 min después del último intento; pasado eso es un pedido nuevo.
+- Motivo: `reboot_reason` de la orden (o `reason`/`selection_reason`) con `manual` →
+  "reinicio manual", `recommended` → "reinicio recomendado".
+- Progreso: `pending` "En cola" → `delivered` "Recibida" → `running` con el paso de la
+  orden (`step`, que guarda el backend) o, si el estado del celular está fresco y es la
+  misma orden, el de `status.reboot.step` / `status.current_order.step`: `received`,
+  `reading_gateway`, `ssh` → **SSH**; `waiting_down`, `waiting_back`, `waiting_internet` →
+  **Esperando que vuelva** (cada uno con su texto). Sin paso: SSH, o "esperando" si el
+  resultado dice `ssh_ok: true` o el celular ve `routers.<slot>.gateway_ok = false`
+  verificado después de `started_at`. La fase `rebooting` se muestra como "Reiniciando un
+  router" y `phase_detail` al lado.
+- Resultado (§6.2 paso 5): `result` (objeto) de la orden, en `GET .../orders?view=history`
+  y en `GET /api/v1/commands` (acepta también texto JSON, `reboot_result` o claves sueltas).
+  Un `failed` con `ssh_ok: true` dice "(el reboot sí se envió)".
+- Seguimiento: la lista de órdenes del panel trae solo las últimas 20 órdenes de la sonda;
+  la orden creada desde este navegador se sigue además con
+  `GET /api/v1/commands?device_id=...` cada 5 s (hasta 25 min), así su progreso se ve
+  también en el detalle del equipo. En el detalle, el estado del celular de esa sonda se
+  refresca cada 5 s (antes solo con la lista a la vista).
+- Salud: se muestra "último dato conocido" (en gris) si el estado del celular tiene más de
+  60 s o la verificación (`checked_at`) más de 5 min; las edades se calculan contra
+  `sent_at` del mismo estado (reloj del celular) más la edad que da el servidor.
+- El botón "Reiniciar" aparece solo en equipos que son target de una sonda `runner=phone`
+  (el backend daría 404 en los demás); el badge de recomendación aparece igual.
+
+### Backend (§6, `server/internal/{store,api}`, 2026-09-29)
+
+Nada de lo que fija §6.3 cambió (ruta, cuerpo, 404/409, `not_after` +15 min, enfriamiento
+de 15 min con `force`, bloque `reboot` con sus cinco claves). Lo que §6 no decía:
+
+- **Cierre de la orden:** por `POST .../orders/{order_id}/state` con `status` `done` o
+  `failed`, `error` y `result` (objeto). Solo en órdenes `reboot_router` (en una prueba
+  sigue siendo `400 "done/failed se cierran con /results"`). Se acepta desde `pending`,
+  `delivered`, `running` y desde un final blando del barrido (`closed_by = server`), como
+  un resultado tardío. Opcional `step` (`^[a-z][a-z0-9_-]{0,31}$`): un `running` repetido
+  con otro `step` o con `result` actualiza el progreso (no es `ignored`). Las claves de
+  contraseña del `result` se borran (`password`, `ssh_password`, … a cualquier nivel).
+  Un resultado de `/results` con el `order_id` de un reinicio se rechaza (`error`,
+  `retryable: false`): un reinicio nunca genera medición.
+- **Orden en `GET .../orders`, `?view=history` y `POST .../reboot`:** misma forma de §1.3
+  con `type: "reboot_router"`, `target` = `slot` del equipo, `duration_s` y
+  `selection_reason` `null`, y tres claves nuevas (en todas las órdenes; `null` en las
+  pruebas): `reboot_reason` (`manual`/`recommended`), `step` y `result` (objeto). En
+  `GET /api/v1/commands` salen (si tienen valor) `completed_at`, `error`,
+  `reboot_reason`, `step` y `result`; son solo de salida (un `POST /commands` no los fija).
+- **Respuesta de `POST /devices/{id}/reboot`:** `200 {"existing": bool, "order": {...}}`.
+  `409` lleva `error`, `in_progress` (true = ya hay un reinicio abierto de ese equipo: se
+  responde 409 **también con `force`**, para no mandar dos `reboot` seguidos; se cancela
+  con `orders/cancel`), `order` (la abierta, o el último reinicio si es enfriamiento),
+  `last_reboot_at` y `cooldown_until`. `order_id` de otra orden → `409 "order_id en uso por
+  otra orden"`. **Al dashboard:** usar `in_progress` en vez de buscar "order_id" en el texto
+  (con `in_progress: true`, `force` no sirve). Cuerpo opcional `probe_id` solo si el equipo
+  estuviera en varias sondas de celular (si no, se elige aquella en la que está activo). El
+  `order_id` sigue las reglas de §1.4 (`-N` final reservado).
+- **Qué cuenta como "hubo un reinicio"** (enfriamiento): cualquier orden de reinicio creada en
+  los últimos 15 min salvo `cancelled`, `expired` (nunca se ejecutó) y `failed` con
+  `ssh-auth`, `ssh-connect`, `no-ethernet` o `mikrotik-unreachable` **y** sin
+  `result.ssh_ok = true` (esos errores son antes de mandar el comando; con `ssh_ok` el
+  comando salió, p. ej. `mikrotik-unreachable` mientras se vigilaba la vuelta).
+- **"Tiene agente"** = hay un heartbeat con `source: "router"` (el de `cmd/routeragent`) en
+  los últimos 7 días; más viejo que eso se trata como sin agente y solo cuenta la salud
+  del celular. **"Estado del celular fresco"** = recibido hace menos de 3 min y con
+  `routers.<slot>.checked_at` a menos de 15 min de `sent_at`. La duración de la caída es
+  `sent_at − down_since` (reloj del celular) + edad del estado en el servidor; sin `sent_at`
+  se compara `down_since` con la hora del servidor.
+- **Bloque `reboot`**, además de las cinco claves de §6.3: `offline_min`, `last_reboot_order_id`,
+  `last_reboot_step`, `last_reboot_error`, `in_progress`, `cooldown_until`, `probe_id`,
+  `slot`, `agent_last_seen`, `phone_online` y `health` (= `routers.<slot>` del último estado,
+  más `fresh`). Solo lo llevan los equipos de una sonda `runner=phone`. `offline_since` se
+  llena desde que hay una señal de caída (agente callado más de 150 s, o `internet_ok=false`
+  fresco), aunque todavía no se recomiende; `recommended` exige más de 10 min. Con una orden
+  abierta (`in_progress`) o dentro del enfriamiento no se recomienda (la `reason` lo dice).
+  `last_reboot_*` = el último reinicio que no fue cancelado ni venció sin ejecutarse. Si el
+  celular ve el router caído pero el agente sí reporta, se recomienda igual (la regla es
+  "o") y `reason` agrega "el agente sí reporta: puede ser el cable o el MikroTik".
+  `GET /probes` (lista) también lo trae, no solo `GET /probes/{id}`.
+- `POST .../status`: el bloque `routers` se guarda tal cual; si no es un objeto se descarta
+  ese bloque (no el estado).
+- Las órdenes de reinicio no cuentan como "abiertas" para el ciclo automático ni "Ciclo
+  ahora" (no frenan las pruebas). `POST /devices/{id}/reboot` corre antes el barrido de
+  vencidas, para que una orden pasada de `not_after` no cuente como "en curso".
+- Columnas nuevas en `commands` (con `addColumnIfMissing`): `step`, `result_json`,
+  `reboot_reason`.
+- **Revisión (2026-09-29), cambios del backend tras la revisión adversarial:**
+  - **App vieja:** `POST /devices/{id}/reboot` responde `409 {"error","in_progress":false,
+    "app_outdated":true}` (sin `cooldown_until`: el dashboard no ofrece forzar) si el último
+    estado del celular de la sonda no trae `routers` como objeto (o no hay estado). La app
+    que conoce `reboot_router` siempre lo manda (aunque sea `{}`); la anterior no mira el
+    `type` y correría el reinicio como una prueba de velocidad.
+  - **El celular manda sobre una cancelación:** en un reinicio, un `running`,
+    `interrupted`, `done` o `failed` del celular se aplica también sobre `cancelled`
+    (dashboard o servidor) y sobre un final blando del barrido: el celular pudo tomar la
+    orden antes de enterarse de la cancelación, y el historial y el enfriamiento tienen que
+    saber que el comando pudo salir (antes quedaba `cancelled` y no enfriaba). Un
+    `running` así la reabre (`completed_at`, `closed_by` y `error` vuelven a `null`). Un
+    final del propio celular no se reabre; en pruebas de velocidad nada cambió.
+  - **Nunca dos `reboot` seguidos:** cuando un reinicio pasa a `running` se cancelan
+    (`closed_by: "server"`, `error: "reinicio-duplicado"`) los otros reinicios `pending`/
+    `delivered` del mismo equipo (solo existen si se pidió otro en esa carrera). El celular
+    se entera por la lista `closed` de su `GET .../orders` mientras vigila el primero.
+  - **Base del enfriamiento:** `delivered_at` (cuando el celular se llevó la orden) o, si
+    nunca la confirmó, `created_at`. `cooldown_until` = esa hora + 15 min. `last_reboot_at`
+    sigue siendo `created_at`.
+  - `interrupted` con `slot-desconocido` o `tipo-desconocido` (la app no llegó a empezar) y
+    sin `result.ssh_ok = true` tampoco enfría.
+  - **Secretos:** además de las claves fijas se borra cualquier clave que contenga
+    `password`/`passwd` sin importar mayúsculas (la app guarda `ssh_password_A`/
+    `ssh_password_B`), más `pass`, `pwd` y `secret`, en estado en vivo, resultados y
+    `result` de `/state`.
+  - `health.checked_at`/`down_since` se devuelven normalizados a RFC 3339 UTC (un texto que
+    no es hora se omite). `requested_by` no admite caracteres de control (va al log).
+  - Si el agente lleva más de 10 min callado pero el celular ve Internet fresco por ese
+    router, se recomienda igual (regla "o") y `reason` agrega "el celular sí ve Internet
+    por este router: puede ser solo el agente".
+
+### App (§6, `mobile/`, 2026-09-29)
+
+Nada de lo que fija §6.2 cambió (bloque `routers` con sus seis claves, `type="reboot_router"`,
+pasos 1-5, errores de la lista, clave nunca enviada). Lo que §6 no decía:
+
+- **Salud (§6.2):** la IP de cada slot sale de la `dst-address` de la regla
+  `probe:health-<slot>` (no está fija en el código) y solo se usa si la regla existe, está
+  habilitada y apunta a la tabla de ese slot; si no, `internet_ok = null` con el motivo en
+  `error`. En reposo, cada `mikrotik_idle_check_s`, en la misma sesión que la lectura de la
+  regla: 1 ping a la puerta de enlace + 3 a la IP de salud por router. Sin la política
+  `test`, el `!trap` queda en `error` (no rompe la lectura de la regla). `routers.<slot>`
+  lleva además `device_id`, `gateway`, `health_ip` y `error`. Si no se pudo abrir la sesión
+  se conservan los últimos valores (`checked_at` dice su edad) y se anota el `error`. El
+  estado vive en kv `routers_health`, así `down_since` sobrevive a un reinicio de la app y
+  sale también con el servicio detenido.
+- **Progreso:** el `running` inicial lleva `step: "reading_gateway"`; después, un `running`
+  por paso con `step` ∈ {`ssh`, `waiting_down`, `waiting_back`, `waiting_internet`} (todos
+  por `outbox`), y el cierre `done`/`failed` lleva `step` = el estado y `result`. En el
+  estado en vivo: fase nueva **`rebooting`** ("Reiniciando router"; el dashboard muestra
+  cualquier fase `reboot*`), `phase_detail` con el paso, `current_order` con
+  `type: "reboot_router"`, `step` y `reboot_step`, un bloque nuevo `reboot` (`order_id`,
+  `slot`, `device_id`, `label`, `step`, `started_at`, `gateway_ip`, `elapsed_s`,
+  `went_down`, `gateway_back_s`, `internet_back_s`, `error`; `null` sin reinicio) y
+  `queue.next_order_type`.
+- **`result`**, además de las claves de §6.2: `host_key_type`, `ssh_authenticated`,
+  `exit_status`, `ssh_detail` (texto del error de JSch, sin secretos), `ssh_user`,
+  `ssh_port`, `command`, `gateway_ip`, `mgmt_rule` (si existe `probe:mgmt-<slot>`),
+  `went_down`, `gateway_check` (`ping` o `enlace`), `internet_check` (`ping` o por qué no
+  se pudo) y `watch_error`. `ssh_ok` va siempre (también `false`), lo que usa el
+  enfriamiento del backend.
+- **"Se apagó / volvió":** apagado = **dos** lecturas seguidas (cada 5 s) sin puerta de
+  enlace (un ping perdido no cuenta); volvió = responde otra vez después de apagarse. Si
+  el ping no se puede usar, se toma el estado `active` de la ruta de su tabla (enlace del
+  puerto). Sin regla de salud, la orden termina `done` cuando vuelve la puerta de enlace,
+  con `internet_back_s = null`.
+- **Errores nuevos:** `no-reboot` (el router siguió respondiendo 150 s después del comando:
+  no se reinició) y `error-interno`. `stop` durante un reinicio deja la orden `interrupted`
+  (`error: "detenida"`) con el `result` parcial. `no-ethernet` cierra la orden en el acto
+  (no espera el cable como una prueba). Una orden de tipo desconocido pasa a `interrupted`
+  con `error: "tipo-desconocido"`.
+- **Camino del SSH:** en la misma sesión en la que lee el gateway, el celular deja la regla
+  `phone-probe` en `fallback_table` si no lo estaba (en reposo ya lo está), así el SSH
+  llega a la LAN del router aunque faltara `probe:mgmt-<slot>` (se avisa en el registro).
+  Socket de `Network.socketFactory` de Ethernet con tope de conexión de 8 s (JSch no aplica
+  su timeout cuando hay `SocketFactory`). JSch: se **agregan al final** de las listas por
+  defecto `ssh-rsa` (host key y `PubkeyAcceptedAlgorithms`), `diffie-hellman-group14-sha1`,
+  `diffie-hellman-group1-sha1`, `aes128-cbc`/`aes256-cbc`/`3des-cbc` y `hmac-sha1`; auth
+  `password,keyboard-interactive`. Probado en un contenedor OpenSSH que solo ofrecía
+  `diffie-hellman-group1-sha1` + `ssh-rsa`: conecta, ejecuta y da huella `SHA256:…`; clave
+  mala → `Auth fail…` → `ssh-auth`.
+- **Ajustes nuevos** (§2.7): `ssh_user_A|B` (`root`), `ssh_password_A|B` (clave de fábrica, fuera del repo,
+  secreto: solo `getConfig`; no se recorta), `ssh_port_A|B` (22, 1-65535),
+  `ssh_command_A|B` (`reboot`). Otros slots usan esos valores por defecto.
+- **Dependencia:** `com.github.mwiede:jsch:0.2.26` (la última con numeración 0.2.x; la
+  misma librería sigue como 2.28.x). Su jar es multi-release con clases de Java 24: va en
+  `android.jetifier.ignorelist=jsch` (Jetifier falla con "Unsupported class file major
+  version 68"), se excluye `META-INF/versions/**` del empaquetado y `proguard-rules.pro`
+  conserva `com.jcraft.jsch.**` (carga sus algoritmos con `Class.forName`) con `-dontwarn`
+  para sus dependencias opcionales. Verificado en el APK: `DHG1`, `DHG14`, `SignatureRSA`,
+  `AES128CTR`, `TripleDESCBC` y `HMACSHA1` siguen en el dex.
+- **`probe.db` versión 2:** `orders.type` (`run_speedtest` por defecto) y
+  `orders.result_json`, con `ALTER TABLE` en `onUpgrade`. En un reinicio, `target` = el slot
+  (o se busca por `device_id` en la config) y `selection_reason` = `reboot_reason`. Canal
+  nuevo `recentReboots {limit}` para la pantalla.
+- Versión de la app **1.2.0+3** (sale en `app_version`): la 1.1.0+2 que tiene hoy el
+  celular no conoce `type` y trataría un `reboot_router` como una prueba de velocidad en ese
+  slot (el backend rechaza su resultado). No usar "Reiniciar" hasta instalar esta versión.
+- **Revisión (2026-09-29):** (1) si la ruta por defecto de la tabla del slot está
+  **inactiva** (puerto caído o router apagado), la salud da `internet_ok = false` y
+  `gateway_ok = false` (no `null`), así `down_since` corre y la recomendación de §6.3 sale
+  también con el router apagado; y el reinicio **no intenta el SSH** (`failed`,
+  `ssh-connect`, `ssh_ok: false`, `ssh_detail` lo explica): sin esa ruta el SSH con
+  usuario/clave podría salir por el otro router mientras `probe:mgmt-*` apunte a `main`.
+  (2) Con `device_id` en la orden, el router se elige por `device_id` (el slot solo si el
+  target no tiene equipo): si la config cambió, nunca se reinicia otro equipo. (3) "Detener"
+  ya no corta la espera de ≤10 s después de mandar el comando (se pierde `ssh_ok`); corta
+  antes del SSH o durante la vigilancia. (4) Si la app muere durante la vigilancia, la orden
+  queda `interrupted` (`app-reiniciada`) **con** el `result` parcial (`ssh_ok: true`, etc.).
+  (5) Si la IP de salud existe pero el ping no se puede hacer (p. ej. sin política `test`),
+  la vigilancia termina con la vuelta de la puerta de enlace (`internet_check` = el motivo),
+  sin esperar a `timeout-back`. (6) JSch agrega también `ssh-dss`, `aes192-cbc` y
+  `hmac-md5` al final de sus listas (solo se usan si el equipo no ofrece nada mejor).

@@ -229,8 +229,50 @@ class Mikrotik(
         return ids.size
     }
 
+    /// Resultado de un /ping hecho por el propio MikroTik (§6.2).
+    data class Ping(val sent: Int, val received: Int, val lossPct: Double, val avgRttMs: Double?)
+
+    /// `/ping =address=… =count=…`: el MikroTik manda un !re por paquete con los
+    /// acumulados (sent, received, packet-loss, avg-rtt); vale el último.
+    /// Exige la política `test` en el grupo del usuario (§6.1): sin ella, !trap.
+    fun ping(api: RouterOsApi, address: String, count: Int): Ping {
+        val r = api.run("/ping", "=address=$address", "=count=$count")
+        val last = r.lastOrNull() ?: return Ping(0, 0, 100.0, null)
+        val sent = last["sent"]?.toIntOrNull() ?: r.size
+        val recv = last["received"]?.toIntOrNull() ?: 0
+        val loss = last["packet-loss"]?.toDoubleOrNull() ?: if (sent > 0) 100.0 * (sent - recv) / sent else 100.0
+        return Ping(sent, recv, loss, if (recv > 0) rosDurationMs(last["avg-rtt"]) else null)
+    }
+
+    /// Reglas de ruteo cuyo comment empieza con el prefijo, por comment.
+    data class AnyRule(val comment: String, val dstAddress: String?, val table: String, val disabled: Boolean, val inactive: Boolean)
+
+    fun rulesWithPrefix(api: RouterOsApi, prefix: String): Map<String, AnyRule> {
+        val r = api.run("/routing/rule/print", "=.proplist=comment,dst-address,table,disabled,inactive")
+        val out = LinkedHashMap<String, AnyRule>()
+        for (a in r) {
+            val c = a["comment"] ?: continue
+            if (!c.startsWith(prefix)) continue
+            out[c] = AnyRule(c, a["dst-address"], a["table"] ?: "", flag(a["disabled"]), flag(a["inactive"]))
+        }
+        return out
+    }
+
     fun identity(api: RouterOsApi): String? = api.run("/system/identity/print").firstOrNull()?.get("name")
 
     fun version(api: RouterOsApi): String? =
         api.run("/system/resource/print", "=.proplist=version").firstOrNull()?.get("version")?.substringBefore(' ')
+}
+
+/// Duraciones de RouterOS ("921us", "1ms95us", "21ms628us", "1s12ms") → ms.
+fun rosDurationMs(v: String?): Double? {
+    if (v.isNullOrEmpty()) return null
+    val m = Regex("""(\d+(?:\.\d+)?)(us|ms|s|m|h)""").findAll(v).toList()
+    if (m.isEmpty()) return v.toDoubleOrNull()
+    var ms = 0.0
+    for (g in m) {
+        val n = g.groupValues[1].toDouble()
+        ms += when (g.groupValues[2]) { "us" -> n / 1000.0; "ms" -> n; "s" -> n * 1000.0; "m" -> n * 60_000.0; else -> n * 3_600_000.0 }
+    }
+    return ms
 }

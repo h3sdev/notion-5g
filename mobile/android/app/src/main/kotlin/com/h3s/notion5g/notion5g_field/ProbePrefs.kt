@@ -9,8 +9,9 @@ import java.util.Locale
 
 /// Ajustes de la sonda A/B (contrato §2.7): SharedPreferences "probe", cuyo
 /// dueño es el lado nativo. Dart los lee con getConfig y los cambia con
-/// saveConfig. Los secretos (api_key, prod_api_key, mikrotik_password) solo
-/// salen por getConfig: nunca van al estado en vivo, a eventos ni a resultados.
+/// saveConfig. Los secretos (api_key, prod_api_key, mikrotik_password y
+/// ssh_password_<slot>) solo salen por getConfig: nunca van al estado en vivo,
+/// a eventos ni a resultados.
 class ProbePrefs(context: Context) {
     companion object {
         const val NAME = "probe"
@@ -46,7 +47,18 @@ class ProbePrefs(context: Context) {
             "location_max_age_s" to 30,
             "location_max_age_stationary_s" to 300,
             "location_max_accuracy_m" to 100,
+            // SSH a cada router para reiniciarlo (contrato §6.2). La clave es un
+            // secreto: solo sale por getConfig.
+            "ssh_user_A" to "root",
+            "ssh_password_A" to "",
+            "ssh_port_A" to 22,
+            "ssh_command_A" to "reboot",
+            "ssh_user_B" to "root",
+            "ssh_password_B" to "",
+            "ssh_port_B" to 22,
+            "ssh_command_B" to "reboot",
         )
+        val SSH_SLOTS = listOf("A", "B")
         val SPEED_TARGETS = setOf("cloudflare", "prod-download", "local")
 
         /// Rangos que evitan que la regla quede forzada más del tope de 8 min
@@ -123,12 +135,14 @@ class ProbePrefs(context: Context) {
                     } ?: return "$k debe ser un número entero"
                     if (n <= 0) return "$k debe ser mayor que 0"
                     if (k == "mikrotik_port" && n > 65535) return "Puerto del MikroTik fuera de rango (1-65535)"
+                    if (k.startsWith("ssh_port_") && n > 65535) return "Puerto SSH de ${k.removePrefix("ssh_port_")} fuera de rango (1-65535)"
                     if (n > Int.MAX_VALUE) return "$k es demasiado grande"
                     RANGES[k]?.let { (lo, hi, what) -> if (n < lo || n > hi) return "$what: entre $lo y $hi" }
                     e.putInt(k, n.toInt())
                 }
                 else -> {
-                    val s = (v as? String ?: v?.toString() ?: "").trim()
+                    val raw = v as? String ?: v?.toString() ?: ""
+                    val s = if (k.startsWith("ssh_password_")) raw else raw.trim()
                     when (k) {
                         "backend_url" -> if (!validUrl(s)) return "URL mal formada en $k: debe empezar por http:// o https://"
                         // Lleva la API key de producción: solo https.
@@ -139,6 +153,8 @@ class ProbePrefs(context: Context) {
                         "mikrotik_host" -> if (s.isEmpty()) return "Falta la dirección del MikroTik"
                         "fallback_table", "table_A", "table_B", "mikrotik_rule_comment", "mikrotik_user" ->
                             if (s.isEmpty()) return "$k no puede quedar vacío"
+                        "ssh_user_A", "ssh_user_B" -> if (s.isEmpty()) return "Falta el usuario SSH de ${k.last()}"
+                        "ssh_command_A", "ssh_command_B" -> if (s.isEmpty()) return "Falta el comando de reinicio de ${k.last()}"
                     }
                     e.putString(k, if (k == "backend_url" || k == "prod_url") s.trimEnd('/') else s)
                 }
@@ -191,4 +207,15 @@ class ProbeSettings(private val m: Map<String, Any?>) {
     val requireEthernet get() = bool("require_ethernet")
     val fallbackTable get() = str("fallback_table").ifEmpty { "main" }
     val ruleComment get() = str("mikrotik_rule_comment").ifEmpty { "phone-probe" }
+
+    /// Credenciales SSH del router de un slot (§6.2); slots sin ajustes propios
+    /// usan los valores por defecto (root, clave de fábrica, 22, reboot).
+    class Ssh(val user: String, val password: String, val port: Int, val command: String)
+
+    fun ssh(slot: String): Ssh {
+        val has = slot in ProbePrefs.SSH_SLOTS
+        fun s(k: String, d: String) = if (has) str("ssh_${k}_$slot").ifEmpty { d } else d
+        val port = if (has) int("ssh_port_$slot") else 22
+        return Ssh(s("user", "root"), if (has) str("ssh_password_$slot") else "", if (port in 1..65535) port else 22, s("command", "reboot"))
+    }
 }

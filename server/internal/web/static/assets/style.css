@@ -637,3 +637,24 @@ h2, h3 { margin: 6px 0 10px; }
 }
 /* [hidden] pierde contra el display:block de las tablas en modo tarjeta */
 .data-table[hidden] { display: none !important; }
+
+/* Salud por router y reinicio remoto (contrato §6.4) */
+.reboot-ctl { margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; }
+.reboot-ctl:empty { display: none; }
+.reboot-ctl .st-badge, .reboot-line .st-badge, .phone-router-row .st-badge { white-space: normal; overflow-wrap: anywhere; }
+.reboot-box .summary-label { display: block; margin-bottom: 4px; }
+.reboot-line, .phone-router-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; font-size: 13px; }
+.phone-router-row { padding: 6px 0; border-top: 1px solid var(--border); margin-top: 0; }
+.phone-sub-head + .phone-router-row { border-top: none; }
+.phone-router-off { opacity: 0.6; }
+.health-old { opacity: 0.6; filter: grayscale(0.6); }
+.reboot-progress { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.reboot-steps { display: inline-flex; margin: 0; }
+.btn-reboot { font-size: 12px; padding: 3px 10px; }
+.btn-reboot.btn-link { color: var(--err); }
+.btn-reboot-rec { background: var(--err); border-color: var(--err); }
+.btn-reboot[disabled] { opacity: 0.55; cursor: default; }
+.state-cell { min-width: 0; }
+@media (max-width: 600px) {
+  .state-cell .reboot-ctl { justify-content: flex-end; }
+}

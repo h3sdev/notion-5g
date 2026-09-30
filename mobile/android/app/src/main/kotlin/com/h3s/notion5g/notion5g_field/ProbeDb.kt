@@ -13,7 +13,7 @@ import org.json.JSONObject
 /// instancia por proceso (servicio y canal de Flutter la comparten). Nunca se
 /// borra: son datos de campo. Cambios futuros de esquema: subir la versión y
 /// ALTER TABLE ... ADD COLUMN en onUpgrade.
-class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, "probe.db", null, 1) {
+class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, "probe.db", null, 2) {
     companion object {
         private const val TAG = "ProbeDb"
         @Volatile private var inst: ProbeDb? = null
@@ -22,6 +22,8 @@ class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, 
             inst ?: synchronized(this) { inst ?: ProbeDb(context.applicationContext).also { inst = it } }
 
         val OPEN = listOf("pending", "delivered")
+        const val TYPE_SPEEDTEST = "run_speedtest"
+        const val TYPE_REBOOT = "reboot_router"
         val FINAL = setOf("done", "failed", "expired", "interrupted", "cancelled")
     }
 
@@ -55,6 +57,7 @@ class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, 
             )"""
         )
         db.execSQL("CREATE INDEX idx_orders_due ON orders(status, execute_at_ms)")
+        addV2Columns(db)
         db.execSQL(
             """CREATE TABLE results (
               result_id         TEXT PRIMARY KEY,
@@ -110,7 +113,14 @@ class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, 
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Versión 1: nada que migrar.
+        if (oldVersion < 2) addV2Columns(db)
+    }
+
+    /// Versión 2 (contrato §6.2): tipo de orden (run_speedtest | reboot_router)
+    /// y el resultado de las órdenes que no generan medición (reinicio).
+    private fun addV2Columns(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE orders ADD COLUMN type TEXT NOT NULL DEFAULT 'run_speedtest'")
+        db.execSQL("ALTER TABLE orders ADD COLUMN result_json TEXT")
     }
 
     val db: SQLiteDatabase get() = writableDatabase
@@ -203,13 +213,19 @@ class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, 
         val startedMs: Long?,
         val error: String?,
         val createdMs: Long,
-    )
+        val type: String = TYPE_SPEEDTEST,
+        val resultJson: String? = null,
+        val updatedMs: Long = 0L,
+    ) {
+        val isReboot: Boolean get() = type == TYPE_REBOOT
+    }
 
     private fun Cursor.getStringOrNull(i: Int): String? = if (isNull(i)) null else getString(i)
     private fun Cursor.getLongOrNull(i: Int): Long? = if (isNull(i)) null else getLong(i)
 
     private val orderCols = "order_id, origin, server_id, target, slot, device_id, routing_table, allow_fallback, duration_s, " +
-        "execute_at_ms, not_after_ms, selection_reason, requested_by, status, acked, result_id, started_ms, error, created_ms"
+        "execute_at_ms, not_after_ms, selection_reason, requested_by, status, acked, result_id, started_ms, error, created_ms, " +
+        "type, result_json, updated_ms"
 
     private fun Cursor.toOrder() = Order(
         orderId = getString(0), origin = getString(1), serverId = getLongOrNull(2), target = getString(3),
@@ -217,6 +233,7 @@ class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, 
         allowFallback = getInt(7) != 0, durationS = getInt(8), executeAtMs = getLong(9), notAfterMs = getLongOrNull(10),
         selectionReason = getString(11), requestedBy = getStringOrNull(12), status = getString(13), acked = getInt(14) != 0,
         resultId = getStringOrNull(15), startedMs = getLongOrNull(16), error = getStringOrNull(17), createdMs = getLong(18),
+        type = getStringOrNull(19) ?: TYPE_SPEEDTEST, resultJson = getStringOrNull(20), updatedMs = getLong(21),
     )
 
     fun orders(where: String, args: Array<String>, orderBy: String = "execute_at_ms, server_id, created_ms", limit: Int = 500): List<Order> =
@@ -254,6 +271,28 @@ class ProbeDb private constructor(context: Context) : SQLiteOpenHelper(context, 
             put("selection_reason", reason); put("requested_by", requestedBy)
             put("status", "pending"); put("acked", 1); put("created_ms", now); put("updated_ms", now)
         })
+    }
+
+    /// Últimas órdenes de reinicio (abiertas primero), para la pantalla.
+    fun recentReboots(limit: Int): List<Map<String, Any?>> {
+        val offset = kvLong("clock_offset_ms") ?: 0L
+        return orders("type='$TYPE_REBOOT'", arrayOf(),
+            orderBy = "CASE WHEN status IN ('pending','delivered','running') THEN 0 ELSE 1 END, updated_ms DESC", limit = limit).map { o ->
+            val res = o.resultJson?.let { try { JSONObject(it) } catch (_: Exception) { null } }
+            mapOf(
+                "order_id" to o.orderId,
+                "origin" to o.origin,
+                "slot" to (o.slot ?: o.target),
+                "device_id" to o.deviceId,
+                "status" to o.status,
+                "error" to o.error,
+                "requested_by" to o.requestedBy,
+                "created_at" to Rfc3339.format(o.createdMs),
+                "updated_at" to Rfc3339.format(o.updatedMs),
+                "execute_at" to Rfc3339.format(o.executeAtMs - offset),
+                "result" to res?.let { JsonConv.toPlatform(it) },
+            )
+        }
     }
 
     fun countOpenOrders(): Int =

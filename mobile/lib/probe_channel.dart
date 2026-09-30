@@ -69,6 +69,10 @@ class ProbeChannel {
 
   static Future<List<Map<String, dynamic>>> recentEvents({int limit = 100}) async =>
       _list(await _m.invokeMethod('recentEvents', {'limit': limit}));
+
+  /// Órdenes de reinicio de routers (§6.2), abiertas primero.
+  static Future<List<Map<String, dynamic>>> recentReboots({int limit = 5}) async =>
+      _list(await _m.invokeMethod('recentReboots', {'limit': limit}));
 }
 
 /// Textos en español (los mismos del dashboard, contrato §2.11).
@@ -89,7 +93,55 @@ class ProbeText {
     'uploading': 'Enviando resultado',
     'backoff': 'Sin backend, reintentando',
     'stopped': 'Detenida',
+    'rebooting': 'Reiniciando router',
   };
+
+  /// Pasos de un reinicio (§6.2): (paso, etiqueta corta).
+  static const rebootSteps = <List<String>>[
+    ['received', 'Recibida'],
+    ['ssh', 'SSH'],
+    ['waiting_down', 'Apagándose'],
+    ['waiting_back', 'Esperando que vuelva'],
+    ['waiting_internet', 'Internet'],
+    ['done', 'Listo'],
+  ];
+
+  static String rebootError(String? e) => switch (e) {
+        null => '',
+        'ssh-auth' => 'usuario o clave SSH rechazados',
+        'ssh-connect' => 'no se pudo conectar por SSH',
+        'no-ethernet' => 'sin cable Ethernet',
+        'mikrotik-unreachable' => 'no se alcanzó el MikroTik',
+        'timeout-back' => 'no volvió en 5 min',
+        'no-reboot' => 'siguió respondiendo: no se reinició',
+        'detenida' => 'la sonda se detuvo',
+        'vencida' => 'venció sin ejecutarse',
+        'cancelada' => 'cancelada',
+        _ => e,
+      };
+
+  static String orderStatus(String? s) => switch (s) {
+        'pending' => 'pendiente',
+        'delivered' => 'recibida',
+        'running' => 'en curso',
+        'done' => 'lista',
+        'failed' => 'fallida',
+        'expired' => 'vencida',
+        'interrupted' => 'interrumpida',
+        'cancelled' => 'cancelada',
+        _ => s ?? '?',
+      };
+
+  /// "3 min" desde una hora RFC 3339 (sin "hace").
+  static String duration(String? iso) {
+    final t = iso == null ? null : DateTime.tryParse(iso);
+    if (t == null) return '-';
+    final d = DateTime.now().difference(t);
+    if (d.inSeconds < 60) return '${d.inSeconds < 0 ? 0 : d.inSeconds} s';
+    if (d.inMinutes < 60) return '${d.inMinutes} min';
+    if (d.inHours < 48) return '${d.inHours} h ${d.inMinutes % 60} min';
+    return '${d.inDays} días';
+  }
 
   static String phase(String? p) => phases[p] ?? (p ?? '?');
 
