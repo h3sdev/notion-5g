@@ -485,6 +485,10 @@ despliegue (el rsync normal lo lleva).
 
 ## Addendum 2026-09-29 — sonda A/B con celular por cable (forma A), backend local en Docker
 
+> **Actualizado:** todo esto ya está en git, en GitHub y **en producción** desde la misma noche (ver
+> el addendum siguiente, "estado al cierre del 2026-09-30"). Lo de abajo describe cómo se construyó y
+> el modo local; para operar, leer primero el addendum siguiente.
+
 **Nada de esto está en producción ni en git todavía** (todo sin commit sobre `4a5bee4`). El VPS
 (`192.168.40.214`) no se alcanza: la red de la oficina donde vive está apagada. Por eso todo se
 montó y probó con el **backend local en Docker** en el PC de Diego. Diseño en
@@ -631,3 +635,121 @@ pendientes", historial de órdenes y resultados. Desde la WSL: `scripts/phone/pr
 8. En la app, cambiar el backend de la sonda a `https://notion.h3s-iot.com` y la API key a la de
    producción. Con un backend público el plano de control también puede ir por Ethernet (por el
    respaldo del MikroTik), así que ya no depende del WiFi de la oficina.
+
+---
+
+## Addendum 2026-09-30 — estado al cierre: sonda A/B en producción, reinicio remoto, 4G, fast.com
+
+Todo lo de esta sesión está **en git, en GitHub (`fe91a4b`) y en producción** (VPS idéntico a ese
+commit; comprobado con `rsync -rcn`). La app del S20+ va en la **versión 1.4.0** y apunta a
+**`https://notion.h3s-iot.com`**. El backend local en Docker (`notion5g-local`) sigue existiendo
+pero ya no se usa.
+
+### 1. Qué quedó funcionando (verificado de verdad, no solo en tests)
+
+| Qué | Estado | Evidencia |
+|---|---|---|
+| Modo en movimiento como servicio nativo | Vuelve solo si Android mata la app | 2026-09-29 15:08: SIGKILL y el servicio volvió en el mismo segundo; 20 h sin huecos > 10 min en `phone_log` |
+| Sonda A/B con el celular por cable | Mide por A o por B cambiando la regla del MikroTik | A sale por **WOM AS271773** (179.19.72.14), B por **Movistar AS3816** (186.102.x); ambos `net_route=router` |
+| Ciclo automático en producción | `interval_s=300` en `hap-oficina` | El planificador encola A y B cada 5 min (`selection_reason=alternation`) |
+| Plan local del celular | **Encendido**: si pasan 600 s sin backend, alterna A/B cada 300 s solo | Resultados marcados "sin backend", se suben después sin duplicarse |
+| Destino de velocidad | **fast.com** (5 conexiones a los OCA de Netflix de ese operador) + **Cloudflare ×1** al lado (`cf_*`), para comparar con el historial | Ej. B: fast.com 34,4 ↓ / Cloudflare 29,1 ↓ Mbps |
+| Reinicio remoto del **5G** | Por SSH (root; clave de fábrica, fuera del repo) | 2026-09-29 21:47: se cayó, puerta de enlace en 40 s, Internet en 45 s, el agente reportó uptime 63 s |
+| Reinicio remoto del **4G** | Por su **web vieja** (puerto 22 cerrado) | 2026-09-29 22:05: se cayó y volvió en 25 s; su página mostró la conexión nueva |
+| 4G en el dashboard | En línea por la salud que ve el celular; señal leída de su web cada 5 min | Movistar, B28, RSRP −95, RSRQ −15, SINR −1 (igual a su página) |
+| Identidad del router por puerto | El celular compara el título de su página ("5G"/"LTE") | A = "5G Wireless Router", B = "LTE Wireless Router": ok |
+
+### 2. Cómo funciona el reinicio remoto (contrato §6)
+
+- Se pide desde el dashboard ("Reiniciar", o el aviso **"Reinicio recomendado"** cuando un equipo
+  lleva **> 10 min sin conexión**) o por `POST /api/v1/devices/{id}/reboot`. **El backend nunca hace
+  SSH**: encola una orden `reboot_router` y la ejecuta el celular **entre pruebas**.
+- El celular entra al router por la LAN a través del MikroTik (reglas `probe:mgmt-A/B`, por las
+  tablas `to-A`/`to-B`: si ese router está caído, falla en vez de salir por el otro). No mueve la
+  regla de medición ni gasta datos celulares.
+- **5G:** SSH (JSch con `ssh-rsa` y kex `group1/group14` para el dropbear viejo). **4G:** si el SSH es
+  rechazado, cae a la web: interfaz Marvell vieja ("LTE Wireless Router"): login `GET /login.cgi?Action=Digest…`
+  firmado con `/cgi/protected.cgi` y `json_device_restart`. admin/admin. Un solo intento de login
+  por orden (el equipo bloquea tras varios fallos).
+- Antes de reiniciar comprueba la **identidad** del router del puerto (título de la página). Si no
+  coincide o no se puede leer: no reinicia, error `identity-mismatch`.
+- Vigila que el router se caiga y vuelva (hasta 5 min) y cierra la orden con `gateway_back_s`,
+  `internet_back_s`, `method` (`ssh`/`web`) y la huella SSH.
+- Enfriamiento de **15 min** por equipo (se salta con `force`); los fallos que no llegaron a mandar el
+  comando no cuentan.
+
+### 3. MikroTik: cambios de hoy además de §3 del addendum anterior
+
+- Reglas nuevas antes de `phone-probe`: `probe:mgmt-A` (192.168.1.1/32 → `to-A`), `probe:mgmt-B`
+  (192.168.2.1/32 → `to-B`), `probe:health-A` (9.9.9.9/32 → `to-A`), `probe:health-B`
+  (149.112.112.112/32 → `to-B`). El script de cada DHCP WAN mantiene `probe:mgmt-*` en la IP del router.
+- Grupo `probe-api` con `test` (necesario para `/ping` por la API). NAT viejo de fábrica borrado.
+- **Redirecciones web** para abrir la página de cada router desde el PC sin chocar con el mesh de la
+  oficina "Pipito" (que también es 192.168.2.0/24): **`http://192.168.88.1:8081` = 5G**,
+  **`http://192.168.88.1:8082` = 4G** (dst-nat `probe:web-A/B`). `apply_probe.py` **todavía no las
+  conoce** (no las borra, pero tampoco las recrea en un equipo nuevo).
+- Fasttrack activo con `hw-offload`; firewall = el de fábrica. `apply_probe.py --dry-run` = "Sin cambios".
+- Respaldos: `flash/pre-probe-*`, `flash/pre-mgmt-20260929-205428.rsc` y en
+  `C:\Users\diego\mikrotik-probe\backups\`.
+- En 7.6 `/ping` por la API no acepta `routing-table`: para probar una tabla se usa una regla
+  temporal por `dst-address` (así funcionan también `probe:health-*`).
+
+### 4. Hallazgos que conviene no redescubrir
+
+- **CGNAT de Movistar:** cada conexión puede salir con otra IP pública del mismo ASN. El backend solo
+  cuenta "cambió la red a mitad de la prueba" si cambia el **ASN**.
+- **Por qué fast.com da más:** 5 conexiones en paralelo a cachés dentro del operador contra 1 sola
+  conexión a Cloudflare. En celular una sola TCP no llena el enlace. A (WOM, LTE B4, RSRP ≈ −102) varía
+  mucho minuto a minuto: comparar promedios, no pruebas sueltas.
+- **La MAC de los Notion cambia al reiniciar** (el 5G pasó de `5E:8A…` a `1A:1C…`): no sirve para
+  identificarlos; por eso la identidad va por el título de su página.
+- **adb por WiFi:** `screencap` sale vacío en el Samsung; se navega con `uiautomator dump`. Si el
+  celular está bloqueado con clave no se puede tocar la UI (no se intenta saltar el bloqueo).
+- El adaptador USB-Ethernet del celular también lo carga ("USB powered").
+- El 4G no tiene agente: su estado viene del celular (`status_source=phone-health`).
+
+### 5. Secretos
+
+- La clave SSH de fábrica de los routers **ya no está en el repo**: la app la toma de
+  `mobile/android/local.properties` (`notion.sshPassword=…`, ignorado por git; puesto en
+  `C:\dev\notion5g_mobile\android\local.properties`). `scripts/rsh.sh`/`rput.sh` exigen `NOTION_PASS`.
+  Los commits de hoy se reescribieron antes de publicarse para no contenerla. **Sigue en la historia
+  vieja de GitHub** (`docs/01-inventario-equipo.md`, `scripts/rsh.sh`, `scripts/rput.sh`): quitarla
+  exige reescribir y force push (pendiente de decisión de Diego).
+- Contraseña del usuario `phone-probe` del MikroTik: solo en `C:\Users\diego\mikrotik-probe\phone-probe-password.txt`
+  y en el celular.
+
+### 6. Para la prueba en carretera
+
+1. Mismos puertos: ether1 = 4G, ether2 = 5G, ether3 = celular. Si se cambian, el celular lo detecta y
+   no reinicia ni atribuye la salud al equipo equivocado, pero las pruebas de ese tramo no sirven.
+2. Energía: MikroTik por el jack de 10–28 V, los dos routers y el adaptador del celular con carga.
+3. Celular con vista al cielo (GPS de unos metros; en la oficina da ~100 m porque está bajo techo). Una
+   SIM en el celular no mejora la precisión, solo acelera el primer fijo (A-GNSS); las pruebas nunca
+   salen por ella (atadas a Ethernet + verificación de ASN).
+4. Todo arranca solo al encender (MikroTik con su config en flash, app con servicio nativo).
+5. Limitación: si el 5G tiene LAN pero no datos, el respaldo del MikroTik (`check-gateway=ping`) no lo
+   nota y la subida de resultados espera; no se pierden.
+
+### 7. Cómo se desplegó hoy (repetible)
+
+Probar la migración sobre una copia del respaldo de producción con el build nuevo (contenedor aparte
+en otro puerto), luego: respaldo en el VPS (`~/notion5g-backups/pre-sonda-ab-*`, `pre-reboot-*`,
+`pre-signal-*`, `pre-identity-*`), `git archive HEAD server` a una carpeta temporal y `rsync -rc
+--delete` desde ahí (excluyendo `.env`, `.env.example`, `docker-compose.yml`, `cf-tunnel.sh`, `data/`,
+`.git/`), `docker compose up -d --build server`. Desplegar desde `git archive` y no desde la carpeta
+de trabajo evita subir cambios sin commit. La app se compila en Windows
+(`C:\dev\notion5g_mobile`, sincronizada con `rsync` excluyendo `android/local.properties`) y se
+instala por `adb -P 5039 -s 192.168.2.92:<puerto>`.
+
+### 8. Pendientes
+
+1. Decidir si se borra la clave SSH de la historia vieja de GitHub (force push).
+2. Enseñarle a `apply_probe.py` las redirecciones `probe:web-A/B`.
+3. Cambiar la contraseña `admin` del MikroTik.
+4. Comparar fast.com vs Cloudflare con promedios de varias rondas (los datos ya se guardan juntos).
+5. Detectar "router con LAN pero sin datos" en el respaldo del MikroTik (hoy solo detecta router
+   apagado).
+6. SIM en el celular como respaldo del plano de control (opcional) o como tercera red a medir.
+7. Siguen: cruzar la forma B con el historial de GPS del celular y retirar `maxLocationAge`;
+   `device_id` real del 4G si algún día se le instala el agente.
