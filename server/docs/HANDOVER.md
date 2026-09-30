@@ -753,3 +753,8 @@ instala por `adb -P 5039 -s 192.168.2.92:<puerto>`.
 6. SIM en el celular como respaldo del plano de control (opcional) o como tercera red a medir.
 7. Siguen: cruzar la forma B con el historial de GPS del celular y retirar `maxLocationAge`;
    `device_id` real del 4G si algún día se le instala el agente.
+8. **(2026-09-30) El celular lee la señal del router por SSH antes de cada prueba** y la manda en el
+   resultado (`operator`, `band_lte`, `rsrp_dbm`, `uptime_s`…): hoy las mediciones de la sonda llegan sin
+   datos del módem y la tabla del dashboard sale con guiones en los dos equipos. El backend ya guarda
+   esos campos si vienen; es cambio de app. Detalle completo en `docs/PENDIENTE-SENAL-POR-SSH.md`.
+   **Hecho el mismo día (app 1.5.0):** 5G por SSH+`ubus`, 4G por su web vieja; verificado en producción.

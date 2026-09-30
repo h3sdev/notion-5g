@@ -582,12 +582,14 @@ class ProbeWorker(
         var fastError: String? = null
         var executedOffline = false
         var clockSkew: Double? = null
+        /// Estado del módem del router del slot, leído antes de la prueba (RouterSignal).
+        var signal: JSONObject? = null
         val durationS get() = if (order.durationS in 3..60) order.durationS else s.int("duration_s").coerceIn(3, 60)
 
         fun resetAttempt() {
             route = null; ruleEnd = null; ruleEndRead = false; captive = null; portalHost = null; meta = null; metaEnd = null
             gwReachable = null; dnsOk = null; internetOk = null; ping = null; down = null; up = null
-            testStartedMs = null; testStartedNs = 0L; testFinishedMs = null; status = "done"; error = null
+            testStartedMs = null; testStartedNs = 0L; testFinishedMs = null; status = "done"; error = null; signal = null
             attemptStartMs = System.currentTimeMillis()
         }
     }
@@ -784,6 +786,10 @@ class ProbeWorker(
                 }
                 break
             }
+
+            // e0) señal del módem del router (antes de test_started_at; el GPS sigue en paralelo)
+            if (netPath == "ethernet") readRouterSignal(r)
+            checkpoint()
 
             // e) GPS
             phase("gps_fix", null)
@@ -1033,6 +1039,48 @@ class ProbeWorker(
         else -> emptyMap()
     }
 
+    /// Lee operador/banda/RSRP… del router del slot por SSH (o por su web) y lo
+    /// deja en `r.signal`. Presupuesto ≤ 8 s en total; si falla, solo
+    /// `signal_error` y la prueba se corre igual.
+    private fun readRouterSignal(r: Run) {
+        val eth = net.eth ?: return
+        val t = r.target ?: return
+        val slot = r.slot ?: return
+        val route = r.route
+        val gw = route?.route?.gatewayIp
+        val t0 = SystemClock.elapsedRealtime()
+        r.signal = when {
+            route?.confirmed != true || gw == null || route.route?.active != true ->
+                JSONObject().put("signal_error", "sin-ruta").put("signal_read_at", Rfc3339.format(System.currentTimeMillis()))
+            else -> {
+                // Si en ese puerto hay otro router, su señal no es la de este slot.
+                val expected = r.s.str("router_kind_$slot")
+                val title = RouterWeb.title(eth.network, gw)
+                if (RouterHealth.identityOk(title, expected) == false) {
+                    JSONObject().put("signal_error", "identity-mismatch").putN("signal_detail", title?.let { "en ese puerto está \"$it\"" })
+                        .put("signal_read_at", Rfc3339.format(System.currentTimeMillis()))
+                } else {
+                    val left = RouterSignal.BUDGET_MS - (SystemClock.elapsedRealtime() - t0)
+                    RouterSignal.read(eth.network, gw, slot, r.s.ssh(slot), maxOf(2000L, left))
+                }
+            }
+        }
+        val sg = r.signal!!
+        val src = sg.optStrN("signal_source")
+        if (src == "router-web") {
+            // La web vieja admite una sola sesión: esta lectura cuenta como la
+            // periódica del estado en vivo (routers.<slot>.signal).
+            val live = JSONObject().put("source", src)
+            for (k in RouterSignal.FIELDS) if (sg.has(k)) live.put(k, sg.get(k))
+            RouterHealth.recordSignal(db, slot, live)
+            lastSignalRead = System.currentTimeMillis()
+        }
+        db.event(if (src != null) "info" else "warn", "egress_check", r.order.orderId,
+            if (src != null) "Señal ${t.slot} ($src, ${sg.optLong("signal_ms")} ms): ${sg.optStrN("operator") ?: "?"} ${sg.optStrN("rat") ?: ""}" +
+                " banda ${sg.optStrN("band_lte") ?: "-"}${sg.optStrN("nr_band")?.let { " + n$it" } ?: ""}, RSRP ${sg.optStrN("rsrp_dbm") ?: "-"} dBm, SINR ${sg.optStrN("sinr_db") ?: "-"} dB"
+            else "Señal ${t.slot}: no se pudo leer (${sg.optStrN("signal_error")}${sg.optStrN("signal_detail")?.let { ": $it" } ?: ""}); se mide igual")
+    }
+
     private fun readRuleEnd(r: Run) {
         val eth = net.eth ?: return
         try {
@@ -1173,6 +1221,8 @@ class ProbeWorker(
         val t0 = r.traffic0
         p.putN("other_traffic_bytes", if (t0 != null && t1 != null) maxOf(0L, (t1.first - t0.first) - (t1.second - t0.second)) else null)
         p.put("duration_s", r.durationS)
+        // Señal del módem (§3 del pendiente): campos planos, van a columnas o a `raw`.
+        r.signal?.let { sg -> for (k in sg.keys()) if (!sg.isNull(k)) p.put(k, sg.get(k)) }
 
         // GPS (§2.4)
         val g = r.gpsResult

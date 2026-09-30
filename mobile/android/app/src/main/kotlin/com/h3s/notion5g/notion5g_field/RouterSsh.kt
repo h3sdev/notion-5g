@@ -46,11 +46,11 @@ object RouterSsh {
 
     /// Socket atado a la red dada, con tope de conexión (JSch no aplica el
     /// timeout de connect cuando hay socketFactory).
-    private class BoundFactory(private val network: Network) : SocketFactory {
+    private class BoundFactory(private val network: Network, private val connectMs: Int = CONNECT_MS) : SocketFactory {
         override fun createSocket(host: String, port: Int): Socket {
             val s = network.socketFactory.createSocket()
             try {
-                s.connect(InetSocketAddress(network.getByName(host), port), CONNECT_MS)
+                s.connect(InetSocketAddress(network.getByName(host), port), connectMs)
                 s.tcpNoDelay = true
             } catch (e: Exception) {
                 try { s.close() } catch (_: Exception) {}
@@ -176,6 +176,67 @@ object RouterSsh {
         } catch (e: Exception) {
             hostKey(session)
             return Outcome(false, "ssh-connect", describe(e), fp, keyType, authenticated, null, !authenticated && isRefused(e))
+        } finally {
+            try { session?.disconnect() } catch (_: Exception) {}
+        }
+    }
+
+    class Capture(
+        /// Salida estándar completa (null si no se llegó a ejecutar o se venció el plazo).
+        val stdout: String?,
+        /// `ssh-auth` | `ssh-connect` | `timeout` | null.
+        val error: String?,
+        val detail: String?,
+        val refused: Boolean = false,
+    )
+
+    /// Ejecuta `command` y devuelve su salida, todo (conexión incluida) dentro
+    /// de `budgetMs`. Para lecturas cortas (señal del módem): si se vence el
+    /// plazo se corta la sesión y no se devuelve nada a medias.
+    fun capture(network: Network, host: String, ssh: ProbeSettings.Ssh, command: String, budgetMs: Long): Capture {
+        val end = SystemClock.elapsedRealtime() + budgetMs
+        fun left(): Int = (end - SystemClock.elapsedRealtime()).coerceAtLeast(1L).toInt()
+        var session: Session? = null
+        try {
+            val s = JSch().getSession(ssh.user, host, ssh.port)
+            session = s
+            configure(s)
+            s.setPassword(ssh.password)
+            s.userInfo = Creds(ssh.password)
+            s.setSocketFactory(BoundFactory(network, left()))
+            s.timeout = left()
+            try {
+                s.connect(left())
+            } catch (e: JSchException) {
+                val err = when {
+                    isAuthError(e) -> "ssh-auth"
+                    SystemClock.elapsedRealtime() >= end -> "timeout"
+                    else -> "ssh-connect"
+                }
+                return Capture(null, err, describe(e), isRefused(e))
+            }
+            val ch = s.openChannel("exec") as ChannelExec
+            ch.setCommand(command)
+            ch.setInputStream(null)
+            val out = ch.inputStream
+            ch.connect(left())
+            val buf = java.io.ByteArrayOutputStream()
+            val tmp = ByteArray(4096)
+            while (true) {
+                while (out.available() > 0) {
+                    val n = out.read(tmp)
+                    if (n < 0) break
+                    buf.write(tmp, 0, n)
+                }
+                if (ch.isClosed && out.available() == 0) break
+                if (SystemClock.elapsedRealtime() >= end) return Capture(null, "timeout", "el comando no terminó en ${budgetMs / 1000} s")
+                if (!s.isConnected) return Capture(null, "ssh-connect", "la sesión se cortó antes de terminar el comando")
+                Thread.sleep(50)
+            }
+            try { ch.disconnect() } catch (_: Exception) {}
+            return Capture(buf.toString("UTF-8"), null, null)
+        } catch (e: Exception) {
+            return Capture(null, if (SystemClock.elapsedRealtime() >= end) "timeout" else "ssh-connect", describe(e), isRefused(e))
         } finally {
             try { session?.disconnect() } catch (_: Exception) {}
         }
