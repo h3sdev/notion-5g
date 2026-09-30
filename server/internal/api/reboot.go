@@ -89,8 +89,57 @@ func (s *Server) attachDeviceReboot(ctx context.Context, devices []store.DeviceS
 	for i := range devices {
 		if info, ok := infos[devices[i].DeviceID]; ok {
 			devices[i].Reboot = info
+			applyPhoneHealth(&devices[i], info)
 		}
 	}
+}
+
+// applyPhoneHealth: un router sin agente (el Notion 4G) solo reporta cuando el
+// celular lo mide, así que por last_seen quedaría "sin señal" entre pruebas.
+// Si el celular lo ve con Internet ahora (salud fresca), está en línea, y su
+// señal es la que el celular leyó de su página web.
+func applyPhoneHealth(d *store.DeviceSummary, info *store.RebootInfo) {
+	if info.AgentLastSeen != nil || info.Health == nil || !info.Health.Fresh || info.Health.InternetOK == nil {
+		return
+	}
+	d.Online = *info.Health.InternetOK
+	d.StatusSource = "phone-health"
+	if info.Health.CheckedAt != nil {
+		if t, err := store.ParseTS(*info.Health.CheckedAt); err == nil && t.After(mustTS(d.LastSeen)) {
+			d.LastSeen = *info.Health.CheckedAt
+			ago := max(time.Since(t).Seconds(), 0)
+			d.LastSeenSecondsAgo = &ago
+		}
+	}
+	if info.Health.RTTMs != nil {
+		d.PingMs = info.Health.RTTMs
+	}
+	if info.Health.LossPct != nil {
+		d.LossPct = info.Health.LossPct
+	}
+	if sig := info.Health.Signal; sig != nil {
+		if sig.Operator != "" {
+			d.Operator = sig.Operator
+		}
+		if sig.RAT != "" {
+			d.RAT = sig.RAT
+		}
+		if sig.BandLTE != nil {
+			d.BandLTE = sig.BandLTE
+		}
+		if sig.RSRPDbm != nil {
+			d.RSRPDbm = sig.RSRPDbm
+		}
+		d.RSRQDb, d.SINRDb = sig.RSRQDb, sig.SINRDb
+		if sig.UptimeS != nil {
+			d.UptimeS = sig.UptimeS
+		}
+	}
+}
+
+func mustTS(v string) time.Time {
+	t, _ := store.ParseTS(v)
+	return t
 }
 
 // attachProbeReboot agrega el bloque reboot a cada equipo de las sondas de

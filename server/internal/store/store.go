@@ -1055,6 +1055,11 @@ type DeviceSummary struct {
 	PingMs             *float64 `json:"ping_ms,omitempty"`
 	LossPct            *float64 `json:"loss_pct,omitempty"`
 	UptimeS            *float64 `json:"uptime_s,omitempty"`
+	RSRQDb             *float64 `json:"rsrq_db,omitempty"`
+	SINRDb             *float64 `json:"sinr_db,omitempty"`
+	// StatusSource: "phone-health" cuando el estado sale de la salud que ve el
+	// celular (routers sin agente); vacío = heartbeats/mediciones propias.
+	StatusSource string `json:"status_source,omitempty"`
 	// Reboot: reinicio remoto y su recomendación (§6.3). Solo en equipos de
 	// una sonda de celular; lo agrega la capa HTTP (store.RebootInfos).
 	Reboot *RebootInfo `json:"reboot,omitempty"`

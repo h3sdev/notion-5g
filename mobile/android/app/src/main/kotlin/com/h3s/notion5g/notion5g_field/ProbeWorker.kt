@@ -176,6 +176,7 @@ class ProbeWorker(
     @Volatile var stopping = false
     private var forcedSinceElapsed = 0L
     private var lastIdleCheck = 0L
+    private var lastSignalRead = 0L
     private var routeNotRestored = false
     /// forceRoute llegó a mandar el `set` (aunque no se haya confirmado).
     private var ruleSetAttempted = false
@@ -411,6 +412,17 @@ class ProbeWorker(
             }
             MikrotikOps.noteOk(after)
             health?.let { h -> for (line in RouterHealth.record(db, h)) db.event("warn", ProbeState.phase, null, line) }
+            // Señal de los routers con interfaz web vieja (el 4G, sin agente),
+            // cada 5 min: el equipo admite una sola sesión web y leerla más
+            // seguido sacaría a quien esté mirando su página.
+            if (now - lastSignalRead > 5 * 60_000L) {
+                lastSignalRead = now
+                for (c in health.orEmpty()) {
+                    val gw = c.gateway ?: continue
+                    if (c.gatewayOk != true) continue
+                    RouterWeb.readSignal(eth.network, gw)?.let { RouterHealth.recordSignal(db, c.slot, it) }
+                }
+            }
             healthErr?.let { RouterHealth.recordUnchecked(db, targets.filter { it.enabled }, it) }
             ProbeState.mkRoutes = MikrotikOps.routesJson(routes, MikrotikOps.targets(db, s), fb)
             if (before.table != fb) {

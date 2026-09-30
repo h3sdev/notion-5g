@@ -14,6 +14,14 @@ import org.json.JSONObject
 object RouterHealth {
     const val RULE_PREFIX = "probe:health-"
     private const val KV = "routers_health"
+    private const val KV_SIGNAL = "routers_signal"
+
+    /// Guarda la señal leída de la web del router (se agrega como `signal` al slot).
+    fun recordSignal(db: ProbeDb, slot: String, signal: JSONObject, nowMs: Long = System.currentTimeMillis()) {
+        val all = try { db.kvGet(KV_SIGNAL)?.let { JSONObject(it) } ?: JSONObject() } catch (_: Exception) { JSONObject() }
+        all.put(slot, signal.put("read_at", Rfc3339.format(nowMs)))
+        db.kvSet(KV_SIGNAL, all.toString())
+    }
 
     class Check(
         val slot: String,
@@ -156,6 +164,11 @@ object RouterHealth {
         for (t in targets) {
             if (t.table.isEmpty()) continue
             all.optJSONObject(t.slot)?.let { out.put(t.slot, it) }
+        }
+        val sig = try { db.kvGet(KV_SIGNAL)?.let { JSONObject(it) } } catch (_: Exception) { null }
+        if (sig != null) for (t in targets) {
+            val o = out.optJSONObject(t.slot) ?: continue
+            sig.optJSONObject(t.slot)?.let { o.put("signal", it) }
         }
         return out
     }

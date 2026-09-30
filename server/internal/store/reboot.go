@@ -317,6 +317,60 @@ type RouterHealth struct {
 	// Fresh: el estado del celular es reciente y esta verificación también.
 	// Si es false, la salud se muestra pero no decide nada.
 	Fresh bool `json:"fresh"`
+	// Signal: señal que el celular leyó de la web del router (routers sin
+	// agente, como el Notion 4G). nil si no vino.
+	Signal *RouterSignal `json:"signal,omitempty"`
+}
+
+// RouterSignal: señal del router leída por el celular de su página web.
+type RouterSignal struct {
+	Operator string   `json:"operator,omitempty"`
+	RAT      string   `json:"rat,omitempty"`
+	BandLTE  *int     `json:"band_lte,omitempty"`
+	RSRPDbm  *float64 `json:"rsrp_dbm,omitempty"`
+	RSRQDb   *float64 `json:"rsrq_db,omitempty"`
+	SINRDb   *float64 `json:"sinr_db,omitempty"`
+	PCI      *int     `json:"pci,omitempty"`
+	UptimeS  *float64 `json:"uptime_s,omitempty"`
+	ReadAt   *string  `json:"read_at,omitempty"`
+}
+
+func parseRouterSignal(v any) *RouterSignal {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	sig := &RouterSignal{}
+	str := func(k string) string {
+		s, _ := m[k].(string)
+		if len(s) > 40 {
+			s = s[:40]
+		}
+		return s
+	}
+	num := func(k string) *float64 {
+		if f, ok := m[k].(float64); ok {
+			return &f
+		}
+		return nil
+	}
+	integer := func(k string) *int {
+		if f, ok := m[k].(float64); ok {
+			i := int(f)
+			return &i
+		}
+		return nil
+	}
+	sig.Operator, sig.RAT = str("operator"), str("rat")
+	sig.BandLTE, sig.PCI = integer("band_lte"), integer("pci")
+	sig.RSRPDbm, sig.RSRQDb, sig.SINRDb, sig.UptimeS = num("rsrp_dbm"), num("rsrq_db"), num("sinr_db"), num("uptime_s")
+	if v := str("read_at"); v != "" {
+		if t, err := ParseTS(v); err == nil {
+			f := FormatTS(t)
+			sig.ReadAt = &f
+		}
+	}
+	return sig
 }
 
 // RebootInfo: bloque "reboot" de cada equipo en GET /devices y en los
@@ -507,6 +561,7 @@ func parseRouterHealth(raw json.RawMessage, slot string, statusAge time.Duration
 	if f, ok := m["rtt_ms"].(float64); ok {
 		h.RTTMs = &f
 	}
+	h.Signal = parseRouterSignal(m["signal"])
 	// Las horas se devuelven normalizadas (RFC 3339 UTC); una que no es hora
 	// no se reenvía (el estado es texto libre del celular).
 	var checked, down, sent *time.Time

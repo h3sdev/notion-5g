@@ -223,3 +223,24 @@ func TestRebootRecommendationInDevicesAndProbe(t *testing.T) {
 		t.Fatalf("routers raro guardado: %v", st)
 	}
 }
+
+func TestApplyPhoneHealthNoAgent(t *testing.T) {
+	yes := true
+	rsrp, rtt := -95.0, 31.0
+	band := 28
+	checked := "2099-01-01T00:00:00Z"
+	d := store.DeviceSummary{DeviceID: "router-B", LastSeen: "2026-09-30T04:27:53Z", Online: false}
+	info := &store.RebootInfo{Health: &store.RouterHealth{InternetOK: &yes, Fresh: true, RTTMs: &rtt, CheckedAt: &checked,
+		Signal: &store.RouterSignal{Operator: "Movistar", RAT: "LTE", BandLTE: &band, RSRPDbm: &rsrp}}}
+	applyPhoneHealth(&d, info)
+	if !d.Online || d.StatusSource != "phone-health" || d.Operator != "Movistar" || d.RSRPDbm == nil || *d.RSRPDbm != -95 || d.LastSeen != checked {
+		t.Fatalf("sin agente con salud fresca: %+v", d)
+	}
+	agent := "2026-09-30T04:30:00Z"
+	d2 := store.DeviceSummary{DeviceID: "router-A", Online: false}
+	info.AgentLastSeen = &agent
+	applyPhoneHealth(&d2, info)
+	if d2.Online || d2.StatusSource != "" {
+		t.Fatalf("con agente no se toca: %+v", d2)
+	}
+}

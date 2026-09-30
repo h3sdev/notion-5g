@@ -78,6 +78,82 @@ object RouterWeb {
         else rebootXml(network, host, user, password)
     }
 
+    /// Operador por MCC+MNC (Colombia); si no se conoce, el código.
+    private fun operatorOf(mcc: String, mnc: String): String = when ("$mcc$mnc") {
+        "732123", "732102" -> "Movistar"
+        "732101" -> "Claro"
+        "732103", "732111" -> "Tigo"
+        "732360" -> "WOM"
+        else -> "$mcc$mnc"
+    }
+
+    /// Señal del router por la interfaz vieja (json_engineering_info y
+    /// json_status_info), en las mismas unidades que muestra su página:
+    /// RSRP = crudo − 140 dBm, RSRQ = crudo/2 − 20 dB. null si no es la
+    /// interfaz vieja o falla (un solo login; nunca se reintenta).
+    fun readSignal(network: Network, host: String, user: String = USER, password: String = PASSWORD): org.json.JSONObject? {
+        try {
+            val title = Regex("<title>(.*?)</title>", RegexOption.IGNORE_CASE).find(drain(get(network, "http://$host/")))?.groupValues?.get(1)
+            if (title?.contains("LTE", ignoreCase = true) != true) return null
+            val auth = legacyLogin(network, host, user, password) ?: return null
+            fun json(file: String): org.json.JSONObject? {
+                val b = drain(get(network, "http://$host/xml_action.cgi?method=get&module=duster&file=json_$file${System.currentTimeMillis()}",
+                    mapOf("Authorization" to auth())))
+                val i = b.indexOf('{')
+                val j = b.lastIndexOf('}')
+                return if (i >= 0 && j > i) org.json.JSONObject(b.substring(i, j + 1)) else null
+            }
+            val lte = json("engineering_info")?.optJSONObject("lte") ?: return null
+            val st = json("status_info")
+            fun n(k: String): Double? = lte.optString(k).toDoubleOrNull()
+            val out = org.json.JSONObject()
+                .put("source", "router-web")
+                .put("rat", "LTE")
+                .put("operator", operatorOf(lte.optString("mcc"), lte.optString("mnc")))
+                .putN("band_lte", lte.optString("band").toIntOrNull())
+                .putN("rsrp_dbm", n("rsrp")?.let { it - 140 })
+                .putN("rsrq_db", n("rsrq")?.let { it / 2 - 20 })
+                .putN("sinr_db", n("sinr"))
+                .putN("pci", lte.optString("phyCellId").toIntOrNull())
+                .putN("earfcn", lte.optString("dlEuArfcn").toIntOrNull())
+                .putN("ecgi", lte.optString("ECGI").ifEmpty { null })
+                .putN("uptime_s", st?.optString("run_seconds")?.toLongOrNull())
+            return out
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
+    /// Login de la interfaz vieja; devuelve el generador del header Digest o null.
+    private fun legacyLogin(network: Network, host: String, user: String, password: String): (() -> String)? {
+        val base = "http://$host"
+        val c1 = get(network, "$base/login.cgi")
+        val www = c1.getHeaderField("WWW-Authenticate") ?: ""
+        drain(c1)
+        if (!www.startsWith("Digest")) return null
+        val parts = www.substringAfter(' ').split(',').mapNotNull {
+            val kv = it.trim().split('=', limit = 2)
+            if (kv.size == 2) kv[0] to kv[1].trim('"') else null
+        }.toMap()
+        val realm = parts["realm"] ?: return null
+        val nonce = parts["nonce"] ?: return null
+        val qop = parts["qop"] ?: "auth"
+        val ha1 = md5("$user:$realm:$password")
+        var nc = 1
+        val auth = {
+            val cn = cnonce()
+            val n = "%08x".format(nc++)
+            val res = md5("$ha1:$nonce:$n:$cn:$qop:${md5("GET:$URI_FOR_DIGEST")}")
+            "Digest username=\"$user\", realm=\"$realm\", nonce=\"$nonce\", uri=\"$URI_FOR_DIGEST\", " +
+                "response=\"$res\", qop=$qop, nc=$n, cnonce=\"$cn\""
+        }
+        val cn = cnonce()
+        val res = md5("$ha1:$nonce:00000001:$cn:$qop:${md5("GET:/cgi/protected.cgi")}")
+        val c2 = get(network, "$base/login.cgi?Action=Digest&username=$user&realm=$realm&nonce=$nonce&response=$res" +
+            "&qop=$qop&cnonce=$cn&temp=marvell", mapOf("Authorization" to auth()))
+        return if (drain(c2).contains("200 OK")) auth else null
+    }
+
     /// Interfaz vieja (probado contra el Notion 4G PB017, firmware R0238, el 2026-09-29).
     private fun rebootLegacy(network: Network, host: String, user: String, password: String): Outcome {
         val base = "http://$host"
