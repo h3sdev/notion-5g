@@ -3665,6 +3665,7 @@
   ];
   var REBOOT_ERROR_ES = {
     "ssh-auth": "el router rechazó el usuario o la clave SSH",
+    "identity-mismatch": "en ese puerto hay otro router (¿se cambió de puerto?): no se reinició",
     "ssh-connect": "no se pudo conectar por SSH al router (¿apagado o sin LAN?)",
     "no-ethernet": "el celular no tiene el cable de red conectado",
     "mikrotik-unreachable": "el celular no alcanzó el MikroTik",

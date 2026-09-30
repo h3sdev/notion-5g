@@ -65,6 +65,14 @@ object RouterWeb {
         return c
     }
 
+    /// Título de la página del router (identifica el modelo), o null.
+    fun title(network: Network, host: String): String? = try {
+        Regex("<title>(.*?)</title>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .find(drain(get(network, "http://$host/")))?.groupValues?.get(1)?.trim()?.take(80)
+    } catch (_: Exception) {
+        null
+    }
+
     fun reboot(network: Network, host: String, user: String = USER, password: String = PASSWORD): Outcome {
         // El Notion 4G ("LTE Wireless Router") trae la interfaz Marvell vieja
         // (login por GET firmado con /cgi/protected.cgi y reinicio con

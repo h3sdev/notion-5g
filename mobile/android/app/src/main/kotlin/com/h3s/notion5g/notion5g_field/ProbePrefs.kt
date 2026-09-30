@@ -58,6 +58,11 @@ class ProbePrefs(context: Context) {
             "ssh_password_B" to BuildConfig.SSH_DEFAULT_PASSWORD,
             "ssh_port_B" to 22,
             "ssh_command_B" to "reboot",
+            // Identidad esperada del router de cada puerto: texto que debe
+            // aparecer en el título de su página web ("5G Wireless Router",
+            // "LTE Wireless Router"). Vacío = no se verifica.
+            "router_kind_A" to "5G",
+            "router_kind_B" to "LTE",
         )
         val SSH_SLOTS = listOf("A", "B")
         val SPEED_TARGETS = setOf("cloudflare", "fast", "prod-download", "local")

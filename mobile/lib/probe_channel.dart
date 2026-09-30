@@ -109,6 +109,7 @@ class ProbeText {
   static String rebootError(String? e) => switch (e) {
         null => '',
         'ssh-auth' => 'usuario o clave SSH rechazados',
+        'identity-mismatch' => 'en ese puerto hay otro router: no se reinició',
         'ssh-connect' => 'no se pudo conectar por SSH',
         'no-ethernet' => 'sin cable Ethernet',
         'mikrotik-unreachable' => 'no se alcanzó el MikroTik',

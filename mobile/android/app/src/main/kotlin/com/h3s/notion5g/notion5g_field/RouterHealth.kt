@@ -15,6 +15,20 @@ object RouterHealth {
     const val RULE_PREFIX = "probe:health-"
     private const val KV = "routers_health"
     private const val KV_SIGNAL = "routers_signal"
+    private const val KV_IDENTITY = "routers_identity"
+
+    /// ¿El router de ese puerto es el esperado? (título de su página contiene `expected`).
+    fun identityOk(title: String?, expected: String): Boolean? = when {
+        expected.isBlank() -> true
+        title == null -> null
+        else -> title.contains(expected, ignoreCase = true)
+    }
+
+    fun recordIdentity(db: ProbeDb, slot: String, title: String?, expected: String, ok: Boolean?, nowMs: Long = System.currentTimeMillis()) {
+        val all = try { db.kvGet(KV_IDENTITY)?.let { JSONObject(it) } ?: JSONObject() } catch (_: Exception) { JSONObject() }
+        all.put(slot, JSONObject().putN("title", title).put("expected", expected).putN("ok", ok).put("checked_at", Rfc3339.format(nowMs)))
+        db.kvSet(KV_IDENTITY, all.toString())
+    }
 
     /// Guarda la señal leída de la web del router (se agrega como `signal` al slot).
     fun recordSignal(db: ProbeDb, slot: String, signal: JSONObject, nowMs: Long = System.currentTimeMillis()) {
@@ -164,6 +178,11 @@ object RouterHealth {
         for (t in targets) {
             if (t.table.isEmpty()) continue
             all.optJSONObject(t.slot)?.let { out.put(t.slot, it) }
+        }
+        val ident = try { db.kvGet(KV_IDENTITY)?.let { JSONObject(it) } } catch (_: Exception) { null }
+        if (ident != null) for (t in targets) {
+            val o = out.optJSONObject(t.slot) ?: continue
+            ident.optJSONObject(t.slot)?.let { o.put("identity", it) }
         }
         val sig = try { db.kvGet(KV_SIGNAL)?.let { JSONObject(it) } } catch (_: Exception) { null }
         if (sig != null) for (t in targets) {

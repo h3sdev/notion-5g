@@ -420,6 +420,18 @@ class ProbeWorker(
                 for (c in health.orEmpty()) {
                     val gw = c.gateway ?: continue
                     if (c.gatewayOk != true) continue
+                    // Identidad: si en ese puerto hay otro router (se cambiaron
+                    // los cables), su señal y su salud no se atribuyen a este slot.
+                    val expected = s.str("router_kind_${c.slot}")
+                    val title = RouterWeb.title(eth.network, gw)
+                    val ok = RouterHealth.identityOk(title, expected)
+                    RouterHealth.recordIdentity(db, c.slot, title, expected, ok)
+                    if (ok == false) {
+                        ProbeState.setAlert("router-swapped-${c.slot}", "En el puerto de ${c.slot} hay otro router (\"$title\", se esperaba \"$expected\"): ¿se cambiaron los cables?")
+                        db.event("error", ProbeState.phase, null, "Router ${c.slot}: su página dice \"$title\" y se esperaba \"$expected\" (¿cables cambiados?)")
+                        continue
+                    }
+                    ProbeState.clearAlert("router-swapped-${c.slot}")
                     RouterWeb.readSignal(eth.network, gw)?.let { RouterHealth.recordSignal(db, c.slot, it) }
                 }
             }
@@ -1335,6 +1347,15 @@ class ProbeWorker(
                     rb.error = "ssh-connect"
                     rb.result.put("ssh_detail", "la ruta de ${t.table} está inactiva (puerto caído o router apagado): no se intentó el SSH")
                     db.event("error", "rebooting", o.orderId, "Reinicio de ${t.slot}: la ruta de ${t.table} está inactiva (¿router apagado o cable suelto?): no se intenta el SSH")
+                } else if (RouterHealth.identityOk(RouterWeb.title(eth.network, gw), s.str("router_kind_${t.slot}")) != true) {
+                    // Nunca reiniciar a ciegas: si el router del puerto no es el
+                    // esperado (o no se pudo comprobar), no se manda nada.
+                    val title = RouterWeb.title(eth.network, gw)
+                    rb.gatewayIp = gw
+                    rb.error = "identity-mismatch"
+                    rb.result.put("router_title", title ?: JSONObject.NULL).put("router_expected", s.str("router_kind_${t.slot}"))
+                        .put("ssh_detail", if (title == null) "no se pudo leer la página del router para comprobar cuál es" else "en ese puerto está \"$title\"")
+                    db.event("error", "rebooting", o.orderId, "Reinicio de ${t.slot}: el router del puerto no es el esperado (${title ?: "sin página"}): no se reinicia")
                 } else {
                     rb.gatewayIp = gw
                     val ssh = s.ssh(t.slot)

@@ -242,6 +242,7 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
                   _field('ssh_password_$slot', 'Clave SSH'),
                   _field('ssh_port_$slot', 'Puerto SSH', hint: '22'),
                   _field('ssh_command_$slot', 'Comando de reinicio', hint: 'reboot'),
+                  _field('router_kind_$slot', 'Identidad esperada (texto en el título de su página)', hint: slot == 'A' ? '5G' : 'LTE'),
                 ],
                 _header('Medición'),
                 _switch('require_ethernet', 'Exigir Ethernet para medir',

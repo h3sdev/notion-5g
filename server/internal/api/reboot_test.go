@@ -244,3 +244,14 @@ func TestApplyPhoneHealthNoAgent(t *testing.T) {
 		t.Fatalf("con agente no se toca: %+v", d2)
 	}
 }
+
+func TestApplyPhoneHealthWrongRouter(t *testing.T) {
+	yes, no := true, false
+	checked := "2099-01-01T00:00:00Z"
+	d := store.DeviceSummary{DeviceID: "router-B", Online: false}
+	info := &store.RebootInfo{Health: &store.RouterHealth{InternetOK: &yes, Fresh: true, CheckedAt: &checked, IdentityOK: &no}}
+	applyPhoneHealth(&d, info)
+	if d.Online || d.StatusSource != "phone-health-wrong-router" {
+		t.Fatalf("con otro router en el puerto no se marca en línea: %+v", d)
+	}
+}

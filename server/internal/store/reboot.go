@@ -58,7 +58,7 @@ const (
 // salió, el router no volvió a tiempo). Si el resultado dice ssh_ok=true, el
 // comando salió y cuenta aunque el error sea uno de estos (p. ej.
 // mikrotik-unreachable mientras se vigilaba la vuelta).
-var rebootNotSentErrors = []string{"ssh-auth", "ssh-connect", "no-ethernet", "mikrotik-unreachable"}
+var rebootNotSentErrors = []string{"ssh-auth", "ssh-connect", "no-ethernet", "mikrotik-unreachable", "identity-mismatch"}
 
 // rebootNotStartedErrors: el celular la cerró interrupted sin empezar (no
 // encontró el slot en su sonda, o no conoce el tipo de orden). Tampoco
@@ -320,6 +320,10 @@ type RouterHealth struct {
 	// Signal: señal que el celular leyó de la web del router (routers sin
 	// agente, como el Notion 4G). nil si no vino.
 	Signal *RouterSignal `json:"signal,omitempty"`
+	// IdentityOK: false si el celular vio en ese puerto otro router (título de
+	// su página distinto del esperado: cables cambiados). nil = sin verificar.
+	IdentityOK    *bool   `json:"identity_ok,omitempty"`
+	IdentityTitle *string `json:"identity_title,omitempty"`
 }
 
 // RouterSignal: señal del router leída por el celular de su página web.
@@ -562,6 +566,17 @@ func parseRouterHealth(raw json.RawMessage, slot string, statusAge time.Duration
 		h.RTTMs = &f
 	}
 	h.Signal = parseRouterSignal(m["signal"])
+	if id, ok := m["identity"].(map[string]any); ok {
+		if b, ok := id["ok"].(bool); ok {
+			h.IdentityOK = &b
+		}
+		if t, ok := id["title"].(string); ok && t != "" {
+			if len(t) > 80 {
+				t = t[:80]
+			}
+			h.IdentityTitle = &t
+		}
+	}
 	// Las horas se devuelven normalizadas (RFC 3339 UTC); una que no es hora
 	// no se reenvía (el estado es texto libre del celular).
 	var checked, down, sent *time.Time

@@ -102,6 +102,11 @@ func applyPhoneHealth(d *store.DeviceSummary, info *store.RebootInfo) {
 	if info.AgentLastSeen != nil || info.Health == nil || !info.Health.Fresh || info.Health.InternetOK == nil {
 		return
 	}
+	// En ese puerto hay otro router: su salud y su señal no son de este equipo.
+	if info.Health.IdentityOK != nil && !*info.Health.IdentityOK {
+		d.StatusSource = "phone-health-wrong-router"
+		return
+	}
 	d.Online = *info.Health.InternetOK
 	d.StatusSource = "phone-health"
 	if info.Health.CheckedAt != nil {
