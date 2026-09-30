@@ -1,11 +1,11 @@
 #!/bin/bash
 # rput.sh — copia un archivo local al módem por SSH (mismas opciones legacy que rsh.sh).
 # Uso: scripts/rput.sh <archivo_local> <ruta_remota> [modo_octal]
-# Vars: NOTION_HOST (default 192.168.1.1), NOTION_USER (root), NOTION_PASS (notion)
+# Vars: NOTION_HOST (default 192.168.1.1), NOTION_USER (root), NOTION_PASS (obligatoria: clave de fábrica)
 set -e
 HOST="${NOTION_HOST:-192.168.1.1}"
 USER_="${NOTION_USER:-root}"
-PASS="${NOTION_PASS:-notion}"
+PASS="${NOTION_PASS:?define NOTION_PASS con la clave del router}"
 LOCAL="$1"; REMOTE="$2"; MODE="${3:-755}"
 [ -z "$LOCAL" ] || [ -z "$REMOTE" ] && { echo "uso: rput.sh <local> <remoto> [modo]" >&2; }
 

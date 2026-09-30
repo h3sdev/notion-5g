@@ -1,14 +1,14 @@
 #!/bin/bash
 # rsh.sh — ejecuta un comando por SSH en el módem Notion 5G (OpenWrt/ASR1901).
 # Uso:  scripts/rsh.sh 'comando remoto'
-# Vars: NOTION_HOST (default 192.168.1.1), NOTION_USER (root), NOTION_PASS (notion)
+# Vars: NOTION_HOST (default 192.168.1.1), NOTION_USER (root), NOTION_PASS (obligatoria: clave de fábrica)
 #
 # El dropbear del equipo es viejo: se habilita ssh-rsa y DH group1/14 explícitamente.
 # La clave se pasa con SSH_ASKPASS para no depender de sshpass.
 
 HOST="${NOTION_HOST:-192.168.1.1}"
 USER_="${NOTION_USER:-root}"
-PASS="${NOTION_PASS:-notion}"
+PASS="${NOTION_PASS:?define NOTION_PASS con la clave del router}"
 
 ASK="$(mktemp)"
 printf '#!/bin/sh\necho %q\n' "$PASS" > "$ASK"

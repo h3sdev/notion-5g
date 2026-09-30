@@ -106,7 +106,7 @@ Consecuencia para la homologación: la posición durante las pruebas en movimien
 
 ## 10. Observaciones para homologación / preventa
 
-1. Credenciales por defecto `root/notion` con SSH abierto en LAN y clave Wi‑Fi de 8 dígitos: cambiar antes de vender.
+1. Credenciales por defecto `root` con la clave de fábrica con SSH abierto en LAN y clave Wi‑Fi de 8 dígitos: cambiar antes de vender.
 2. `country=CN` en Wi‑Fi y zona horaria `Asia/Shanghai`: ajustar a Colombia (`CO`, `GMT‑5`) para canales legales y logs con hora correcta.
 3. TR‑069 habilitado: confirmar a qué ACS apunta o desactivarlo.
 4. CGIs responden `Access-Control-Allow-Origin: *`.

@@ -1,3 +1,13 @@
+import java.util.Properties
+
+// Clave SSH por defecto de los routers (la de fábrica): no va en el repo. Se
+// toma de android/local.properties (ignorado por git), `notion.sshPassword=...`.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val sshDefaultPassword: String = localProps.getProperty("notion.sshPassword", "")
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -28,6 +38,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        buildConfigField("String", "SSH_DEFAULT_PASSWORD", "\"" + sshDefaultPassword.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

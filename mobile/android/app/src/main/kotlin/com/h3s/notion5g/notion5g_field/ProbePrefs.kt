@@ -51,11 +51,11 @@ class ProbePrefs(context: Context) {
             // SSH a cada router para reiniciarlo (contrato §6.2). La clave es un
             // secreto: solo sale por getConfig.
             "ssh_user_A" to "root",
-            "ssh_password_A" to "",
+            "ssh_password_A" to BuildConfig.SSH_DEFAULT_PASSWORD,
             "ssh_port_A" to 22,
             "ssh_command_A" to "reboot",
             "ssh_user_B" to "root",
-            "ssh_password_B" to "",
+            "ssh_password_B" to BuildConfig.SSH_DEFAULT_PASSWORD,
             "ssh_port_B" to 22,
             "ssh_command_B" to "reboot",
         )
@@ -210,13 +210,13 @@ class ProbeSettings(private val m: Map<String, Any?>) {
     val ruleComment get() = str("mikrotik_rule_comment").ifEmpty { "phone-probe" }
 
     /// Credenciales SSH del router de un slot (§6.2); slots sin ajustes propios
-    /// usan los valores por defecto (root, clave de fábrica, 22, reboot).
+    /// usan los valores por defecto (root, la clave de fábrica de BuildConfig, 22, reboot).
     class Ssh(val user: String, val password: String, val port: Int, val command: String)
 
     fun ssh(slot: String): Ssh {
         val has = slot in ProbePrefs.SSH_SLOTS
         fun s(k: String, d: String) = if (has) str("ssh_${k}_$slot").ifEmpty { d } else d
         val port = if (has) int("ssh_port_$slot") else 22
-        return Ssh(s("user", "root"), if (has) str("ssh_password_$slot") else "", if (port in 1..65535) port else 22, s("command", "reboot"))
+        return Ssh(s("user", "root"), if (has) str("ssh_password_$slot") else BuildConfig.SSH_DEFAULT_PASSWORD, if (port in 1..65535) port else 22, s("command", "reboot"))
     }
 }
