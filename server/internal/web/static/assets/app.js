@@ -903,13 +903,20 @@
     return mapInstance;
   }
 
+  // Bandas que usó la medición, juntas: ancla LTE (+ secundaria de CA) + NR de
+  // la ENDC, p. ej. "B7 + n78" o "B7 + B2" (la app 1.5.2 lee band_lte_ca y la
+  // NR de cm get_eng_info, también al terminar la prueba).
+  function bandCombo(m) {
+    var set = function (v) { return v !== null && v !== undefined && v !== "" && Number(v) !== 0; };
+    var parts = [];
+    if (set(m.band_lte)) parts.push("B" + m.band_lte);
+    if (set(m.band_lte_ca) && String(m.band_lte_ca) !== String(m.band_lte)) parts.push("B" + m.band_lte_ca);
+    if (set(m.nr_band)) parts.push("n" + m.nr_band);
+    return parts.join(" + ");
+  }
+
   function mapPopupHtml(row, kind) {
-    var isNR = row.rat && String(row.rat).toLowerCase().indexOf("nr") !== -1;
-    var band = isNR && row.nr_band !== null && row.nr_band !== undefined
-      ? "n" + row.nr_band
-      : row.band_lte !== null && row.band_lte !== undefined
-      ? "B" + row.band_lte
-      : "";
+    var band = bandCombo(row);
     var bits = ["<b>" + escapeHtml(kind) + " · " + escapeHtml(fmtDate(row._received_at || row.ts)) + "</b>"];
     bits.push(escapeHtml(row.operator || "—") + (band ? " · " + escapeHtml(band) : ""));
     bits.push(fmtNum(row.rsrp_dbm, " dBm RSRP", 0));
@@ -1153,7 +1160,13 @@
     }
     rows.forEach(function (m) {
       var tr = document.createElement("tr");
-      var band = m.band_lte || m.nr_band || "—";
+      var band = bandCombo(m) || "—";
+      // La columna RSRP/RSRQ/SINR es del ancla LTE; la NR va debajo de la banda.
+      var nrSig = [];
+      if (m.nr_rsrp_dbm !== null && m.nr_rsrp_dbm !== undefined) nrSig.push("RSRP " + Number(m.nr_rsrp_dbm).toFixed(0));
+      if (m.nr_sinr_db !== null && m.nr_sinr_db !== undefined) nrSig.push("SINR " + Number(m.nr_sinr_db).toFixed(0));
+      // nr_bw_mhz solo con nr_bw_prb (app ≥ 1.5.4): la 1.5.3 mandaba los PRB con ese nombre.
+      if (m.nr_bw_mhz !== null && m.nr_bw_mhz !== undefined && m.nr_bw_prb !== null && m.nr_bw_prb !== undefined) nrSig.push(Number(m.nr_bw_mhz).toFixed(0) + " MHz");
       var sig = [m.rsrp_dbm, m.rsrq_db, m.sinr_db]
         .map(function (v) {
           return v === null || v === undefined ? "—" : Number(v).toFixed(0);
@@ -1168,6 +1181,7 @@
         routeBadge(m) +
         '</td><td data-label="Banda">' +
         escapeHtml(String(band)) +
+        (nrSig.length ? '<br><span class="muted">NR ' + escapeHtml(nrSig.join(" · ")) + "</span>" : "") +
         '</td><td data-label="RSRP / RSRQ / SINR">' +
         sig +
         '</td><td data-label="↓ Mbps">' +

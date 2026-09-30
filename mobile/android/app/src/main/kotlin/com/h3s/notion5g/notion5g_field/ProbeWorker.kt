@@ -586,12 +586,15 @@ class ProbeWorker(
         var clockSkew: Double? = null
         /// Estado del módem del router del slot, leído antes de la prueba (RouterSignal).
         var signal: JSONObject? = null
+        /// Segunda lectura, al terminar la descarga/subida: en NSA la portadora NR
+        /// solo está enganchada con tráfico.
+        var signalEnd: JSONObject? = null
         val durationS get() = if (order.durationS in 3..60) order.durationS else s.int("duration_s").coerceIn(3, 60)
 
         fun resetAttempt() {
             route = null; ruleEnd = null; ruleEndRead = false; captive = null; portalHost = null; meta = null; metaEnd = null
             gwReachable = null; dnsOk = null; internetOk = null; ping = null; down = null; up = null
-            testStartedMs = null; testStartedNs = 0L; testFinishedMs = null; status = "done"; error = null; signal = null
+            testStartedMs = null; testStartedNs = 0L; testFinishedMs = null; status = "done"; error = null; signal = null; signalEnd = null
             attemptStartMs = System.currentTimeMillis()
         }
     }
@@ -857,6 +860,8 @@ class ProbeWorker(
                 } else {
                     db.event("info", "upload", o.orderId, "Subida: ${ProbeUtil.fmt1(u.mbps)} Mbps (${ProbeUtil.fmt1(u.bytes / 1e6)} MB en ${ProbeUtil.fmt1(u.seconds)} s)")
                 }
+                // h1) señal con el enlace todavía caliente (NR de la ENDC)
+                if (netPath == "ethernet") readRouterSignalEnd(r)
                 // h2) la misma ruta contra Cloudflare, 1 conexión (como antes de fast.com)
                 if (r.fast != null && s.bool("also_cloudflare")) {
                     phase("download", "Cloudflare (1 conexión)")
@@ -1083,6 +1088,21 @@ class ProbeWorker(
             else "Señal ${t.slot}: no se pudo leer (${sg.optStrN("signal_error")}${sg.optStrN("signal_detail")?.let { ": $it" } ?: ""}); se mide igual")
     }
 
+    /// Lectura de cierre por SSH (solo si la de inicio salió por SSH: la web
+    /// vieja del 4G admite una sola sesión y ese equipo no tiene NR). ≤ 5 s.
+    private fun readRouterSignalEnd(r: Run) {
+        val eth = net.eth ?: return
+        val slot = r.slot ?: return
+        if (r.signal?.optStrN("signal_source") != "ssh-ubus") return
+        val gw = r.route?.route?.gatewayIp ?: return
+        val e = RouterSignal.read(eth.network, gw, slot, r.s.ssh(slot), 5000L)
+        r.signalEnd = e
+        if (e.optStrN("signal_source") != null) {
+            db.event("info", "upload", r.order.orderId, "Señal ${slot} al terminar: ${e.optStrN("rat") ?: "?"} banda ${e.optStrN("band_lte") ?: "-"}" +
+                (e.optStrN("band_lte_ca")?.let { " + B$it" } ?: "") + (e.optStrN("nr_band")?.let { " + n$it" } ?: " (sin NR)"))
+        }
+    }
+
     private fun readRuleEnd(r: Run) {
         val eth = net.eth ?: return
         try {
@@ -1225,6 +1245,16 @@ class ProbeWorker(
         p.put("duration_s", r.durationS)
         // Señal del módem (§3 del pendiente): campos planos, van a columnas o a `raw`.
         r.signal?.let { sg -> for (k in sg.keys()) if (!sg.isNull(k)) p.put(k, sg.get(k)) }
+        r.signalEnd?.let { e ->
+            p.put("signal_end", e)
+            // La NR vista durante la prueba es la que usó la medición: pasa a los
+            // campos planos (columnas nr_band… y la combinación NSA del dashboard).
+            if (e.has("nr_band") && r.signal?.has("nr_band") != true) {
+                for (k in RouterSignal.FIELDS) if (k.startsWith("nr_") && e.has(k)) p.put(k, e.get(k))
+                e.optStrN("rat")?.takeIf { it.startsWith("5G") }?.let { p.put("rat", it) }
+                p.put("nr_read", "end")
+            } else if (r.signal?.has("nr_band") == true) p.put("nr_read", "start")
+        }
 
         // GPS (§2.4)
         val g = r.gpsResult
