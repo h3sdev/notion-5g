@@ -59,7 +59,7 @@ class ProbePrefs(context: Context) {
             "ssh_command_B" to "reboot",
         )
         val SSH_SLOTS = listOf("A", "B")
-        val SPEED_TARGETS = setOf("cloudflare", "prod-download", "local")
+        val SPEED_TARGETS = setOf("cloudflare", "fast", "prod-download", "local")
 
         /// Rangos que evitan que la regla quede forzada más del tope de 8 min
         /// (duración y espera del GPS van con la ruta forzada) o que se inunde

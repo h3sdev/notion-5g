@@ -560,6 +560,9 @@ class ProbeWorker(
         var kind = "cloudflare"
         var requestedKind = "cloudflare"
         var targetHost = "speed.cloudflare.com"
+        /// Destino "fast": servidores que dio api.fast.com para esta salida.
+        var fast: FastCom.Targets? = null
+        var fastError: String? = null
         var executedOffline = false
         var clockSkew: Double? = null
         val durationS get() = if (order.durationS in 3..60) order.durationS else s.int("duration_s").coerceIn(3, 60)
@@ -778,6 +781,20 @@ class ProbeWorker(
             r.testStartedNs = SystemClock.elapsedRealtimeNanos()
             ProbeState.currentOrder = currentOrderJson(r, o, netPath)
             val st = tester(r)
+            if (r.kind == "fast" && r.internetOk == true) {
+                try {
+                    val f = FastCom.targets(r.network, ua)
+                    r.fast = f
+                    r.targetHost = ProbeUtil.hostOf(f.urls[0]) ?: r.targetHost
+                    db.event("info", "ping", o.orderId, "fast.com: ${f.urls.size} servidores (${f.servers.joinToString()}), salida ${f.clientIsp ?: "?"} AS${f.clientAsn ?: "?"}")
+                } catch (e: Exception) {
+                    // Sin fast.com se mide igual, con Cloudflare y conexiones en paralelo.
+                    r.fastError = "${e.javaClass.simpleName}: ${e.message?.take(100)}"
+                    r.kind = "cloudflare"
+                    r.targetHost = "speed.cloudflare.com"
+                    db.event("warn", "ping", o.orderId, "fast.com no respondió (${r.fastError}): se mide con Cloudflare")
+                }
+            }
             val (pingHost, pingPort) = pingTarget(r)
             r.ping = st.ping(pingHost, pingPort)
             val pr = r.ping!!
@@ -789,7 +806,10 @@ class ProbeWorker(
                 // g) descarga
                 phase("download", null)
                 val maxBytes = s.int("max_mb_per_phase") * 1_000_000L
-                r.down = st.download({ downloadUrl(r) }, authHeaders(r, true), r.durationS, maxBytes)
+                r.down = r.fast?.let { f ->
+                    // Como fast.com: una conexión por servidor, a la vez.
+                    st.parallel(f.urls.size) { t, i -> t.download({ FastCom.downloadUrl(f.urls[i]) }, emptyMap(), r.durationS, maxBytes / f.urls.size) }
+                } ?: st.download({ downloadUrl(r) }, authHeaders(r, true), r.durationS, maxBytes)
                 val d = r.down!!
                 noteRedirect(r, d)
                 if (d.error != null) {
@@ -801,7 +821,9 @@ class ProbeWorker(
                 }
                 // h) subida
                 phase("upload", null)
-                r.up = st.upload({ uploadUrl(r) }, authHeaders(r, false), r.durationS, maxBytes)
+                r.up = r.fast?.let { f ->
+                    st.parallel(f.urls.size) { t, i -> t.upload({ FastCom.uploadUrl(f.urls[i]) }, emptyMap(), r.durationS, maxBytes / f.urls.size, 2_000_000) }
+                } ?: st.upload({ uploadUrl(r) }, authHeaders(r, false), r.durationS, maxBytes)
                 val u = r.up!!
                 noteRedirect(r, u)
                 if (u.error != null) {
@@ -954,6 +976,7 @@ class ProbeWorker(
         r.targetHost = when (k) {
             "prod-download" -> ProbeUtil.hostOf(s.str("prod_url")) ?: "speed.cloudflare.com"
             "local" -> ProbeUtil.hostOf(s.backendUrl) ?: "speed.cloudflare.com"
+            "fast" -> "api.fast.com"
             else -> "speed.cloudflare.com"
         }
     }
@@ -1083,6 +1106,14 @@ class ProbeWorker(
         if (r.kind != r.requestedKind) p.put("target_requested", r.requestedKind)
         p.put("target_host", r.targetHost)
         if (r.kind == "prod-download") p.put("upload_host", "speed.cloudflare.com")
+        r.fast?.let { f ->
+            p.put("streams", f.urls.size)
+            p.put("fast_servers", org.json.JSONArray(f.servers))
+            p.putN("fast_client_ip", f.clientIp)
+            p.putN("fast_client_asn", f.clientAsn)
+            p.putN("fast_client_isp", f.clientIsp)
+        }
+        p.putN("fast_error", r.fastError)
         p.putN("egress_ip", r.meta?.ip)
         p.putN("egress_ip_end", r.metaEnd?.ip)
         p.putN("egress_colo", r.meta?.colo)

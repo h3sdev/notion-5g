@@ -252,6 +252,7 @@ class _ProbeSettingsScreenState extends State<ProbeSettingsScreen> {
                   decoration: const InputDecoration(labelText: 'Destino de la prueba de velocidad', border: OutlineInputBorder(), isDense: true),
                   items: const [
                     DropdownMenuItem(value: 'cloudflare', child: Text('Cloudflare (speed.cloudflare.com)')),
+                    DropdownMenuItem(value: 'fast', child: Text('fast.com (Netflix, 5 conexiones)')),
                     DropdownMenuItem(value: 'prod-download', child: Text('Producción (solo descarga)')),
                     DropdownMenuItem(value: 'local', child: Text('Backend local')),
                   ],

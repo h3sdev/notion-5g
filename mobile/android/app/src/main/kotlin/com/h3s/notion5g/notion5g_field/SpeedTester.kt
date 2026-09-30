@@ -223,6 +223,41 @@ class SpeedTester(
         return PhaseResult(mbps, bytes, secs, if (enough) null else error ?: "sin datos", concurrent, redirect)
     }
 
+    /// Varias conexiones a la vez (como fast.com): cada hilo corre `run` con su
+    /// índice; Mbps = suma de bytes · 8 / la fase más larga. Falla solo si
+    /// fallan todas. Un ProbeAbort en cualquier hilo corta la fase entera.
+    fun parallel(n: Int, run: (SpeedTester, Int) -> PhaseResult): PhaseResult {
+        val results = arrayOfNulls<PhaseResult>(n)
+        var abort: ProbeAbort? = null
+        var stop = false
+        val sub = SpeedTester(network, userAgent, { if (stop) throw ProbeAbort("parallel-stop"); checkpoint() }, {})
+        val threads = (0 until n).map { i ->
+            Thread {
+                try {
+                    results[i] = run(sub, i)
+                } catch (e: ProbeAbort) {
+                    synchronized(this) { if (abort == null) abort = e }
+                    stop = true
+                } catch (e: Exception) {
+                    results[i] = PhaseResult(null, 0, 0.0, failReason(e), null, null)
+                }
+            }.apply { name = "speed-$i"; start() }
+        }
+        val t0 = SystemClock.elapsedRealtime()
+        while (threads.any { it.isAlive }) {
+            threads.forEach { it.join(1000) }
+            progress("$n conexiones · ${(SystemClock.elapsedRealtime() - t0) / 1000} s")
+        }
+        abort?.let { if (it.reason != "parallel-stop") throw it }
+        val ok = results.filterNotNull().filter { it.bytes > 0 && it.seconds > 0 }
+        val bytes = ok.sumOf { it.bytes }
+        val secs = ok.maxOfOrNull { it.seconds } ?: 0.0
+        val enough = secs >= 1.0 && bytes > 0
+        return PhaseResult(if (enough) bytes * 8 / secs / 1e6 else null, bytes, secs,
+            if (enough) null else results.filterNotNull().firstNotNullOfOrNull { it.error } ?: "sin datos",
+            null, results.filterNotNull().firstNotNullOfOrNull { it.redirectHost })
+    }
+
     /// Subida: POST de 10 MB repetidos (cuerpo desde un búfer reutilizado) hasta
     /// duration_s o maxBytes, contando los bytes escritos al socket.
     fun upload(url: () -> String, headers: Map<String, String>, durationS: Int, maxBytes: Long, bodyBytes: Int = 10_000_000): PhaseResult {
