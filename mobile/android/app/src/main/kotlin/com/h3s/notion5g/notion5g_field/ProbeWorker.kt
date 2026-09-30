@@ -400,6 +400,8 @@ class ProbeWorker(
                     r2 = mk.readRule(api)
                 }
                 val rt = mk.allDefaultRoutes(api)
+                // Links para el dashboard: no deben frenar la lectura si falla.
+                try { ProbeState.mkWeb = mk.webLinks(api) } catch (_: RouterOsException) {}
                 // Salud por router (§6.2) en la misma sesión: solo en reposo,
                 // así nunca coincide con una prueba de ese router.
                 try {

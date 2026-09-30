@@ -2683,6 +2683,14 @@
     return String(gw).split("%")[0];
   }
 
+  // Link a la web de un equipo detrás del MikroTik (lo manda el celular:
+  // `status.mikrotik.web`). Solo http://host[:puerto], nada más: viene del celular.
+  function equipLink(url, text, title) {
+    if (!url || !/^http:\/\/[0-9A-Za-z.-]+(:\d{1,5})?$/.test(String(url))) return "";
+    return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer"' +
+      (title ? ' title="' + escapeHtml(title) + '"' : "") + ">" + escapeHtml(text || String(url).slice(7)) + "</a>";
+  }
+
   function gatewayIface(gw) {
     if (!gw) return "";
     var i = String(gw).indexOf("%");
@@ -3318,6 +3326,7 @@
     // estado de cada router según sus rutas (enlace arriba/caído; si tiene
     // datos lo dice la última prueba, no la ruta)
     var routes = mk.routes || {};
+    var web = mk.web && typeof mk.web === "object" ? mk.web : {};
     var mainRoute = routes.main;
     var mainSlot = null;
     activeSlots(p).forEach(function (x) {
@@ -3327,6 +3336,12 @@
       else if (r.active) txt = badge("st-ok", "enlace arriba") + (r.gateway ? " · " + escapeHtml(gatewayIp(r.gateway)) : "");
       else txt = badge("st-err", "enlace caído");
       if (r && r.gateway) txt += ' <span class="muted">(' + escapeHtml(gatewayIface(r.gateway) || r.gateway) + ")</span>";
+      var w = web[x.slot] && typeof web[x.slot] === "object" ? web[x.slot] : null;
+      var links = w
+        ? [equipLink(w.url, null, "Web del router desde el PC conectado al MikroTik"),
+           equipLink(w.lan_url, null, "Web del router desde su propia LAN o WiFi")].filter(Boolean)
+        : [];
+      if (links.length) txt += '<br><span class="muted">web:</span> ' + links.join(' <span class="muted">·</span> ');
       rows.push(kv(x.slot + ":", txt));
       if (r && mainRoute && mainRoute.gateway) {
         if (r.gateway === mainRoute.gateway || (gatewayIface(r.gateway) && gatewayIface(r.gateway) === gatewayIface(mainRoute.gateway)))
@@ -3345,8 +3360,13 @@
         )
       );
     }
-    if (mk.identity || mk.version)
-      rows.push(kv("Equipo", escapeHtml([mk.identity, mk.version ? "RouterOS " + mk.version : ""].filter(Boolean).join(" · "))));
+    if (mk.identity || mk.version || web.webfig) {
+      var wf = equipLink(web.webfig, null, "WebFig del MikroTik desde el PC conectado a él");
+      rows.push(kv("Equipo", escapeHtml([mk.identity, mk.version ? "RouterOS " + mk.version : ""].filter(Boolean).join(" · ")) +
+        (wf ? ' <span class="muted">·</span> ' + wf : "")));
+    }
+    if (web.webfig || Object.keys(web).length > 1)
+      rows.push('<span class="muted">WebFig y el primer link de cada router abren desde el PC conectado al MikroTik; el segundo, desde la LAN o el WiFi de ese router.</span>');
     if (mk.error) rows.push('<span class="phone-err">' + escapeHtml(mk.error) + "</span>");
     rows.push(kv("Última lectura", mk.last_ok ? fmtTime(mk.last_ok) + ' <span class="muted">' + fmtAgo(secondsSince(mk.last_ok)) + "</span>" : "nunca"));
     return card("MikroTik", rows);

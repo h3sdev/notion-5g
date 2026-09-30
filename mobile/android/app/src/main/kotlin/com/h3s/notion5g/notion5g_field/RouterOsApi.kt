@@ -258,6 +258,28 @@ class Mikrotik(
         return out
     }
 
+    /// Links para abrir cada equipo desde el PC conectado al MikroTik: las
+    /// redirecciones `probe:web-<slot>` (dst-nat de la IP de administración a la
+    /// web del router) y WebFig en esa misma IP. {"webfig": url, "A": {url, lan_url}, …}
+    fun webLinks(api: RouterOsApi): JSONObject {
+        val out = JSONObject()
+        val r = api.run("/ip/firewall/nat/print", "=.proplist=comment,dst-address,dst-port,to-addresses,to-ports,disabled")
+        for (a in r) {
+            val c = a["comment"] ?: continue
+            if (!c.startsWith("probe:web-") || flag(a["disabled"])) continue
+            val slot = c.removePrefix("probe:web-")
+            val dst = a["dst-address"]?.substringBefore('/')?.ifEmpty { null }
+            if (slot.isEmpty() || dst == null) continue
+            val o = JSONObject().put("url", "http://$dst" + (a["dst-port"]?.let { ":$it" } ?: ""))
+            a["to-addresses"]?.substringBefore('-')?.ifEmpty { null }?.let { ip ->
+                o.put("lan_url", "http://$ip" + (a["to-ports"]?.takeIf { it != "80" }?.let { ":$it" } ?: ""))
+            }
+            out.put(slot, o)
+            if (!out.has("webfig")) out.put("webfig", "http://$dst")
+        }
+        return out
+    }
+
     fun identity(api: RouterOsApi): String? = api.run("/system/identity/print").firstOrNull()?.get("name")
 
     fun version(api: RouterOsApi): String? =

@@ -39,6 +39,8 @@ object ProbeState {
     @Volatile var mkIdentity: String? = null
     @Volatile var mkVersion: String? = null
     @Volatile var mkRoutes: JSONObject = JSONObject()
+    /// Links a la web de cada equipo por el MikroTik (Mikrotik.webLinks).
+    @Volatile var mkWeb: JSONObject? = null
     @Volatile var mkLastOkMs = 0L
     @Volatile var mkError: String? = null
     @Volatile var mkLastRule: JSONObject? = null
@@ -97,6 +99,7 @@ object ProbeState {
         .putN("identity", mkIdentity)
         .putN("version", mkVersion)
         .put("routes", mkRoutes)
+        .putN("web", mkWeb)
         .putN("last_ok", Rfc3339.formatOrNull(mkLastOkMs))
         .putN("error", mkError)
 }
