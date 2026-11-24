@@ -1,0 +1,39 @@
+<html>
+	<head>
+		<script type="text/javascript">
+			function redirect() {
+				var nowUrl = window.location.href;
+				if (nowUrl.indexOf('/html/') != -1) {
+					window.location.href = window.location.protocol + "//" + window.location.host;
+				}
+			}
+			redirect();
+		</script>
+	</head>
+	<body>
+		<label id="lt_NotionTTL_title" class="title"></label>
+		<div class="noteBox">
+			<p id="lt_NotionTTL_note" class="note_list"></p>
+		</div>
+		<div class="wps_group">
+			<input type="checkbox" id="NotionTTLEnable">
+			<span id="lt_NotionTTL_enable"></span>
+		</div>
+		<div class="wps_group">
+			<span class="wps_title" id="lt_NotionTTL_value"></span>
+			<input type="text" id="txtNotionTTL" class="textfield" maxlength="3" style="width:60px">
+			<span id="lt_NotionTTL_range"></span>
+		</div>
+		<div class="wps_group">
+			<input type="checkbox" id="NotionTTLIpv6">
+			<span id="lt_NotionTTL_ipv6"></span>
+		</div>
+		<div class="wps_group">
+			<span class="wps_title" id="lt_NotionTTL_status"></span>
+			<span id="NotionTTLStatus"></span>
+		</div>
+		<div class="buttonRow1">
+			<input type="button" id="lt_btnApply" class="btn-apply">
+		</div>
+	</body>
+</html>

@@ -1,0 +1,81 @@
+diff -ru a/www/index.html b/www/index.html
+--- a/www/index.html	2026-11-23 19:09:22.729515501 -0500
++++ b/www/index.html	2026-11-23 19:09:22.877637364 -0500
+@@ -92,6 +92,7 @@
+ 		<script type="text/javascript" src="js/panel/router/vpn.js" language="javascript"></script>
+ 		<script type="text/javascript" src="js/panel/router/UPnPSettings.js" language="javascript"></script>
+ 		<script type="text/javascript" src="js/panel/router/sipalg.js" language="javascript"></script>
++		<script type="text/javascript" src="js/panel/router/notion_ttl.js" language="javascript"></script>
+ 		<script type="text/javascript" src="js/panel/router/bandwidthControl.js" language="javascript"></script>
+ 
+ 	<script type="text/javascript" src="js/panel/router/VoLTE.js"></script>
+diff -ru a/www/properties/Messages_cn.properties b/www/properties/Messages_cn.properties
+--- a/www/properties/Messages_cn.properties	2026-11-23 19:09:24.001326100 -0500
++++ b/www/properties/Messages_cn.properties	2026-11-23 19:09:24.153097909 -0500
+@@ -2194,3 +2194,15 @@
+ lt_lock_pciNoempty = PCI不能为空
+ lt_lock_pcierror  = PCI输入格式不正确
+ lt_set_params_fail  =   参数设置不正确，请检查配置
++
++mNotionTTL = 出口TTL
++lt_NotionTTL_title = 出口TTL（移动网络）
++lt_NotionTTL_note = 设置经移动网络发出的数据包的TTL（IPv4）和跳数限制（IPv6）。该值保存在设备中，重启或4G/5G切换后自动重新生效。
++lt_NotionTTL_enable = 设置出口TTL
++lt_NotionTTL_value = TTL值：
++lt_NotionTTL_range = （1-255，建议64）
++lt_NotionTTL_ipv6 = 同时应用于IPv6（跳数限制）
++lt_NotionTTL_status = 状态：
++lt_NotionTTL_on = 已启用，TTL =
++lt_NotionTTL_off = 已禁用
++lt_NotionTTL_invalid = TTL必须是1到255之间的数字。
+diff -ru a/www/properties/Messages_en.properties b/www/properties/Messages_en.properties
+--- a/www/properties/Messages_en.properties	2026-11-23 19:09:23.661466004 -0500
++++ b/www/properties/Messages_en.properties	2026-11-23 19:09:23.853386051 -0500
+@@ -2138,3 +2138,15 @@
+ 
+ 
+ 
++
++mNotionTTL = Outbound TTL
++lt_NotionTTL_title = Outbound TTL (mobile network)
++lt_NotionTTL_note = Sets the TTL (IPv4) and Hop Limit (IPv6) of packets leaving through the mobile network. The value is stored on the device and re-applied automatically after reboots and 4G/5G changes.
++lt_NotionTTL_enable = Set outbound TTL
++lt_NotionTTL_value = TTL value:
++lt_NotionTTL_range = (1-255, recommended 64)
++lt_NotionTTL_ipv6 = Also apply to IPv6 (Hop Limit)
++lt_NotionTTL_status = Status:
++lt_NotionTTL_on = Active, TTL =
++lt_NotionTTL_off = Disabled
++lt_NotionTTL_invalid = TTL must be a number between 1 and 255.
+diff -ru a/www/properties/Messages_es.properties b/www/properties/Messages_es.properties
+--- a/www/properties/Messages_es.properties	2026-11-23 19:09:23.337600924 -0500
++++ b/www/properties/Messages_es.properties	2026-11-23 19:09:23.497534297 -0500
+@@ -1965,4 +1965,15 @@
+ lt_lock_Freqerror  	  =	El formato de la frecuencia ingresada es incorrecto
+ lt_lock_pciNoempty 	  =	El PCI no puede estar vacío
+ lt_lock_pcierror  	  =	El formato del PCI ingresado es incorrecto
+-lt_set_params_fail  	  =	La configuración de parámetros es incorrecta, por favor verifique la configuración
+\ No newline at end of file
++lt_set_params_fail  	  =	La configuración de parámetros es incorrecta, por favor verifique la configuración
++mNotionTTL = TTL de salida
++lt_NotionTTL_title = TTL de salida (red móvil)
++lt_NotionTTL_note = Fija el TTL (IPv4) y el Hop Limit (IPv6) de los paquetes que salen por la red móvil. El valor se guarda en el equipo y se vuelve a aplicar automáticamente tras reinicios y cambios 4G/5G.
++lt_NotionTTL_enable = Fijar TTL de salida
++lt_NotionTTL_value = Valor de TTL:
++lt_NotionTTL_range = (1-255, recomendado 64)
++lt_NotionTTL_ipv6 = Aplicar también a IPv6 (Hop Limit)
++lt_NotionTTL_status = Estado:
++lt_NotionTTL_on = Activo, TTL =
++lt_NotionTTL_off = Desactivado
++lt_NotionTTL_invalid = El TTL debe ser un número entre 1 y 255.
+diff -ru a/www/xml/ui_mifi.xml b/www/xml/ui_mifi.xml
+--- a/www/xml/ui_mifi.xml	2026-11-23 19:09:23.025730845 -0500
++++ b/www/xml/ui_mifi.xml	2026-11-23 19:09:23.177667549 -0500
+@@ -100,6 +100,7 @@
+                     <ThirdlevelMenu id='mVPN' implFunction='objVPNManage' type='submenuabsent'/>
+                     <ThirdlevelMenu id='mIPSEC' implFunction='objIPSEC' type='submenuabsent'  />
+                     <ThirdlevelMenu id='mWifiDDNS' implFunction='objWifiDDNS' type='submenuabsent'/>
++                    <ThirdlevelMenu id='mNotionTTL' implFunction='objNotionTTL' type='submenuabsent'/>
+                 </ThirdlevelMenus>
+             </Menu>
+ 
