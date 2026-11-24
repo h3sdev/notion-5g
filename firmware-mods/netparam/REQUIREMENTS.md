@@ -2,23 +2,16 @@
 
 This document defines how a Notion 5G unit (H3S P52HL, ASR1901) must look and behave **after the new
 firmware is flashed**, with the "Network parameter" feature (configurable outbound TTL) included.
-`IMPLEMENTATION.md` explains how to get there; `OEM-SPEC.md` explains why.
+`IMPLEMENTATION.md` explains how to get there. H3S checks every requirement below on the firmware you deliver.
 
-Every requirement has an ID. `tools/verify.sh` checks R0–R8 automatically on a unit; R9–R12 are checked in
-the web UI (`tools/test_ui.py` automates them).
-
-The reference base is the firmware built **2026-08-17**. The checksums in `MANIFEST.md5` refer to it.
+The reference base is the firmware built **2026-08-17**.
 
 ## R0 — File contents
 
-The files of the image must be **byte-identical** to the ones in `files/` of this package, unless your base
-firmware is newer and your own `index.html` / `Messages_*.properties` / `config/firewall` differ. In that case,
-the changes described in R2 and R3 must be merged into your versions, and only those files may differ.
-
-`MANIFEST.md5` lists the expected MD5 of every file the system never rewrites at runtime, as absolute device
-paths. Check on the unit with `md5sum -c MANIFEST.md5` (busybox), or run `tools/verify.sh`. The two
-configuration files (`config/netparam`, `config/firewall`) are not in the manifest, because uci rewrites them
-when settings are saved; R3 checks them by value.
+The files of the image must be **byte-identical** to the ones in `files/` of this package. The only exception
+is when your sources of `index.html`, `Messages_*.properties` or `config/firewall` are newer than the 2026-08-17
+firmware. In that case, merge the changes described in R2 and R3 into your versions; only those files may then
+differ.
 
 ## R1 — New files
 
@@ -38,9 +31,9 @@ when settings are saved; R3 checks them by value.
 | Path on the device | Required change |
 |---|---|
 | `/system/etc/www/index.html` | exactly one line `<script type="text/javascript" src="js/panel/router/netparam.js" language="javascript"></script>`, placed right after the line that loads `js/panel/router/sipalg.js` |
-| `/system/etc/www/properties/Messages_es.properties` | ends with the 15 `lt_NetParam_*` lines of `merge/i18n/Messages_es.properties` |
-| `/system/etc/www/properties/Messages_en.properties` | ends with the 15 `lt_NetParam_*` lines of `merge/i18n/Messages_en.properties` |
-| `/system/etc/www/properties/Messages_cn.properties` | ends with the 15 `lt_NetParam_*` lines of `merge/i18n/Messages_cn.properties` |
+| `/system/etc/www/properties/Messages_es.properties` | ends with the 15 `lt_NetParam_*` lines (the last 15 lines of `files/system/etc/www/properties/Messages_es.properties`) |
+| `/system/etc/www/properties/Messages_en.properties` | ends with the 15 `lt_NetParam_*` lines (the last 15 lines of `files/system/etc/www/properties/Messages_en.properties`) |
+| `/system/etc/www/properties/Messages_cn.properties` | ends with the 15 `lt_NetParam_*` lines (the last 15 lines of `files/system/etc/www/properties/Messages_cn.properties`) |
 
 Everything else in these files stays as in the base firmware.
 
@@ -146,7 +139,7 @@ language). `screenshot-netparam.png` shows it. Its contents, top to bottom:
 
 There is no separate menu entry. The ping / nslookup / traceroute function of the page works as before.
 
-Languages: the strings are exactly those of `merge/i18n/`. In English the section is "Network parameter";
+Languages: the strings are exactly those of R2. In English the section is "Network parameter";
 in Chinese, "网络参数". Switching the language with the top selector translates the whole section, including
 the status line.
 

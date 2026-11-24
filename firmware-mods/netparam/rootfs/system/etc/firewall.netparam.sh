@@ -43,6 +43,20 @@ valid() {
 	return 0
 }
 
+# Serialize runs: at boot and on every re-attach, fw3 and the web UI may run this script at the same time,
+# and two overlapping flush+insert sequences would leave duplicated rules. busybox "lock" holds the lock
+# until "lock -u"; if a previous run died holding it, give up waiting after 10 s instead of hanging forever.
+LOCK=/var/lock/netparam.lock
+if [ "${1:-apply}" != status ]; then
+	n=0
+	until lock -n "$LOCK" 2>/dev/null; do
+		n=$((n + 1))
+		[ $n -ge 10 ] && { logger -t $TAG "lock busy for 10 s, continuing"; break; }
+		sleep 1
+	done
+	trap 'lock -u "$LOCK" 2>/dev/null' EXIT
+fi
+
 case "${1:-apply}" in
 remove)
 	flush

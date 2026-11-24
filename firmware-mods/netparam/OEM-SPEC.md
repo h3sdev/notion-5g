@@ -4,7 +4,7 @@
 **Status:** fully working reference implementation running on a production unit (firmware built 2026-08-17).
 Everything below was tested on real hardware. The integration can copy it as-is, or reimplement it natively.
 
-**To implement it, follow `IMPLEMENTATION.md`** (step-by-step procedure and sign-off checklist). The final state
+**Internal reference: not shipped to the manufacturer.** To implement it, follow `IMPLEMENTATION.md` (step-by-step procedure and sign-off checklist). The final state
 of the device is defined in `REQUIREMENTS.md`. This document is the full specification behind both.
 
 ![The setting as a "Network parameter" section of the Diagnostics page](screenshot-netparam.png)
@@ -32,14 +32,14 @@ copy into the image.
 ### 0.2 EXISTING files to modify
 
 The modified files are in `files/` (factory file plus the change). The change alone is in
-`merge/web-ui-existing-files.patch` (unified diff against the factory files) and `merge/i18n/`.
+`web-ui-existing-files.patch` (unified diff against the factory files) and `i18n/`.
 
 | # | File in image | Type | Change |
 |---|---|---|---|
 | 6 | `/system/etc/www/index.html` | **Web UI** | Add 1 line right after the `js/panel/router/sipalg.js` line: `<script type="text/javascript" src="js/panel/router/netparam.js" language="javascript"></script>` |
-| 7 | `/system/etc/www/properties/Messages_es.properties` | **Web UI** text (Spanish) | Append the 15 lines of `merge/i18n/Messages_es.properties` |
-| 8 | `/system/etc/www/properties/Messages_en.properties` | **Web UI** text (English) | Append the 15 lines of `merge/i18n/Messages_en.properties` |
-| 9 | `/system/etc/www/properties/Messages_cn.properties` | **Web UI** text (Chinese) | Append the 15 lines of `merge/i18n/Messages_cn.properties` |
+| 7 | `/system/etc/www/properties/Messages_es.properties` | **Web UI** text (Spanish) | Append the 15 lines of `i18n/Messages_es.properties` |
+| 8 | `/system/etc/www/properties/Messages_en.properties` | **Web UI** text (English) | Append the 15 lines of `i18n/Messages_en.properties` |
+| 9 | `/system/etc/www/properties/Messages_cn.properties` | **Web UI** text (Chinese) | Append the 15 lines of `i18n/Messages_cn.properties` |
 | 10 | `/system/etc/config/firewall` (factory default) | Firewall config | Append the section below |
 
 **Do not** add a menu entry: `/system/etc/www/xml/ui_mifi.xml` stays as it is. The setting has no menu item of
@@ -58,8 +58,7 @@ config include 'netparam'
 
 ### 0.3 Files NOT to put in the image
 
-Everything outside `files/`: the documents, `MANIFEST.md5`, `VERSION.txt`, `merge/` and `tools/`
-(field installer over SSH, verification and tests, run from a PC).
+Only the contents of `files/` go into the image.
 
 ### 0.4 Final check on the device
 
@@ -71,7 +70,7 @@ iptables -t mangle -S | grep netparam     # expect 3 rules (POSTROUTING, INPUT, 
 ip6tables -t mangle -S | grep netparam    # expect 3 rules: --hl-set 64
 ```
 
-`tools/verify.sh` runs these checks and the rest of REQUIREMENTS.md R0–R8 automatically.
+H3S checks these and the rest of REQUIREMENTS.md on the delivered firmware.
 
 ## 1. What we need
 
@@ -83,7 +82,7 @@ ip6tables -t mangle -S | grep netparam    # expect 3 rules: --hl-set 64
    Router → System Settings → Diagnostics → "Network parameter".
 4. **UI wording (product requirement):** the visible UI text must not contain the words "TTL" or "Hop Limit" in
    any language. The setting is labelled "Network parameter" / "Parámetro de red" / "网络参数" and the field
-   "Value". Use the strings in `merge/i18n/` exactly as provided.
+   "Value". Use the strings in `i18n/` exactly as provided.
 5. **Internal names (product requirement):** nothing a user or an operator can see on the device may name the
    feature either. Everything uses the neutral name **`netparam`**: the files (`netparam.cgi`, `netparam.js`,
    `netparam.html`, `firewall.netparam.sh`), the uci config `/etc/config/netparam` (option `value`, not `ttl`),
@@ -167,7 +166,7 @@ Reference files, which follow the existing UI conventions (same structure as `si
 | `www/html/router/netparam.html` | section markup (ids `lt_*` are localized by `LocalAllElement()`) |
 | `www/js/panel/router/netparam.js` | `$.fn.objNetParam` object, plus the hook that appends the section to the Diagnostics page |
 | `www/netparam.cgi` | backend endpoint, a shell CGI (GET = read, POST = save and apply; `action=restore` / `action=remove` for the two extra buttons) |
-| `merge/web-ui-existing-files.patch` | the only changes to existing firmware files: 1 `<script>` line in `index.html` and 15 strings appended to each of `Messages_{es,en,cn}.properties` |
+| `web-ui-existing-files.patch` | the only changes to existing firmware files: 1 `<script>` line in `index.html` and 15 strings appended to each of `Messages_{es,en,cn}.properties` |
 
 ### Where each piece goes in your firmware tree
 
@@ -271,20 +270,9 @@ Also recommended:
 
 ## 6. Package contents
 
-```
-IMPLEMENTATION.md          step-by-step implementation instructions and sign-off checklist
-REQUIREMENTS.md            final state of the device (R0-R12) and how to check it
-OEM-SPEC.md                this document
-screenshot-netparam.png    how the section must look
-MANIFEST.md5               expected MD5 of the files on the device (REQUIREMENTS.md R0)
-VERSION.txt                package version and source revision
-files/                     the final files at their exact path on the device (rows 1-10 of section 0)
-merge/apply-to-rootfs.sh   merges the changes into your own versions of the modified files
-merge/i18n/                the 15 UI strings per language
-merge/web-ui-existing-files.patch   the changes to the existing files, as a unified diff
-tools/verify.sh            checks a unit against REQUIREMENTS.md R0-R8 (uses tools/verify-device.sh)
-tools/test_cgi.py          acceptance tests 1-7
-tools/test_ui.py           web UI test in Chromium (Playwright): tests 11-12 plus ES/EN/CN switching
-tools/install.sh           installs/removes on a running unit over SSH (evaluation, not for the build)
-tools/rsh.sh, tools/web_login.py   helpers for the tools above
-```
+The zip for the manufacturer (built by `make-oem-package.sh`) holds only what is needed to copy the files and
+build: `IMPLEMENTATION.md`, `REQUIREMENTS.md`, `screenshot-netparam.png`, `VERSION.txt` and `files/` (the 10
+final files at their device path). The manufacturer does not run tests: H3S tests the firmware they deliver.
+
+This document, `i18n/`, `web-ui-existing-files.patch`, `apply-to-rootfs.sh` and `tools/` (verification, tests,
+field installer) stay in the H3S repository.

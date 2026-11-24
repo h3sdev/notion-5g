@@ -14,14 +14,16 @@ JSON fields). The first version used `notion_ttl` / `notion-ttl`; `tools/install
   firmware image. `OEM-SPEC.es.md` is the Spanish translation for internal use.
 - `IMPLEMENTATION.md`: step-by-step instructions for the manufacturer (English), with a sign-off checklist.
 - `REQUIREMENTS.md`: final state of the device (R0-R12) and how each requirement is checked.
-- `make-oem-package.sh`: builds the zip for the manufacturer (`dist/netparam-oem-<date>.zip`, not in git). In the zip:
-  `files/` = final files at their device path (factory originals + the feature), `merge/` = the change alone
-  (apply script, strings, patch), `tools/`, the three English documents, `MANIFEST.md5` and `VERSION.txt`.
-  `OEM-SPEC.es.md` and this README are not shipped.
+- `make-oem-package.sh`: builds the zip for the manufacturer (`dist/netparam-oem-<date>.zip`, not in git). The
+  manufacturer only copies and builds, and H3S tests their firmware, so the zip has only `IMPLEMENTATION.md`,
+  `REQUIREMENTS.md`, the screenshot, `VERSION.txt` and `files/` (final files at their device path: factory
+  originals + the feature). It also writes `dist/MANIFEST.md5` for `tools/verify.sh` and regenerates the patch.
+  `OEM-SPEC*.md` is an internal reference and is not shipped.
 - `factory/`: untouched factory files from the squashfs of the 2026-08-17 firmware (the 5 files we modify, plus
   `UNCHANGED.md5` for the 3 that must not change). Used only to build `files/` and `MANIFEST.md5`.
 - `apply-to-rootfs.sh`: applies the feature to a firmware root filesystem tree (used by the manufacturer).
-- `tools/verify.sh`: checks a unit against REQUIREMENTS.md R0-R8 (`MANIFEST.md5` only when run from the zip).
+- `tools/verify.sh`: checks a unit against REQUIREMENTS.md R0-R8 (R0 uses `dist/MANIFEST.md5`). Use it on the
+  firmware the manufacturer delivers, together with `tools/test_cgi.py` and `tools/test_ui.py`.
 - `tools/install.sh`: installs or updates it on a running unit over SSH (`NOTION_PASS=... firmware-mods/netparam/tools/install.sh`).
   `--remove` restores the factory web UI from the backup in `/system/etc/netparam-backup/`.
 - `tools/test_ui.py`: tests the section in Chromium (Playwright) the way a user would: placement inside Diagnostics,

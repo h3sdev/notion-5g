@@ -5,7 +5,7 @@
 2026-08-17). Todo lo que sigue se probó en hardware real. La integración puede copiarla tal cual o reimplementarla
 de forma nativa.
 
-**Para implementarlo, seguir `IMPLEMENTATION.md`** (procedimiento paso a paso y lista de verificación, en
+**Referencia interna: no se envía a la casa matriz.** Para implementarlo, seguir `IMPLEMENTATION.md` (procedimiento paso a paso y lista de verificación, en
 inglés). El estado final que debe tener el equipo está en `REQUIREMENTS.md`. Este documento es la especificación
 completa que respalda a ambos.
 
@@ -34,14 +34,14 @@ copiar a la imagen.
 ### 0.2 Archivos EXISTENTES que hay que modificar
 
 Los archivos modificados están en `files/` (archivo de fábrica más el cambio). El cambio solo está en
-`merge/web-ui-existing-files.patch` (diff contra los archivos de fábrica) y en `merge/i18n/`.
+`web-ui-existing-files.patch` (diff contra los archivos de fábrica) y en `i18n/`.
 
 | # | Archivo en la imagen | Tipo | Cambio |
 |---|---|---|---|
 | 6 | `/system/etc/www/index.html` | **Interfaz web** | Agregar 1 línea justo después de la de `js/panel/router/sipalg.js`: `<script type="text/javascript" src="js/panel/router/netparam.js" language="javascript"></script>` |
-| 7 | `/system/etc/www/properties/Messages_es.properties` | Textos de la **interfaz web** (español) | Agregar al final las 15 líneas de `merge/i18n/Messages_es.properties` |
-| 8 | `/system/etc/www/properties/Messages_en.properties` | Textos de la **interfaz web** (inglés) | Agregar al final las 15 líneas de `merge/i18n/Messages_en.properties` |
-| 9 | `/system/etc/www/properties/Messages_cn.properties` | Textos de la **interfaz web** (chino) | Agregar al final las 15 líneas de `merge/i18n/Messages_cn.properties` |
+| 7 | `/system/etc/www/properties/Messages_es.properties` | Textos de la **interfaz web** (español) | Agregar al final las 15 líneas de `i18n/Messages_es.properties` |
+| 8 | `/system/etc/www/properties/Messages_en.properties` | Textos de la **interfaz web** (inglés) | Agregar al final las 15 líneas de `i18n/Messages_en.properties` |
+| 9 | `/system/etc/www/properties/Messages_cn.properties` | Textos de la **interfaz web** (chino) | Agregar al final las 15 líneas de `i18n/Messages_cn.properties` |
 | 10 | `/system/etc/config/firewall` (valores de fábrica) | Configuración del firewall | Agregar al final la sección de abajo |
 
 **No** agregar una entrada de menú: `/system/etc/www/xml/ui_mifi.xml` queda como está. El ajuste no tiene una
@@ -61,8 +61,7 @@ config include 'netparam'
 
 ### 0.3 Archivos que NO van en la imagen
 
-Todo lo que está fuera de `files/`: los documentos, `MANIFEST.md5`, `VERSION.txt`, `merge/` y `tools/`
-(instalador de campo por SSH, verificación y pruebas, que se corren desde un PC).
+Solo el contenido de `files/` va en la imagen.
 
 ### 0.4 Comprobación final en el equipo
 
@@ -74,7 +73,7 @@ iptables -t mangle -S | grep netparam     # esperado: 3 reglas (POSTROUTING, INP
 ip6tables -t mangle -S | grep netparam    # esperado: 3 reglas con --hl-set 64
 ```
 
-`tools/verify.sh` hace estas comprobaciones y el resto de REQUIREMENTS.md R0–R8 automáticamente.
+H3S hace estas comprobaciones y el resto de REQUIREMENTS.md sobre el firmware que entreguen.
 
 ## 1. Qué necesitamos
 
@@ -86,7 +85,7 @@ ip6tables -t mangle -S | grep netparam    # esperado: 3 reglas con --hl-set 64
    Diagnóstico: Router → Configuración del sistema → Diagnóstico → "Parámetro de red".
 4. **Textos de la interfaz (requisito del producto):** los textos visibles no deben contener las palabras "TTL"
    ni "Hop Limit" en ningún idioma. El ajuste se llama "Parámetro de red" / "Network parameter" / "网络参数" y el
-   campo "Valor". Usar los textos de `merge/i18n/` exactamente como se entregan.
+   campo "Valor". Usar los textos de `i18n/` exactamente como se entregan.
 5. **Nombres internos (requisito del producto):** nada que un usuario o un operador pueda ver en el equipo puede
    nombrar la función. Todo usa el nombre neutro **`netparam`**: los archivos (`netparam.cgi`, `netparam.js`,
    `netparam.html`, `firewall.netparam.sh`), la configuración uci `/etc/config/netparam` (opción `value`, no
@@ -175,7 +174,7 @@ Archivos de referencia, que siguen las convenciones de la interfaz existente (mi
 | `www/html/router/netparam.html` | marcado de la sección (los ids `lt_*` los traduce `LocalAllElement()`) |
 | `www/js/panel/router/netparam.js` | objeto `$.fn.objNetParam`, más el enganche que agrega la sección a la página de Diagnóstico |
 | `www/netparam.cgi` | endpoint del backend, un CGI en shell (GET = leer, POST = guardar y aplicar; `action=restore` / `action=remove` para los dos botones extra) |
-| `merge/web-ui-existing-files.patch` | los únicos cambios a archivos existentes del firmware: 1 línea `<script>` en `index.html` y 15 textos agregados al final de cada `Messages_{es,en,cn}.properties` |
+| `web-ui-existing-files.patch` | los únicos cambios a archivos existentes del firmware: 1 línea `<script>` en `index.html` y 15 textos agregados al final de cada `Messages_{es,en,cn}.properties` |
 
 ### Dónde va cada pieza en el árbol del firmware
 
@@ -282,23 +281,10 @@ Recomendado además:
 
 ## 6. Contenido del paquete
 
-El zip para la casa matriz lo arma `make-oem-package.sh` (todo en inglés salvo los textos de la interfaz).
-**No** incluye este documento en español ni el README interno.
+El zip para la casa matriz (lo arma `make-oem-package.sh`) lleva solo lo necesario para copiar y compilar:
+`IMPLEMENTATION.md`, `REQUIREMENTS.md`, `screenshot-netparam.png`, `VERSION.txt` y `files/` (los 10 archivos
+finales en su ruta del equipo). Todo en inglés salvo los textos de la interfaz. La casa matriz no corre pruebas:
+H3S prueba el firmware que entreguen.
 
-```
-IMPLEMENTATION.md          instrucciones de implementación paso a paso y lista de verificación
-REQUIREMENTS.md            estado final del equipo (R0-R12) y cómo comprobarlo
-OEM-SPEC.md                la versión en inglés de este documento
-screenshot-netparam.png    cómo debe verse la sección
-MANIFEST.md5               MD5 esperado de los archivos en el equipo (REQUIREMENTS.md R0)
-VERSION.txt                versión del paquete y revisión de origen
-files/                     los archivos finales en su ruta exacta del equipo (filas 1-10 de la sección 0)
-merge/apply-to-rootfs.sh   mezcla los cambios en sus propias versiones de los archivos modificados
-merge/i18n/                los 15 textos de la interfaz por idioma
-merge/web-ui-existing-files.patch   los cambios a los archivos existentes, como diff unificado
-tools/verify.sh            revisa un equipo contra REQUIREMENTS.md R0-R8 (usa tools/verify-device.sh)
-tools/test_cgi.py          pruebas de aceptación 1-7
-tools/test_ui.py           prueba de la interfaz en Chromium (Playwright): pruebas 11-12 y cambio ES/EN/CN
-tools/install.sh           instala/quita en un equipo en funcionamiento por SSH (evaluación, no para compilar)
-tools/rsh.sh, tools/web_login.py   ayudantes de las herramientas anteriores
-```
+Esta spec (en inglés y en español), `i18n/`, `web-ui-existing-files.patch`, `apply-to-rootfs.sh` y `tools/`
+(verificación, pruebas, instalador de campo) se quedan en el repositorio de H3S.

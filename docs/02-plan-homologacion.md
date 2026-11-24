@@ -129,7 +129,7 @@ Prueba de Wi‑Fi del módem (lo que verá el cliente): repetir §4.3 con el PC 
 | Instrucción de implementación y requisitos del estado final, para la casa matriz (inglés) | `firmware-mods/netparam/IMPLEMENTATION.md` y `REQUIREMENTS.md` |
 | Especificación para la casa matriz (inglés / copia interna en español) | `firmware-mods/netparam/OEM-SPEC.md` / `OEM-SPEC.es.md` |
 | Zip para la casa matriz | `firmware-mods/netparam/dist/netparam-oem-2026-11-24.zip` (no va a git; se regenera con `make-oem-package.sh`); copia en `C:\Users\diego\Downloads\` |
-| Pruebas automáticas | `firmware-mods/netparam/tools/verify.sh` (estado del equipo), `tools/test_cgi.py` (backend) y `tools/test_ui.py` (interfaz en Chromium) |
+| Pruebas para el firmware que entregue la casa matriz | `firmware-mods/netparam/tools/verify.sh` (estado del equipo, R0–R8; primero `make-oem-package.sh` para el manifiesto), `tools/test_cgi.py` (backend) y `tools/test_ui.py` (interfaz en Chromium) |
 
 **Bitácora:**
 
@@ -151,8 +151,16 @@ Prueba de Wi‑Fi del módem (lo que verá el cliente): repetir §4.3 con el PC 
     trae `merge/` para el caso de que sus archivos difieran, y `tools/verify.sh`. Los archivos de fábrica se sacaron de
     la squashfs del equipo. Verificado: copiar `files/`, aplicar el patch y correr `apply-to-rootfs.sh` dan archivos
     idénticos, y el router reinstalado desde el zip pasa `verify.sh` con todos los MD5 y `test_cgi.py`.
-- Pendiente: que la casa matriz entregue el firmware con la función y correr ahí `tools/test_cgi.py` y
-  `tools/test_ui.py`.
+  - Bug encontrado con `verify.sh` y corregido: si el script corría dos veces a la vez (al arrancar, o en un re-attach
+    junto con la web), quedaban reglas duplicadas. Se reprodujo con 5 ejecuciones en paralelo (9 y 11 reglas). Ahora
+    usa un candado (`lock` de busybox, máximo 10 s): con 3 rondas de 8 en paralelo quedan siempre 3+3, y tampoco hay
+    duplicados al reiniciar. El tráfico nunca salió con otro valor, porque los duplicados tenían el mismo valor.
+  - El zip se simplificó: la casa matriz solo copia y compila, y H3S prueba. Lleva `IMPLEMENTATION.md`,
+    `REQUIREMENTS.md`, la captura, `VERSION.txt` y `files/`. La spec larga, `tools/` y el manifiesto se quedan en el repo.
+  - Ojo: el módem no detecta una SIM que se pone con el equipo encendido (`AT+CPIN?` → `CME ERROR: 10`). Hay que
+    reiniciarlo. Después del reinicio se reinició solo una vez más; no se vio la causa.
+- Pendiente: cuando la casa matriz entregue el firmware, correr `tools/verify.sh`, `tools/test_cgi.py` y
+  `tools/test_ui.py` sobre él.
 
 ## 7. Comandos rápidos
 
