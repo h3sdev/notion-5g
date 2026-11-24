@@ -157,8 +157,11 @@ Prueba de Wi‑Fi del módem (lo que verá el cliente): repetir §4.3 con el PC 
     duplicados al reiniciar. El tráfico nunca salió con otro valor, porque los duplicados tenían el mismo valor.
   - El zip se simplificó: la casa matriz solo copia y compila, y H3S prueba. Lleva `IMPLEMENTATION.md`,
     `REQUIREMENTS.md`, la captura, `VERSION.txt` y `files/`. La spec larga, `tools/` y el manifiesto se quedan en el repo.
-  - Ojo: el módem no detecta una SIM que se pone con el equipo encendido (`AT+CPIN?` → `CME ERROR: 10`). Hay que
-    reiniciarlo. Después del reinicio se reinició solo una vez más; no se vio la causa.
+  - SIM puesta con el equipo encendido: el firmware tiene `/etc/hotplug.d/usim_event/00-sim_state`, que al
+    insertar hace `AT+CFUN=0` → 5 s → `AT+CFUN=1` (reinicia el radio, no el equipo) y al sacar `AT+CFUN=5`. Esta vez
+    seguía en `AT+CPIN?` → `CME ERROR: 10` (sin SIM) hasta que se reinició a mano. 1–2 min después se reinició
+    completo solo una vez más; ese script no lo hace, y la causa no se confirmó porque el log se borra al reiniciar.
+    En la práctica: esperar ~1 min tras poner la SIM; si no hay datos, reiniciar.
 - Pendiente: cuando la casa matriz entregue el firmware, correr `tools/verify.sh`, `tools/test_cgi.py` y
   `tools/test_ui.py` sobre él.
 
