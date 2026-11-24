@@ -37,15 +37,14 @@
 			$('#txtNotionTTL').val(d.ttl);
 			$('#NotionTTLIpv6').prop('checked', d.ipv6 == 1);
 			toggleFields();
-			var s;
-			if(d.enabled != 1){
-				s = jQuery.i18n.prop("lt_NotionTTL_off");
-			}else{
-				s = jQuery.i18n.prop("lt_NotionTTL_on") + " " + d.ttl + " (" + d.iface + ")"
-					+ " · IPv4: " + (d.active_v4 ? d.pkts_v4 + " pkts" : "-")
-					+ " · IPv6: " + (d.active_v6 ? d.pkts_v6 + " pkts" : "-");
-			}
-			$('#NotionTTLStatus').text(s);
+			// La palabra de estado va en elementos lt_* para que LocalAllElement() la retraduzca al cambiar
+			// de idioma; aquí solo se elige cuál se muestra y se ponen los números.
+			var on = d.enabled == 1;
+			$('#lt_NotionTTL_on').text(jQuery.i18n.prop("lt_NotionTTL_on")).toggle(on);
+			$('#lt_NotionTTL_off').text(jQuery.i18n.prop("lt_NotionTTL_off")).toggle(!on);
+			$('#NotionTTLStatusVal').text(!on ? "" : d.ttl + " (" + d.iface + ")"
+				+ " · IPv4: " + (d.active_v4 ? d.pkts_v4 + " pkts" : "-")
+				+ " · IPv6: " + (d.active_v6 ? d.pkts_v6 + " pkts" : "-"));
 		}
 
 		function request(method, data, done){

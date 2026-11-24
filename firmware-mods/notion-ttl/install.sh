@@ -42,12 +42,13 @@ put "$ROOT/system/etc/www/js/panel/router/notion_ttl.js" $WWW/js/panel/router/no
 # config: solo si no existe, para no pisar el valor que ya haya puesto el usuario
 "$RSH" "[ -f /system/etc/config/notion_ttl ] || cat > /system/etc/config/notion_ttl" < "$ROOT/system/etc/config/notion_ttl"
 
-# 3) textos: se agregan al final de cada Messages_*.properties si todavía no están
+# 3) textos: se reemplazan (borrar los nuestros + agregar al final) para que una reinstalación los actualice
 for lang in es en cn; do
 	"$RSH" "f=$WWW/properties/Messages_$lang.properties
-grep -q '^lt_NotionTTL_title' \$f && exit 0
 cat > /tmp/notion_ttl_i18n
-{ printf '\n'; cat /tmp/notion_ttl_i18n; } >> \$f; rm -f /tmp/notion_ttl_i18n" < "$HERE/i18n/Messages_$lang.properties"
+sed -i -e '/^mNotionTTL /d' -e '/^lt_NotionTTL_/d' \$f
+[ -z \"\$(tail -c1 \$f)\" ] || printf '\\n' >> \$f
+cat /tmp/notion_ttl_i18n >> \$f; rm -f /tmp/notion_ttl_i18n" < "$HERE/i18n/Messages_$lang.properties"
 done
 
 # 4) menú + <script>, y registro como include de fw3 (re-aplica en cada fw3 reload)

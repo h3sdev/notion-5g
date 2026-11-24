@@ -149,4 +149,5 @@ firmware-mods/notion-ttl/
   i18n/Messages_{es,en,cn}.properties  textos que se agregan a los archivos de propiedades del firmware
   install.sh                          instala/quita en un equipo en funcionamiento por SSH (uso en campo, no para la compilación)
   test_cgi.py                         pruebas de aceptación 1–7
+  test_ui.py                          prueba de la interfaz en Chromium (Playwright): prueba 11 y cambio ES/EN/CN
 ```
