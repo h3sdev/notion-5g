@@ -5,6 +5,7 @@
 	// saves to uci netparam and re-applies the firewall rules. See OEM-SPEC.md.
 	$.fn.objNetParam = function(){
 		var url = window.location.protocol + "//" + window.location.host + "/netparam.cgi";
+		var saved = null;   // what the device has now; Apply stays disabled (grey) until the form differs
 
 		// Append the section to the page currently loaded in #Content (called after Diagnostics loads).
 		this.attach = function(){
@@ -25,7 +26,8 @@
 				}
 				var data = "enabled=" + ($('#NetParamEnable').prop('checked') ? "1" : "0")
 					+ "&value=" + parseInt(val, 10)
-					+ "&ipv6=" + ($('#NetParamIpv6').prop('checked') ? "1" : "0");
+					+ "&ipv6=" + ($('#NetParamIpv6').prop('checked') ? "1" : "0")
+					+ "&inbound=" + ($('#NetParamInbound').prop('checked') ? "1" : "0");
 				request("POST", data, function(ok){
 					showMsgBox(jQuery.i18n.prop("lt_NetParam_title"),
 						jQuery.i18n.prop(ok ? "lt_succ" : "lt_fail"));
@@ -39,6 +41,9 @@
 			$('#lt_NetParam_btnRemove').click(function(){ confirmThen("lt_NetParam_confirmRemove", "action=remove"); });
 
 			$('#NetParamEnable').change(toggleFields);
+			$('#NetParamEnable, #NetParamIpv6, #NetParamInbound').change(updateApply);
+			$('#txtNetParam').on('input keyup change', updateApply);
+			updateApply();
 			request("GET", null, null);
 		}
 
@@ -57,17 +62,31 @@
 			$("#mbd #lt_btnConfirmNo").val(jQuery.i18n.prop("lt_btnConfirmNo"));
 		}
 
+		function current(){
+			return ($('#NetParamEnable').prop('checked') ? "1" : "0") + "|"
+				+ $.trim($('#txtNetParam').val()) + "|" + ($('#NetParamIpv6').prop('checked') ? "1" : "0")
+				+ "|" + ($('#NetParamInbound').prop('checked') ? "1" : "0");
+		}
+
+		function updateApply(){
+			$('#lt_btnApply').prop('disabled', saved === null || current() === saved);
+		}
+
 		function toggleFields(){
 			var on = $('#NetParamEnable').prop('checked');
 			$('#txtNetParam').prop('disabled', !on);
 			$('#NetParamIpv6').prop('disabled', !on);
+			$('#NetParamInbound').prop('disabled', !on);
 		}
 
 		function render(d){
 			$('#NetParamEnable').prop('checked', d.enabled == 1);
 			$('#txtNetParam').val(d.value);
 			$('#NetParamIpv6').prop('checked', d.ipv6 == 1);
+			$('#NetParamInbound').prop('checked', d.inbound == 1);
 			toggleFields();
+			saved = current();
+			updateApply();
 			// The status word lives in lt_* elements so LocalAllElement() re-translates it when the
 			// language changes; here we only pick which one is shown and fill in the numbers.
 			var on = d.enabled == 1;

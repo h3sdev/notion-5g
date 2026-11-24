@@ -2,16 +2,18 @@
 # install.sh - field installer: installs (or removes) the "network parameter" feature (outbound TTL,
 # see OEM-SPEC.md) on a running Notion 5G unit over SSH. Not needed for the firmware build (see OEM-SPEC.md section 0).
 #
-#   firmware-mods/netparam/install.sh            install / update (idempotent)
-#   firmware-mods/netparam/install.sh --remove   restore the factory web UI and remove the rules
+#   tools/install.sh            install / update (idempotent)
+#   tools/install.sh --remove   restore the factory web UI and remove the rules
 #
 # Everything lives in /system/etc (writable, persistent overlay). The 5 factory web files that get patched
 # are backed up ONCE to /system/etc/netparam-backup/ before they are touched.
-# Requires NOTION_PASS (device root SSH password), same as scripts/rsh.sh.
+# Requires NOTION_PASS (device root SSH password), used by tools/rsh.sh.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
-RSH="$HERE/../../scripts/rsh.sh"
-ROOT="$HERE/rootfs"
+HERE="$(cd "$(dirname "$0")" && pwd)"        # tools/
+PKG="$(cd "$HERE/.." && pwd)"                 # package root
+RSH="$HERE/rsh.sh"
+# H3S repository: rootfs/ + i18n/;  OEM zip: files/ + merge/i18n/
+if [ -d "$PKG/rootfs" ]; then ROOT="$PKG/rootfs"; I18N="$PKG/i18n"; else ROOT="$PKG/files"; I18N="$PKG/merge/i18n"; fi
 BK=/system/etc/netparam-backup
 WWW=/system/etc/www
 PATCHED="index.html xml/ui_mifi.xml properties/Messages_es.properties properties/Messages_en.properties properties/Messages_cn.properties"
@@ -73,7 +75,7 @@ for lang in es en cn; do
 cat > /tmp/netparam_i18n
 sed -i -e '/^mNetParam /d' -e '/^lt_NetParam_/d' \$f
 [ -z \"\$(tail -c1 \$f)\" ] || printf '\\n' >> \$f
-cat /tmp/netparam_i18n >> \$f; rm -f /tmp/netparam_i18n" < "$HERE/i18n/Messages_$lang.properties"
+cat /tmp/netparam_i18n >> \$f; rm -f /tmp/netparam_i18n" < "$I18N/Messages_$lang.properties"
 done
 
 # 4) <script> include, and register as a fw3 include (re-applied on every fw3 reload)

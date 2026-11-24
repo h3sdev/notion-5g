@@ -2,7 +2,7 @@
 # netparam.cgi - reads/saves the "network parameter" setting for the web UI (see OEM-SPEC.md).
 #
 #   GET  /netparam.cgi                          -> JSON: config + active rules + packet counters
-#   POST /netparam.cgi  enabled=1&value=64&ipv6=1 -> validate, save to uci netparam, apply, JSON
+#   POST /netparam.cgi  enabled=1&value=64&ipv6=1&inbound=1 -> validate, save to uci netparam, apply, JSON
 #   POST /netparam.cgi  action=restore          -> back to the factory defaults (enabled, 64, IPv6), apply
 #   POST /netparam.cgi  action=remove           -> disable and delete the rules (traffic leaves unmodified)
 #
@@ -18,6 +18,7 @@ APPLY=/system/etc/firewall.netparam.sh
 DEF_VALUE=64
 DEF_IPV6=1
 DEF_IFACE='ccinet+'
+DEF_INBOUND=1
 
 out() { # status, json
 	printf 'Status: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n%s\n' "$1" "$2"
@@ -33,8 +34,8 @@ fi
 # --- helpers ----------------------------------------------------------------------------------------
 cfg() { uci -q get "netparam.main.$1"; }
 
-pkts() { # bin -> packet count of the netparam rule (empty if there is no rule)
-	$1 -t mangle -L POSTROUTING -v -n -x 2>/dev/null | awk '/netparam/ {print $1; exit}'
+pkts() { # bin [chain] -> packet count of the netparam rule in that chain (empty if there is no rule)
+	$1 -t mangle -L "${2:-POSTROUTING}" -v -n -x 2>/dev/null | awk '/netparam/ {print $1; exit}'
 }
 
 status_json() {
@@ -42,11 +43,13 @@ status_json() {
 	val="$(cfg value)";    [ -n "$val" ] || val=64
 	v6="$(cfg ipv6)";    [ -n "$v6" ] || v6=1
 	ifc="$(cfg iface)";  [ -n "$ifc" ] || ifc='ccinet+'
-	p4="$(pkts iptables)"; p6="$(pkts ip6tables)"
+	inb="$(cfg inbound)"; [ -n "$inb" ] || inb=1
+	p4="$(pkts iptables)"; p6="$(pkts ip6tables)"; pin="$(pkts iptables INPUT)"
 	a4=false; [ -n "$p4" ] && a4=true
 	a6=false; [ -n "$p6" ] && a6=true
-	printf '{"result":"ok","enabled":%s,"value":%s,"ipv6":%s,"iface":"%s","active_v4":%s,"active_v6":%s,"pkts_v4":%s,"pkts_v6":%s}' \
-		"$en" "$val" "$v6" "$ifc" "$a4" "$a6" "${p4:-0}" "${p6:-0}"
+	ain=false; [ -n "$pin" ] && ain=true
+	printf '{"result":"ok","enabled":%s,"value":%s,"ipv6":%s,"inbound":%s,"iface":"%s","active_v4":%s,"active_v6":%s,"active_in":%s,"pkts_v4":%s,"pkts_v6":%s}' \
+		"$en" "$val" "$v6" "$inb" "$ifc" "$a4" "$a6" "$ain" "${p4:-0}" "${p6:-0}"
 }
 
 param() { # name -> raw value from the urlencoded body (validated later, never evaluated)
@@ -75,17 +78,19 @@ POST)
 		uci set netparam.main.value="$DEF_VALUE"
 		uci set netparam.main.ipv6="$DEF_IPV6"
 		uci set netparam.main.iface="$DEF_IFACE"
+		uci set netparam.main.inbound="$DEF_INBOUND"
 		uci commit netparam
-		logger -t netparam "web: $action (enabled=$en value=$DEF_VALUE ipv6=$DEF_IPV6) (from ${REMOTE_ADDR:-?})"
+		logger -t netparam "web: $action (enabled=$en value=$DEF_VALUE ipv6=$DEF_IPV6 inbound=$DEF_INBOUND) (from ${REMOTE_ADDR:-?})"
 		sh "$APPLY" apply >/dev/null 2>&1 || out "500 Internal Server Error" '{"result":"fail","error":"apply"}'
 		out "200 OK" "$(status_json)"
 		;;
 	*) out "400 Bad Request" '{"result":"fail","error":"action"}' ;;
 	esac
 
-	en="$(param enabled)"; val="$(param value)"; v6="$(param ipv6)"
+	en="$(param enabled)"; val="$(param value)"; v6="$(param ipv6)"; inb="$(param inbound)"
 	case "$en" in 0|1) ;; *) out "400 Bad Request" '{"result":"fail","error":"enabled"}' ;; esac
 	case "$v6" in 0|1) ;; '') v6=1 ;; *) out "400 Bad Request" '{"result":"fail","error":"ipv6"}' ;; esac
+	case "$inb" in 0|1) ;; '') inb=1 ;; *) out "400 Bad Request" '{"result":"fail","error":"inbound"}' ;; esac
 	case "$val" in ''|*[!0-9]*) out "400 Bad Request" '{"result":"fail","error":"value"}' ;; esac
 	# Strip leading zeros with sed, NOT with $((x+0)): the shell reads "064" as octal (= 52).
 	val="$(printf '%s' "$val" | sed 's/^0*//')"
@@ -97,8 +102,9 @@ POST)
 	uci set netparam.main.enabled="$en"
 	uci set netparam.main.value="$val"
 	uci set netparam.main.ipv6="$v6"
+	uci set netparam.main.inbound="$inb"
 	uci commit netparam
-	logger -t netparam "web: enabled=$en value=$val ipv6=$v6 (from ${REMOTE_ADDR:-?})"
+	logger -t netparam "web: enabled=$en value=$val ipv6=$v6 inbound=$inb (from ${REMOTE_ADDR:-?})"
 
 	sh "$APPLY" apply >/dev/null 2>&1 || out "500 Internal Server Error" '{"result":"fail","error":"apply"}'
 	out "200 OK" "$(status_json)"

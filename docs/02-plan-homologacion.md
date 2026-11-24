@@ -101,13 +101,58 @@ Prueba de Wi‑Fi del módem (lo que verá el cliente): repetir §4.3 con el PC 
 | Térmico | < 75 °C en descarga sostenida de 15 min |
 | Autonomía | medir con cronómetro: powerbank llena → módem apagado, con 2 clientes y `drive --speed-every 6` |
 
-## 6. TTL persistente (ya instalado)
+## 6. TTL configurable ("Parámetro de red")
 
-- Por qué se borraba: cada `ifup` de `wan0` (re‑attach 5G↔4G) dispara `fw3 reload`, que reconstruye iptables.
-- Instalado: `/system/etc/firewall.netparam.sh` (antes `firewall.notion-ttl.sh`; ver `firmware-mods/netparam/`) registrado como `include` con `reload=1`. Fija **TTL 64** e **IPv6 Hop Limit 64** en salida por `ccinet+`. Se ejecuta en cada arranque y cada reload.
-- Verificar: `scripts/rsh.sh 'iptables -t mangle -S POSTROUTING | grep netparam'` o columna `ttl_rules` de cualquier muestra.
-- Cambiar valor: `scripts/ttl_persist_install.sh 65`. Quitar: `scripts/ttl_persist_install.sh --remove`.
-- Nota: la regla está en POSTROUTING (después del decremento de reenvío), así que el valor configurado es el TTL real que sale por la antena; 64 es lo que emite un celular.
+**Estado actual (2026-11-24):** instalado en el módem de pruebas y empaquetado para la casa matriz.
+
+- **En la interfaz:** Router → Configuración del sistema → **Diagnóstico**, sección **"Parámetro de red"** debajo del
+  ping. No tiene entrada propia en el menú y la pantalla nunca dice "TTL". Botones: **Aplicar** (en gris hasta que
+  cambies algo), **Valor recomendado** (64, activo) y **Como de fábrica** (quita las reglas); los dos últimos piden
+  Sí/No. Casilla **"Aplicar también al tráfico de entrada"** (marcada por defecto): hace que el ping muestre el valor
+  configurado; es solo para confirmarlo, porque el operador no ve esos paquetes.
+- **En el equipo (todo en `/system/etc`, persistente):** `config/netparam` (enabled/value/ipv6/iface/inbound),
+  `firewall.netparam.sh` (include de fw3 `firewall.netparam` con `reload=1`), `www/netparam.cgi`,
+  `www/html/router/netparam.html`, `www/js/panel/router/netparam.js`, 15 textos `lt_NetParam_*` en
+  `www/properties/Messages_{es,en,cn}.properties` y respaldo de fábrica en `netparam-backup/`. Reglas en mangle
+  POSTROUTING (salida) + INPUT/FORWARD (entrada), comentario `netparam`; log con etiqueta `netparam`.
+  Nada se escribe solo en la flash: solo al guardar desde la web (105 bytes).
+- **Verificar:** `scripts/rsh.sh 'sh /system/etc/firewall.netparam.sh status'`, o `ping 8.8.8.8` (muestra el valor).
+- **Cambiar sin la web:** `scripts/rsh.sh 'uci set netparam.main.value=65; uci commit netparam; sh /system/etc/firewall.netparam.sh'`.
+- **Instalar/actualizar en otro equipo:** `NOTION_PASS=... firmware-mods/netparam/tools/install.sh` (`--remove` para quitar).
+  `scripts/ttl_persist_install.sh` es la versión vieja de TTL fijo: está bloqueado, no usarlo.
+
+**Dónde está cada cosa:**
+
+| Qué | Dónde |
+|---|---|
+| Código, pruebas e instalador | `firmware-mods/netparam/` (README.md explica cada archivo) |
+| Instrucción de implementación y requisitos del estado final, para la casa matriz (inglés) | `firmware-mods/netparam/IMPLEMENTATION.md` y `REQUIREMENTS.md` |
+| Especificación para la casa matriz (inglés / copia interna en español) | `firmware-mods/netparam/OEM-SPEC.md` / `OEM-SPEC.es.md` |
+| Zip para la casa matriz | `firmware-mods/netparam/dist/netparam-oem-2026-11-24.zip` (no va a git; se regenera con `make-oem-package.sh`); copia en `C:\Users\diego\Downloads\` |
+| Pruebas automáticas | `firmware-mods/netparam/tools/verify.sh` (estado del equipo), `tools/test_cgi.py` (backend) y `tools/test_ui.py` (interfaz en Chromium) |
+
+**Bitácora:**
+
+- 2026-09-16: primera versión, TTL fijo 64 (`scripts/ttl_persist_install.sh`). Sobrevive a reinicios y cambios 4G/5G
+  gracias al include de fw3 con `reload=1`.
+- 2026-11-23: valor en archivo de configuración y editable desde la web (página propia en Configuraciones
+  avanzadas). Probado: reinicio x2, `fw3 reload`, cambio de modo, interfaz en Chromium. "Solo 5G" (SA) no se pudo
+  probar: Claro no tiene SA en la oficina. Spec para la casa matriz con manifiesto de archivos; en inglés (código,
+  comentarios y logs también), interfaz en español.
+- 2026-11-24:
+  - Se movió adentro de Diagnóstico, sin entrada de menú y sin la palabra "TTL" en pantalla (para no tener problemas
+    con operadores).
+  - Botones Valor recomendado / Como de fábrica con confirmación, y Aplicar en gris hasta que haya un cambio.
+  - Nombres internos neutros: `notion_ttl` → `netparam`. El instalador migra los equipos con la versión anterior.
+  - Casilla de tráfico de entrada (el ping muestra el valor).
+  - Verificado con captura en `ccinet0`: con valor 70 los paquetes salen con TTL 70. Reinicio con 66: siguió en 66.
+  - Zip para la casa matriz. Incluye `IMPLEMENTATION.md` y `REQUIREMENTS.md` (estado final R0–R12), y `files/`, con los
+    10 archivos finales en su ruta del equipo, listos para pegar (en OpenWrt: carpeta `files/` del buildroot). También
+    trae `merge/` para el caso de que sus archivos difieran, y `tools/verify.sh`. Los archivos de fábrica se sacaron de
+    la squashfs del equipo. Verificado: copiar `files/`, aplicar el patch y correr `apply-to-rootfs.sh` dan archivos
+    idénticos, y el router reinstalado desde el zip pasa `verify.sh` con todos los MD5 y `test_cgi.py`.
+- Pendiente: que la casa matriz entregue el firmware con la función y correr ahí `tools/test_cgi.py` y
+  `tools/test_ui.py`.
 
 ## 7. Comandos rápidos
 

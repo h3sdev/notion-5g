@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Web UI test of the "Network parameter" section (the TTL setting) of the Diagnostics page in Chromium (Playwright), driven the way a person would use it.
 
-Usage (from the repo root):  NOTION_PASS=... python3 firmware-mods/netparam/test_ui.py [screenshot_dir]
+Usage:  NOTION_PASS=<root ssh password> python3 tools/test_ui.py [screenshot_dir]   (needs: pip install playwright; playwright install chromium)
 Walks login -> Router -> System Settings -> Diagnostics (the section sits below ping/nslookup/traceroute), applies values, checks validation errors,
 disables/enables, checks the English and Chinese strings, and verifies every change in the device's iptables.
 The UI is in Spanish (device default), so the expected texts below are the Spanish UI strings.
@@ -10,7 +10,7 @@ Leaves the device at enabled=1, value=64, ipv6=1, UI language Spanish.
 import os, subprocess, sys
 from playwright.sync_api import sync_playwright
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = sys.argv[1] if len(sys.argv) > 1 else "/tmp"
 fails = 0
 
@@ -22,7 +22,7 @@ def check(name, ok, detail=""):
 
 
 def rules():
-    r = subprocess.run([os.path.join(ROOT, "scripts/rsh.sh"),
+    r = subprocess.run([os.path.join(HERE, "rsh.sh"),
                         "iptables -t mangle -S POSTROUTING | grep netparam; ip6tables -t mangle -S POSTROUTING | grep netparam"],
                        capture_output=True, text=True, timeout=30)
     return r.stdout
@@ -75,6 +75,12 @@ with sync_playwright() as p:
           and pg.locator("#NetParamSection #txtNetParam").count() == 1)
     check("no separate menu entry", pg.get_by_text("Parámetro de red", exact=True).count() == 1)
     check("no 'TTL'/'Hop' visible on screen (es)", not any(w in body(pg) for w in ("TTL", "Hop Limit")))
+    check("Apply is grey until something changes", pg.is_disabled("#lt_btnApply"))
+    orig = pg.input_value("#txtNetParam")
+    pg.fill("#txtNetParam", "65" if orig != "65" else "66")
+    check("Apply turns on after a change", pg.is_enabled("#lt_btnApply"))
+    pg.fill("#txtNetParam", orig)
+    check("Apply greys out again when the change is undone", pg.is_disabled("#lt_btnApply"))
     check("loads current value", pg.input_value("#txtNetParam").isdigit(), pg.input_value("#txtNetParam"))
     pg.screenshot(path=f"{OUT}/ui_1_initial.png")
 
@@ -92,6 +98,15 @@ with sync_playwright() as p:
     pg.uncheck("#NetParamIpv6"); apply(pg)
     r = rules(); check("IPv6 unchecked: IPv4 rule only", "--ttl-set 70" in r and "--hl-set" not in r)
     pg.check("#NetParamIpv6"); apply(pg)
+    def inbound_rules():
+        r = subprocess.run([os.path.join(HERE, "rsh.sh"),
+                            "iptables -t mangle -S | grep netparam | grep -c -E '^-A (INPUT|FORWARD)'"],
+                           capture_output=True, text=True, timeout=30).stdout.strip()
+        return r
+    pg.uncheck("#NetParamInbound"); apply(pg)
+    check("incoming unchecked: no INPUT/FORWARD rules", inbound_rules() == "0", inbound_rules())
+    pg.check("#NetParamInbound"); apply(pg)
+    check("incoming checked: INPUT and FORWARD rules", inbound_rules() == "2", inbound_rules())
     check("IPv6 checked again", "--hl-set 70" in rules())
 
     pg.uncheck("#NetParamEnable")

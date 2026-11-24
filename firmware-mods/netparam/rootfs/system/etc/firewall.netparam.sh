@@ -5,6 +5,8 @@
 #   enabled  0|1        apply or not
 #   value    1..255     TTL / Hop Limit to set (64 = same as an Android/iOS handset)
 #   ipv6     0|1        also set the IPv6 Hop Limit
+#   inbound  0|1        also rewrite incoming packets (INPUT + FORWARD), so a ping shows the configured value.
+#                       Cosmetic, for confirming the setting: the operator only ever sees outgoing packets.
 #   iface    ccinet+    egress interface(s) (iptables pattern)
 #
 # fw3 runs this on every start/reload (uci firewall.netparam: type=script, reload=1), because every
@@ -21,11 +23,12 @@ ENABLED="$(cfg enabled)"; [ -n "$ENABLED" ] || ENABLED=1
 TTL="$(cfg value)";       [ -n "$TTL" ] || TTL=64
 IPV6="$(cfg ipv6)";       [ -n "$IPV6" ] || IPV6=1
 IFACE="$(cfg iface)";     [ -n "$IFACE" ] || IFACE='ccinet+'
+INBOUND="$(cfg inbound)"; [ -n "$INBOUND" ] || INBOUND=1
 
-# Delete EVERY rule tagged netparam, whatever value it was created with.
+# Delete EVERY rule tagged netparam, in any mangle chain, whatever value it was created with.
 flush() {
 	for bin in iptables ip6tables; do
-		$bin -t mangle -S POSTROUTING 2>/dev/null | grep -- "--comment $TAG " | sed 's/^-A /-D /' |
+		$bin -t mangle -S 2>/dev/null | grep -- "--comment $TAG " | sed 's/^-A /-D /' |
 		while read -r rule; do
 			# shellcheck disable=SC2086
 			$bin -t mangle $rule 2>/dev/null
@@ -46,9 +49,12 @@ remove)
 	logger -t $TAG "rules removed"
 	;;
 status)
-	echo "enabled=$ENABLED value=$TTL ipv6=$IPV6 iface=$IFACE"
-	iptables -t mangle -L POSTROUTING -v -n -x 2>/dev/null | grep "$TAG"
-	ip6tables -t mangle -L POSTROUTING -v -n -x 2>/dev/null | grep "$TAG"
+	echo "enabled=$ENABLED value=$TTL ipv6=$IPV6 iface=$IFACE inbound=$INBOUND"
+	for bin in iptables ip6tables; do
+		for chain in POSTROUTING INPUT FORWARD; do
+			$bin -t mangle -L $chain -v -n -x 2>/dev/null | grep "$TAG" | sed "s/^/$chain /"
+		done
+	done
 	;;
 *)
 	flush
@@ -60,9 +66,18 @@ status)
 		logger -t $TAG "invalid config (value=$TTL iface=$IFACE), not applied"
 		exit 1
 	fi
+	# Outgoing: POSTROUTING runs after the forwarding decrement, so the operator sees exactly $TTL.
 	iptables -t mangle -I POSTROUTING -o "$IFACE" -m comment --comment $TAG -j TTL --ttl-set "$TTL"
 	[ "$IPV6" = 1 ] && ip6tables -t mangle -I POSTROUTING -o "$IFACE" -m comment --comment $TAG -j HL --hl-set "$TTL"
-	logger -t $TAG "value=$TTL applied on $IFACE (ipv6=$IPV6)"
+	# Incoming (optional): INPUT for packets to the device itself (Diagnostics ping), FORWARD for packets
+	# to LAN clients. FORWARD runs after the kernel decrements, so clients also see exactly $TTL.
+	if [ "$INBOUND" = 1 ]; then
+		for chain in INPUT FORWARD; do
+			iptables -t mangle -I $chain -i "$IFACE" -m comment --comment $TAG -j TTL --ttl-set "$TTL"
+			[ "$IPV6" = 1 ] && ip6tables -t mangle -I $chain -i "$IFACE" -m comment --comment $TAG -j HL --hl-set "$TTL"
+		done
+	fi
+	logger -t $TAG "value=$TTL applied on $IFACE (ipv6=$IPV6 inbound=$INBOUND)"
 	;;
 esac
 exit 0
