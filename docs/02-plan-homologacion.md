@@ -162,6 +162,11 @@ Prueba de Wi‑Fi del módem (lo que verá el cliente): repetir §4.3 con el PC 
     seguía en `AT+CPIN?` → `CME ERROR: 10` (sin SIM) hasta que se reinició a mano. 1–2 min después se reinició
     completo solo una vez más; ese script no lo hace, y la causa no se confirmó porque el log se borra al reiniciar.
     En la práctica: esperar ~1 min tras poner la SIM; si no hay datos, reiniciar.
+- **Validación final, 2026-11-24 (commit `fcd739b`, SIM Claro LTE B28, router en 64):** `tools/verify.sh` ALL OK
+  (11 MD5 del manifiesto + R1–R8, incluido el ping del módem mostrando `ttl=64`), `tools/test_cgi.py` ALL OK y
+  `tools/test_ui.py` ALL OK (46/46 en Chromium: ubicación en Diagnóstico, sin "TTL" en pantalla, Aplicar en gris,
+  validación de valores, IPv6, entrada, activar/desactivar, Como de fábrica / Valor recomendado con Sí/No, recarga,
+  idiomas es/en/cn, sin errores de JavaScript). También pasó el reinicio sin reglas duplicadas.
 - Pendiente: cuando la casa matriz entregue el firmware, correr `tools/verify.sh`, `tools/test_cgi.py` y
   `tools/test_ui.py` sobre él.
 
