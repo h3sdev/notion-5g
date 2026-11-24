@@ -12,70 +12,68 @@ diff -ru a/www/index.html b/www/index.html
 diff -ru a/www/properties/Messages_cn.properties b/www/properties/Messages_cn.properties
 --- a/www/properties/Messages_cn.properties
 +++ b/www/properties/Messages_cn.properties
-@@ -2194,3 +2194,15 @@
+@@ -2194,3 +2194,18 @@
  lt_lock_pciNoempty = PCI不能为空
  lt_lock_pcierror  = PCI输入格式不正确
  lt_set_params_fail  =   参数设置不正确，请检查配置
 +
-+mNotionTTL = 出口TTL
-+lt_NotionTTL_title = 出口TTL（移动网络）
-+lt_NotionTTL_note = 设置经移动网络发出的数据包的TTL（IPv4）和跳数限制（IPv6）。该值保存在设备中，重启或4G/5G切换后自动重新生效。
-+lt_NotionTTL_enable = 设置出口TTL
-+lt_NotionTTL_value = TTL值：
++lt_NotionTTL_title = 网络参数
++lt_NotionTTL_note = 设备对经移动网络发出的流量所应用的参数值。该值保存在设备中，重启或4G/5G切换后自动重新生效。
++lt_NotionTTL_enable = 启用网络参数
++lt_NotionTTL_value = 参数值：
 +lt_NotionTTL_range = （1-255，建议64）
-+lt_NotionTTL_ipv6 = 同时应用于IPv6（跳数限制）
++lt_NotionTTL_ipv6 = 同时应用于IPv6
 +lt_NotionTTL_status = 状态：
-+lt_NotionTTL_on = 已启用，TTL
++lt_NotionTTL_on = 已启用，参数值
 +lt_NotionTTL_off = 已禁用
-+lt_NotionTTL_invalid = TTL必须是1到255之间的数字。
++lt_NotionTTL_invalid = 参数值必须是1到255之间的数字。
++lt_NotionTTL_btnRestore = 推荐值
++lt_NotionTTL_btnRemove = 恢复出厂
++lt_NotionTTL_confirmRestore = 恢复为推荐值（64，启用，同时应用于IPv6）？
++lt_NotionTTL_confirmRemove = 恢复设备出厂状态？将清除此设置，各终端使用其自身的值。
 diff -ru a/www/properties/Messages_en.properties b/www/properties/Messages_en.properties
 --- a/www/properties/Messages_en.properties
 +++ b/www/properties/Messages_en.properties
-@@ -2138,3 +2138,15 @@
+@@ -2138,3 +2138,18 @@
  
  
  
 +
-+mNotionTTL = Outbound TTL
-+lt_NotionTTL_title = Outbound TTL (mobile network)
-+lt_NotionTTL_note = Sets the TTL (IPv4) and Hop Limit (IPv6) of packets leaving through the mobile network. The value is stored on the device and re-applied automatically after reboots and 4G/5G changes.
-+lt_NotionTTL_enable = Set outbound TTL
-+lt_NotionTTL_value = TTL value:
++lt_NotionTTL_title = Network parameter
++lt_NotionTTL_note = Value the device applies to traffic leaving through the mobile network. It is stored on the device and re-applied automatically after reboots and 4G/5G changes.
++lt_NotionTTL_enable = Enable network parameter
++lt_NotionTTL_value = Value:
 +lt_NotionTTL_range = (1-255, recommended 64)
-+lt_NotionTTL_ipv6 = Also apply to IPv6 (Hop Limit)
++lt_NotionTTL_ipv6 = Also apply to IPv6
 +lt_NotionTTL_status = Status:
-+lt_NotionTTL_on = Active, TTL
++lt_NotionTTL_on = Active, value
 +lt_NotionTTL_off = Disabled
-+lt_NotionTTL_invalid = TTL must be a number between 1 and 255.
++lt_NotionTTL_invalid = The value must be a number between 1 and 255.
++lt_NotionTTL_btnRestore = Recommended value
++lt_NotionTTL_btnRemove = Factory behavior
++lt_NotionTTL_confirmRestore = Go back to the recommended value (64, enabled, IPv6 too)?
++lt_NotionTTL_confirmRemove = Return the device to its factory behavior? This setting is removed and each device keeps its own value.
 diff -ru a/www/properties/Messages_es.properties b/www/properties/Messages_es.properties
 --- a/www/properties/Messages_es.properties
 +++ b/www/properties/Messages_es.properties
-@@ -1965,4 +1965,15 @@
+@@ -1965,4 +1965,18 @@
  lt_lock_Freqerror  	  =	El formato de la frecuencia ingresada es incorrecto
  lt_lock_pciNoempty 	  =	El PCI no puede estar vacío
  lt_lock_pcierror  	  =	El formato del PCI ingresado es incorrecto
 -lt_set_params_fail  	  =	La configuración de parámetros es incorrecta, por favor verifique la configuración
 \ No newline at end of file
 +lt_set_params_fail  	  =	La configuración de parámetros es incorrecta, por favor verifique la configuración
-+mNotionTTL = TTL de salida
-+lt_NotionTTL_title = TTL de salida (red móvil)
-+lt_NotionTTL_note = Fija el TTL (IPv4) y el Hop Limit (IPv6) de los paquetes que salen por la red móvil. El valor se guarda en el equipo y se vuelve a aplicar automáticamente tras reinicios y cambios 4G/5G.
-+lt_NotionTTL_enable = Fijar TTL de salida
-+lt_NotionTTL_value = Valor de TTL:
++lt_NotionTTL_title = Parámetro de red
++lt_NotionTTL_note = Valor que el equipo aplica al tráfico que sale por la red móvil. Se guarda en el equipo y se vuelve a aplicar automáticamente tras reinicios y cambios 4G/5G.
++lt_NotionTTL_enable = Activar parámetro de red
++lt_NotionTTL_value = Valor:
 +lt_NotionTTL_range = (1-255, recomendado 64)
-+lt_NotionTTL_ipv6 = Aplicar también a IPv6 (Hop Limit)
++lt_NotionTTL_ipv6 = Aplicar también a IPv6
 +lt_NotionTTL_status = Estado:
-+lt_NotionTTL_on = Activo, TTL
++lt_NotionTTL_on = Activo, valor
 +lt_NotionTTL_off = Desactivado
-+lt_NotionTTL_invalid = El TTL debe ser un número entre 1 y 255.
-diff -ru a/www/xml/ui_mifi.xml b/www/xml/ui_mifi.xml
---- a/www/xml/ui_mifi.xml
-+++ b/www/xml/ui_mifi.xml
-@@ -100,6 +100,7 @@
-                     <ThirdlevelMenu id='mVPN' implFunction='objVPNManage' type='submenuabsent'/>
-                     <ThirdlevelMenu id='mIPSEC' implFunction='objIPSEC' type='submenuabsent'  />
-                     <ThirdlevelMenu id='mWifiDDNS' implFunction='objWifiDDNS' type='submenuabsent'/>
-+                    <ThirdlevelMenu id='mNotionTTL' implFunction='objNotionTTL' type='submenuabsent'/>
-                 </ThirdlevelMenus>
-             </Menu>
- 
++lt_NotionTTL_invalid = El valor debe ser un número entre 1 y 255.
++lt_NotionTTL_btnRestore = Valor recomendado
++lt_NotionTTL_btnRemove = Como de fábrica
++lt_NotionTTL_confirmRestore = ¿Volver al valor recomendado (64, activo, también IPv6)?
++lt_NotionTTL_confirmRemove = ¿Dejar el equipo como de fábrica? Se quita esta configuración y cada dispositivo sale con su valor propio.

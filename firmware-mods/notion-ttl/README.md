@@ -1,22 +1,24 @@
-# TTL configurable desde la interfaz web (Notion 5G)
+# Web-configurable outbound TTL (Notion 5G)
 
-Reemplaza al TTL fijo de `scripts/ttl_persist_install.sh`. Con esto el valor queda en un archivo de configuración
-(`/etc/config/notion_ttl`) y se cambia desde la interfaz web del router:
-**Router → Configuraciones avanzadas → TTL de salida**.
+Replaces the fixed TTL of `scripts/ttl_persist_install.sh`. The value is stored in a configuration file
+(`/etc/config/notion_ttl`) and changed from the router's web UI:
+**Router → System Settings → Diagnostics**, in the "Network parameter" section below the ping form (Spanish UI:
+Router → Configuración del sistema → Diagnóstico → "Parámetro de red"). There is no menu entry of its own, and
+the UI text never says "TTL".
 
-- `OEM-SPEC.md`: especificación para la casa matriz (en inglés). Explica qué hay que meter en el firmware, las
-  dos formas de integrarlo y las pruebas de aceptación.
-- `install.sh`: lo instala o actualiza en un equipo por SSH (`NOTION_PASS=... firmware-mods/notion-ttl/install.sh`).
-  Con `--remove` deja la web como venía de fábrica, usando el respaldo en `/system/etc/notion-ttl-backup/`.
-- `test_ui.py`: prueba la página en Chromium (Playwright) como un usuario: menú, aplicar, valores inválidos,
-  IPv6, desactivar/activar e idiomas es/en/cn, comprobando cada cambio en el equipo.
-- `test_cgi.py`: prueba de punta a punta (sesión, CSRF, validación, cambio de valor, `fw3 reload`). Al terminar
-  deja el equipo en TTL 64.
+- `OEM-SPEC.md`: specification for the manufacturer. Section 0 lists exactly which file goes where in the
+  firmware image. `OEM-SPEC.es.md` is the Spanish translation for internal use.
+- `install.sh`: installs or updates it on a running unit over SSH (`NOTION_PASS=... firmware-mods/notion-ttl/install.sh`).
+  `--remove` restores the factory web UI from the backup in `/system/etc/notion-ttl-backup/`.
+- `test_ui.py`: tests the section in Chromium (Playwright) the way a user would: placement inside Diagnostics,
+  no "TTL" on screen, apply, invalid values, IPv6, disable/enable and es/en/cn, checking every change on the device.
+- `test_cgi.py`: end-to-end test of the backend (session, CSRF, validation, value change, `fw3 reload`).
+  Leaves the device at TTL 64.
 
-Cambiar el valor sin entrar a la interfaz web:
+Change the value without the web UI:
 `uci set notion_ttl.main.ttl=65; uci commit notion_ttl; sh /system/etc/firewall.notion-ttl.sh`.
 
-Ver el estado y los contadores: `sh /system/etc/firewall.notion-ttl.sh status`.
+Show state and packet counters: `sh /system/etc/firewall.notion-ttl.sh status`.
 
-Todo vive en `/system/etc`, que es escribible y sobrevive al reinicio. Un reset de fábrica que limpie el overlay
-lo borra; para eso está la versión de firmware.
+Everything lives in `/system/etc`, which is writable and survives reboots. A factory reset that wipes that overlay
+removes it; that is why it should go into the firmware.

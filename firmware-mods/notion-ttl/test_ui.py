@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Prueba de la página "TTL de salida" en Chromium (Playwright), como la usaría una persona.
+"""Web UI test of the "Network parameter" section (the TTL setting) of the Diagnostics page in Chromium (Playwright), driven the way a person would use it.
 
-Uso (desde la raíz del repo):  NOTION_PASS=... python3 firmware-mods/notion-ttl/test_ui.py [carpeta_capturas]
-Recorre login -> Router -> Configuraciones avanzadas -> TTL de salida, aplica valores, valida errores,
-desactiva/activa, revisa los textos en inglés y chino, y comprueba cada cambio en iptables del equipo.
-Deja el equipo en enabled=1, ttl=64, ipv6=1.
+Usage (from the repo root):  NOTION_PASS=... python3 firmware-mods/notion-ttl/test_ui.py [screenshot_dir]
+Walks login -> Router -> System Settings -> Diagnostics (the section sits below ping/nslookup/traceroute), applies values, checks validation errors,
+disables/enables, checks the English and Chinese strings, and verifies every change in the device's iptables.
+The UI is in Spanish (device default), so the expected texts below are the Spanish UI strings.
+Leaves the device at enabled=1, ttl=64, ipv6=1, UI language Spanish.
 """
 import os, subprocess, sys
 from playwright.sync_api import sync_playwright
@@ -17,7 +18,7 @@ fails = 0
 def check(name, ok, detail=""):
     global fails
     fails += not ok
-    print(f"{'OK ' if ok else 'FALLA'} {name}" + (f"  [{detail}]" if detail else ""))
+    print(f"{'OK  ' if ok else 'FAIL'} {name}" + (f"  [{detail}]" if detail else ""))
 
 
 def rules():
@@ -68,57 +69,82 @@ with sync_playwright() as p:
     pg.wait_for_timeout(10000); dismiss(pg)
     check("login", pg.get_by_text("Router", exact=True).count() > 0)
 
-    open_ttl(pg, "Router", "Configuraciones avanzadas", "TTL de salida")
-    check("página abre desde el menú", pg.locator("#lt_NotionTTL_title").inner_text() == "TTL de salida (red móvil)")
-    check("carga valor actual", pg.input_value("#txtNotionTTL").isdigit(), pg.input_value("#txtNotionTTL"))
-    pg.screenshot(path=f"{OUT}/ui_1_inicial.png")
+    open_ttl(pg, "Router", "Configuración del sistema", "Diagnóstico")
+    check("page opens from the menu", pg.locator("#lt_NotionTTL_title").inner_text() == "Parámetro de red")
+    check("section is inside Diagnostics (ping form on the same page)", pg.locator("#diagnostics_addr").count() == 1
+          and pg.locator("#NotionTTLSection #txtNotionTTL").count() == 1)
+    check("no separate menu entry", pg.get_by_text("Parámetro de red", exact=True).count() == 1)
+    check("no 'TTL'/'Hop' visible on screen (es)", not any(w in body(pg) for w in ("TTL", "Hop Limit")))
+    check("loads current value", pg.input_value("#txtNotionTTL").isdigit(), pg.input_value("#txtNotionTTL"))
+    pg.screenshot(path=f"{OUT}/ui_1_initial.png")
 
     t = apply(pg, 70)
-    check("aplicar 70: diálogo de éxito", "¡Datos modificados con éxito!" in t)
-    check("aplicar 70: estado en página", "TTL 70" in pg.locator("#NotionTTLStatus").inner_text())
-    r = rules(); check("aplicar 70: iptables/ip6tables", "--ttl-set 70" in r and "--hl-set 70" in r)
+    check("apply 70: success dialog", "¡Datos modificados con éxito!" in t)
+    check("apply 70: status on page", "valor 70" in pg.locator("#NotionTTLStatus").inner_text())
+    r = rules(); check("apply 70: iptables/ip6tables", "--ttl-set 70" in r and "--hl-set 70" in r)
 
     for bad in ["999", "0", "abc", "", "12a"]:
         t = apply(pg, bad)
-        check(f"rechaza '{bad}'", "El TTL debe ser un número entre 1 y 255." in t)
-    check("valor inválido no cambia el equipo", "--ttl-set 70" in rules())
-    pg.fill("#txtNotionTTL", "70")   # el campo quedó con el último inválido ("12a")
+        check(f"rejects '{bad}'", "El valor debe ser un número entre 1 y 255." in t)
+    check("invalid value does not change the device", "--ttl-set 70" in rules())
+    pg.fill("#txtNotionTTL", "70")   # the field still holds the last invalid value ("12a")
 
     pg.uncheck("#NotionTTLIpv6"); apply(pg)
-    r = rules(); check("IPv6 desmarcado: solo regla v4", "--ttl-set 70" in r and "--hl-set" not in r)
+    r = rules(); check("IPv6 unchecked: IPv4 rule only", "--ttl-set 70" in r and "--hl-set" not in r)
     pg.check("#NotionTTLIpv6"); apply(pg)
-    check("IPv6 marcado de nuevo", "--hl-set 70" in rules())
+    check("IPv6 checked again", "--hl-set 70" in rules())
 
     pg.uncheck("#NotionTTLEnable")
-    check("al desactivar se bloquea el campo", pg.is_disabled("#txtNotionTTL"))
+    check("disabling locks the field", pg.is_disabled("#txtNotionTTL"))
     apply(pg)
-    check("desactivado: estado", "Desactivado" in pg.locator("#NotionTTLStatus").inner_text())
-    check("desactivado: sin reglas", rules().strip() == "")
-    pg.screenshot(path=f"{OUT}/ui_2_desactivado.png")
+    check("disabled: status", "Desactivado" in pg.locator("#NotionTTLStatus").inner_text())
+    check("disabled: no rules", rules().strip() == "")
+    pg.screenshot(path=f"{OUT}/ui_2_disabled.png")
 
     pg.check("#NotionTTLEnable"); apply(pg, 64)
-    r = rules(); check("reactivar en 64", "--ttl-set 64" in r and "--hl-set 64" in r)
+    r = rules(); check("re-enable at 64", "--ttl-set 64" in r and "--hl-set 64" in r)
+
+    # "Factory behavior" (remove) / "Recommended value" (restore) buttons: both ask Yes/No first ("No" must change nothing)
+    pg.fill("#txtNotionTTL", "70"); apply(pg)
+    pg.click("#lt_NotionTTL_btnRemove"); pg.wait_for_timeout(800)
+    check("remove: asks for confirmation", "¿Dejar el equipo como de fábrica?" in body(pg))
+    pg.locator("#mbd #lt_btnConfirmNo").click(); pg.wait_for_timeout(800)
+    r = rules(); check("remove, answer No: nothing changes", "--ttl-set 70" in r)
+    pg.click("#lt_NotionTTL_btnRemove"); pg.wait_for_timeout(800)
+    pg.locator("#mbd #lt_btnConfirmYes").click(); pg.wait_for_timeout(2500)
+    check("remove, answer Yes: success dialog", "¡Datos modificados con éxito!" in body(pg))
+    dismiss(pg)
+    check("remove: no rules", "notion-ttl" not in rules())
+    check("remove: page shows disabled", "Desactivado" in pg.locator("#NotionTTLStatus").inner_text()
+          and not pg.is_checked("#NotionTTLEnable"))
+    pg.click("#lt_NotionTTL_btnRestore"); pg.wait_for_timeout(800)
+    check("restore: asks for confirmation", "¿Volver al valor recomendado" in body(pg))
+    pg.locator("#mbd #lt_btnConfirmYes").click(); pg.wait_for_timeout(2500); dismiss(pg)
+    r = rules(); check("restore: 64 on IPv4 and IPv6", "--ttl-set 64" in r and "--hl-set 64" in r)
+    check("restore: page shows 64, enabled, IPv6", pg.input_value("#txtNotionTTL") == "64"
+          and pg.is_checked("#NotionTTLEnable") and pg.is_checked("#NotionTTLIpv6"))
 
     pg.reload(wait_until="networkidle"); pg.wait_for_timeout(6000); dismiss(pg)
-    open_ttl(pg, "Router", "Configuraciones avanzadas", "TTL de salida")
-    check("tras recargar el navegador muestra 64", pg.input_value("#txtNotionTTL") == "64")
+    open_ttl(pg, "Router", "Configuración del sistema", "Diagnóstico")
+    check("after browser reload shows 64", pg.input_value("#txtNotionTTL") == "64")
 
-    # Cambiar idioma con el selector de arriba (también lo guarda en el equipo; al final se vuelve a "es").
-    for lang, item, title, status in [("en", "Outbound TTL", "Outbound TTL (mobile network)", "Active, TTL 64"),
-                                      ("cn", "出口TTL", "出口TTL（移动网络）", "已启用，TTL 64")]:
+    # Switch language with the top selector (this is also saved on the device; set back to "es" at the end).
+    for lang, item, title, status in [("en", "Diagnostics", "Network parameter", "Active, value 64"),
+                                      ("cn", "网络诊断", "网络参数", "已启用，参数值 64")]:
         pg.select_option("#selLang", value=lang); pg.wait_for_timeout(4000); dismiss(pg)
         got = pg.locator("#lt_NotionTTL_title").inner_text()
-        check(f"idioma {lang}: título", got == title, got)
-        check(f"idioma {lang}: menú", pg.get_by_text(item, exact=True).count() > 0)
+        check(f"language {lang}: title", got == title, got)
+        check(f"language {lang}: menu", pg.get_by_text(item, exact=True).count() > 0)
         st = pg.locator("#NotionTTLStatus").inner_text()
-        check(f"idioma {lang}: estado traducido", st.startswith(status), st)
+        check(f"language {lang}: translated status", st.startswith(status), st)
+        check(f"language {lang}: no 'TTL' visible", not any(w in body(pg) for w in ("TTL", "Hop Limit")))
         pg.screenshot(path=f"{OUT}/ui_3_{lang}.png")
     pg.select_option("#selLang", value="es"); pg.wait_for_timeout(3000); dismiss(pg)
-    check("idioma restaurado a es", pg.locator("#lt_NotionTTL_title").inner_text() == "TTL de salida (red móvil)")
-    check("idioma es: estado", pg.locator("#NotionTTLStatus").inner_text().startswith("Activo, TTL 64"))
+    check("language restored to es", pg.locator("#lt_NotionTTL_title").inner_text() == "Parámetro de red")
+    check("language es: status", pg.locator("#NotionTTLStatus").inner_text().startswith("Activo, valor 64"))
 
-    check("sin errores de JavaScript", not errs, "; ".join(errs))
+    check("no JavaScript errors", not errs, "; ".join(errs))
     b.close()
 
-print("TODO OK" if not fails else f"{fails} FALLAS")
+print("ALL OK" if not fails else f"{fails} FAILED")
 sys.exit(1 if fails else 0)

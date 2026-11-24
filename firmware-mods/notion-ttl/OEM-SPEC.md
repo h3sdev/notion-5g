@@ -4,7 +4,67 @@
 **Status:** fully working reference implementation running on a production unit (firmware built 2026-08-17).
 Everything below was tested on real hardware. The integration can copy it as-is, or reimplement it natively.
 
-![TTL page in the device web UI](screenshot-ttl-page.png)
+![The setting as a "Network parameter" section of the Diagnostics page](screenshot-ttl-page.png)
+
+## 0. File manifest — what goes where
+
+All destination paths are **absolute paths inside the device image**. Everything lives under **`/system/etc`**:
+`/www` and `/etc/config` are only symlinks into it (`/www -> /system/etc/www`,
+`/etc/config -> ../system/etc/config`). **Do not put files directly in `/etc`**: it is the read-only squashfs.
+
+The `rootfs/` folder of this package mirrors the device filesystem exactly: `rootfs/system/etc/X` goes to
+`/system/etc/X`.
+
+### 0.1 NEW files to add to the image
+
+| # | Source in this package | Destination in image | Mode | Type | Option A | Option B |
+|---|---|---|---|---|---|---|
+| 1 | `rootfs/system/etc/config/notion_ttl` | `/system/etc/config/notion_ttl` | 0644 | Configuration, factory default | ✔ | ✔ |
+| 2 | `rootfs/system/etc/firewall.notion-ttl.sh` | `/system/etc/firewall.notion-ttl.sh` | 0755 | Firewall script, applies the rules | ✔ | ✔ |
+| 3 | `rootfs/system/etc/www/html/router/notion_ttl.html` | `/system/etc/www/html/router/notion_ttl.html` | 0644 | **Web UI** section markup (shown inside Diagnostics) | ✔ | ✔ |
+| 4 | `rootfs/system/etc/www/js/panel/router/notion_ttl.js` | `/system/etc/www/js/panel/router/notion_ttl.js` | 0644 | **Web UI** logic, and the hook that adds the section to Diagnostics | ✔ | ✔ (change calls to `PostXml`) |
+| 5 | `rootfs/system/etc/www/notion_ttl.cgi` | `/system/etc/www/notion_ttl.cgi` | 0755 | Web backend (shell CGI) | ✔ | ✘ not needed |
+
+### 0.2 EXISTING files to modify
+
+Exact changes are in `web-ui-existing-files.patch` (unified diff against the factory files).
+
+| # | File in image | Type | Change |
+|---|---|---|---|
+| 6 | `/system/etc/www/index.html` | **Web UI** | Add 1 line right after the `js/panel/router/sipalg.js` line: `<script type="text/javascript" src="js/panel/router/notion_ttl.js" language="javascript"></script>` |
+| 7 | `/system/etc/www/properties/Messages_es.properties` | **Web UI** text (Spanish) | Append the 14 lines of `i18n/Messages_es.properties` |
+| 8 | `/system/etc/www/properties/Messages_en.properties` | **Web UI** text (English) | Append the 14 lines of `i18n/Messages_en.properties` |
+| 9 | `/system/etc/www/properties/Messages_cn.properties` | **Web UI** text (Chinese) | Append the 14 lines of `i18n/Messages_cn.properties` |
+| 10 | `/system/etc/config/firewall` (factory default) | Firewall config | Append the section below |
+
+**Do not** add a menu entry: `/system/etc/www/xml/ui_mifi.xml` stays as it is. The setting has no menu item of
+its own. It appears as a section at the bottom of the existing **Diagnostics** page (see section 4). Do not
+modify `diagnostics.html` or `diagnostics.js` either: `notion_ttl.js` adds the section at runtime.
+
+Section to append to `/system/etc/config/firewall`:
+
+```
+config include 'notion_ttl'
+	option type 'script'
+	option path '/system/etc/firewall.notion-ttl.sh'
+	option reload '1'
+	option family 'any'
+```
+
+### 0.3 Files NOT to put in the image
+
+`OEM-SPEC*.md`, `README.md`, `screenshot-ttl-page.png`, `web-ui-existing-files.patch`, `i18n/` (source of rows
+7–9), `install.sh` (field installer over SSH), `test_cgi.py` and `test_ui.py` (tests, run from a PC).
+
+### 0.4 Final check on the device
+
+```
+ls -l /system/etc/config/notion_ttl /system/etc/firewall.notion-ttl.sh \
+      /www/html/router/notion_ttl.html /www/js/panel/router/notion_ttl.js /www/notion_ttl.cgi
+uci show notion_ttl; uci show firewall.notion_ttl
+iptables -t mangle -S POSTROUTING | grep notion-ttl     # expect: --ttl-set 64
+ip6tables -t mangle -S POSTROUTING | grep notion-ttl    # expect: --hl-set 64
+```
 
 ## 1. What we need
 
@@ -12,8 +72,12 @@ Everything below was tested on real hardware. The integration can copy it as-is,
    rewritten to a **configurable value**. Default: **64**, the same as an Android/iOS handset.
 2. The value is **stored in a configuration file**: a uci config, kept across reboots, included in the
    configuration backup and restore, and set back to the default by a factory reset.
-3. The user can change it from the **web UI**: Router → Advanced Settings → "Outbound TTL".
-4. The value must **stay in force** after reboots, SIM changes, and every 4G ↔ 5G (NSA/SA) re-attach.
+3. The user can change it from the **web UI**, in a section at the bottom of the existing Diagnostics page:
+   Router → System Settings → Diagnostics → "Network parameter".
+4. **UI wording (product requirement):** the visible UI text must not contain the words "TTL" or "Hop Limit" in
+   any language. The setting is labelled "Network parameter" / "Parámetro de red" / "网络参数" and the field
+   "Value". Use the strings in `i18n/` exactly as provided.
+5. The value must **stay in force** after reboots, SIM changes, and every 4G ↔ 5G (NSA/SA) re-attach.
 
 Why: some operators find tethering or CPE traffic by its TTL, which is 63 after one forwarding hop instead of 64.
 They throttle or block it. Distributors have to be able to set the value per operator from the UI without SSH.
@@ -47,7 +111,7 @@ It is registered as a fw3 include:
 ```
 uci set firewall.notion_ttl=include
 uci set firewall.notion_ttl.type=script
-uci set firewall.notion_ttl.path=/etc/firewall.notion-ttl.sh    # /system/etc/... on the current image
+uci set firewall.notion_ttl.path=/system/etc/firewall.notion-ttl.sh
 uci set firewall.notion_ttl.reload=1                            # REQUIRED, see below
 uci set firewall.notion_ttl.family=any
 ```
@@ -73,10 +137,10 @@ Reference files, which follow the existing UI conventions (same structure as `si
 
 | File | Purpose |
 |---|---|
-| `www/html/router/notion_ttl.html` | page markup (ids `lt_*` are localized by `LocalAllElement()`) |
-| `www/js/panel/router/notion_ttl.js` | `$.fn.objNotionTTL` panel object |
-| `www/notion_ttl.cgi` | backend endpoint, a shell CGI (GET = read, POST = save and apply) |
-| `web-ui-existing-files.patch` | the only changes to existing firmware files: 1 `<script>` line in `index.html`, 1 `<ThirdlevelMenu>` in `xml/ui_mifi.xml`, 11 strings appended to each of `Messages_{es,en,cn}.properties` |
+| `www/html/router/notion_ttl.html` | section markup (ids `lt_*` are localized by `LocalAllElement()`) |
+| `www/js/panel/router/notion_ttl.js` | `$.fn.objNotionTTL` object, plus the hook that appends the section to the Diagnostics page |
+| `www/notion_ttl.cgi` | backend endpoint, a shell CGI (GET = read, POST = save and apply; `action=restore` / `action=remove` for the two extra buttons) |
+| `web-ui-existing-files.patch` | the only changes to existing firmware files: 1 `<script>` line in `index.html` and 14 strings appended to each of `Messages_{es,en,cn}.properties` |
 
 ### Where each piece goes in your firmware tree
 
@@ -88,8 +152,8 @@ an Apply button. We analyzed the installed image (web server, config, pages), no
 | Page markup | `/www/html/router/sipalg.html` | `/www/html/router/notion_ttl.html` | Yes |
 | Page logic | `/www/js/panel/router/sipalg.js` (`$.fn.objSIPALG`) | `/www/js/panel/router/notion_ttl.js` (`$.fn.objNotionTTL`) | Yes |
 | Script include | `<script>` line in `/www/index.html` | one line right after `sipalg.js` | Yes |
-| Menu entry | `<ThirdlevelMenu>` in `/www/xml/ui_mifi.xml` | entry after `mWifiDDNS` (Advanced Settings) | Yes |
-| UI strings | `/www/properties/Messages_{es,en,cn}.properties` | 11 `lt_NotionTTL_*` / `mNotionTTL` keys per file | Yes |
+| Placement | own `<ThirdlevelMenu>` in `/www/xml/ui_mifi.xml` | **no menu entry**: a section appended to the Diagnostics page (`objDiagnostics`) | Different, on purpose (see below) |
+| UI strings | `/www/properties/Messages_{es,en,cn}.properties` | 14 `lt_NotionTTL_*` keys per file | Yes |
 | Configuration | uci under `/etc/config/` (`/system/etc/config`) | `/etc/config/notion_ttl` | Yes |
 | Firewall rules | fw3, `/etc/config/firewall` | fw3 `include` in `/etc/config/firewall` | Yes (standard OpenWrt) |
 | **Backend** | `xml_action.cgi` → ubus object `firewall`, served by **`/usr/bin/router`** (`fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`) | `/www/notion_ttl.cgi` (shell CGI) | **No**: the only difference (see Option B) |
@@ -98,14 +162,37 @@ On the web side `/www` is a symlink to `/system/etc/www`. We also checked that t
 existing TTL support**: `/usr/bin/router` has no TTL or Hop Limit strings, and no page or config mentions it. This
 is a new feature, not a hidden option to enable.
 
+### Placement inside the Diagnostics page
+
+The setting lives inside the factory Diagnostics page (Router → System Settings → Diagnostics,
+`mdiagnostics_ping` / `$.fn.objDiagnostics`, files `html/router/diagnostics.html` and
+`js/panel/router/diagnostics.js`), below the ping / nslookup / traceroute form. How the reference does it,
+without editing the Diagnostics files:
+
+1. `notion_ttl.js` is loaded by `index.html` like any other panel script.
+2. On document ready it wraps `$.fn.objDiagnostics`: after the original `onLoad(flag)` has rendered the page
+   with `LoadWebPage()`, it appends `<div id="NotionTTLSection">` with the content of
+   `html/router/notion_ttl.html` (loaded with `CallHtmlFile()`) to `#Content`, calls `LocalAllElement()`, and
+   binds the handlers.
+3. The ping / nslookup / traceroute function of the page is unchanged (tested).
+
+If you prefer, you can instead put the markup of `notion_ttl.html` directly at the end of `diagnostics.html`
+and call the init code from `objDiagnostics.onLoad`. The result must look the same: one page, Diagnostics on
+top, "Network parameter" below it, no separate menu entry.
+
 ### Option A: ship the reference implementation as-is (least effort)
 
-Copy the files from `rootfs/` into the image and apply `web-ui-existing-files.patch`. The CGI:
+Add files 1–5 and modify files 6–10 exactly as listed in section 0. The CGI:
 
 - Authenticates with the **same libcgi session** as the rest of the UI. It reads the cookie `CGISID` and
   requires `/tmp/cgisess_<id>` to contain `log_status=login`. Otherwise it returns HTTP 401, and the JS sends the
   user back to the login page.
 - Protects against CSRF: a POST without the `X-Requested-With` header is rejected with 403.
+- Handles the two extra buttons of the section, each confirmed first with the firmware's own Yes/No dialog
+  (`#confirmDlg`):
+  - **Recommended value** (`action=restore`): back to the factory defaults: enabled, 64, IPv6 on. The rules are re-applied.
+  - **Factory behavior** (`action=remove`): disabled and the rules deleted, as the factory firmware behaves:
+    each client keeps its own TTL minus 1 (Windows 127, phones/Linux/macOS 63). The stored value is reset to 64, so enabling it again starts from the default.
 - Validates strictly: `ttl` must be digits only and in the range 1..255, and `enabled`/`ipv6` must be 0 or 1.
   Anything else returns 400. Leading zeros are removed as text, never with shell arithmetic, because
   `$((064))` is octal (52). We hit that bug during testing.
@@ -125,8 +212,8 @@ serves `fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`):
 The set handler validates the values, writes the uci options (they may live in `firewall.@defaults[0]` next
 to `sip_alg_enable` instead of a separate file, if you prefer), and re-applies the rules. With this option, the
 JS calls `PostXml("firewall","fw_get_ttl")` and `PostXml("firewall","fw_set_ttl",configMap)` like every other
-page, and `notion_ttl.cgi` is not needed. Keep the menu id `mNotionTTL`, the panel `objNotionTTL`, and the
-`lt_NotionTTL_*` string keys, so our documentation and tests still match.
+page, and `notion_ttl.cgi` is not needed. Keep the placement inside Diagnostics, the element ids, the panel
+`objNotionTTL`, and the `lt_NotionTTL_*` string keys, so our documentation and tests still match.
 
 Also recommended:
 - Include `/etc/config/notion_ttl` in the configuration backup and restore (`conf_management`).
@@ -147,8 +234,11 @@ Also recommended:
 9. Factory reset → the value is back to 64 and enabled.
 10. The packet counter on the rule increases with LAN client traffic:
     `iptables -t mangle -L POSTROUTING -v -n`.
-11. UI: Router → Advanced Settings → "Outbound TTL" renders in ES/EN/CN, and Apply shows the success dialog.
-    A value of 999 shows the validation message.
+11. UI: Router → System Settings → Diagnostics shows the "Network parameter" section below the ping form, in
+    ES/EN/CN, and Apply shows the success dialog. A value of 999 shows the validation message. There is no
+    separate menu entry, the words "TTL" and "Hop Limit" appear nowhere on screen, and ping still works.
+12. UI: "Factory behavior" asks Yes/No; "No" changes nothing; "Yes" leaves no `notion-ttl` rules and the section shows
+    "Disabled". "Recommended value" asks Yes/No; "Yes" leaves 64 on IPv4 and IPv6, enabled. `action=` with any other value → 400.
 
 ## 6. Package contents
 
@@ -156,7 +246,7 @@ Also recommended:
 firmware-mods/notion-ttl/
   OEM-SPEC.md                         this document
   screenshot-ttl-page.png
-  web-ui-existing-files.patch         diff vs factory index.html / ui_mifi.xml / Messages_*.properties
+  web-ui-existing-files.patch         diff vs factory index.html / Messages_*.properties
   rootfs/system/etc/config/notion_ttl
   rootfs/system/etc/firewall.notion-ttl.sh
   rootfs/system/etc/www/notion_ttl.cgi
@@ -165,5 +255,5 @@ firmware-mods/notion-ttl/
   i18n/Messages_{es,en,cn}.properties  strings appended to the firmware's property files
   install.sh                          installs/removes on a running unit over SSH (field use, not for the build)
   test_cgi.py                         acceptance tests 1–7
-  test_ui.py                          web UI test in Chromium (Playwright): test 11 plus ES/EN/CN switching
+  test_ui.py                          web UI test in Chromium (Playwright): tests 11–12 plus ES/EN/CN switching
 ```

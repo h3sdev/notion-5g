@@ -1,17 +1,17 @@
 #!/bin/sh
-# notion-ttl: fija el TTL (IPv4) / Hop Limit (IPv6) del tráfico que sale por la interfaz celular.
+# notion-ttl: sets the TTL (IPv4) / Hop Limit (IPv6) of traffic leaving through the cellular interface.
 #
-# Valor y estado se leen de /etc/config/notion_ttl (uci, sección notion_ttl.main):
-#   enabled  0|1        aplicar o no
-#   ttl      1..255     valor a fijar (64 = igual que un celular Android/iOS)
-#   ipv6     0|1        aplicar también Hop Limit en IPv6
-#   iface    ccinet+    interfaz(es) de salida (patrón iptables)
+# Value and state are read from /etc/config/notion_ttl (uci, section notion_ttl.main):
+#   enabled  0|1        apply or not
+#   ttl      1..255     value to set (64 = same as an Android/iOS handset)
+#   ipv6     0|1        also set the IPv6 Hop Limit
+#   iface    ccinet+    egress interface(s) (iptables pattern)
 #
-# Lo ejecuta fw3 en cada start/reload (uci firewall.notion_ttl: type=script, reload=1), porque cada
-# re-attach 4G<->5G hace ifup de wan0 -> hotplug -> fw3 reload, que borra las reglas manuales.
-# También lo ejecuta /www/notion_ttl.cgi al guardar desde la interfaz web.
+# fw3 runs this on every start/reload (uci firewall.notion_ttl: type=script, reload=1), because every
+# 4G<->5G re-attach does an ifup of wan0 -> hotplug -> fw3 reload, which flushes manually added rules.
+# /www/notion_ttl.cgi also runs it after saving from the web UI.
 #
-# Uso: firewall.notion-ttl.sh [apply|remove|status]
+# Usage: firewall.notion-ttl.sh [apply|remove|status]
 
 TAG=notion-ttl
 
@@ -22,7 +22,7 @@ TTL="$(cfg ttl)";         [ -n "$TTL" ] || TTL=64
 IPV6="$(cfg ipv6)";       [ -n "$IPV6" ] || IPV6=1
 IFACE="$(cfg iface)";     [ -n "$IFACE" ] || IFACE='ccinet+'
 
-# Borra TODAS las reglas con el comentario notion-ttl, sin importar el valor con que se crearon.
+# Delete EVERY rule tagged notion-ttl, whatever value it was created with.
 flush() {
 	for bin in iptables ip6tables; do
 		$bin -t mangle -S POSTROUTING 2>/dev/null | grep -- "--comment $TAG " | sed 's/^-A /-D /' |
@@ -43,7 +43,7 @@ valid() {
 case "${1:-apply}" in
 remove)
 	flush
-	logger -t $TAG "reglas removidas"
+	logger -t $TAG "rules removed"
 	;;
 status)
 	echo "enabled=$ENABLED ttl=$TTL ipv6=$IPV6 iface=$IFACE"
@@ -53,16 +53,16 @@ status)
 *)
 	flush
 	if [ "$ENABLED" != 1 ]; then
-		logger -t $TAG "deshabilitado (notion_ttl.main.enabled=$ENABLED)"
+		logger -t $TAG "disabled (notion_ttl.main.enabled=$ENABLED)"
 		exit 0
 	fi
 	if ! valid; then
-		logger -t $TAG "config inválida (ttl=$TTL iface=$IFACE), no se aplica"
+		logger -t $TAG "invalid config (ttl=$TTL iface=$IFACE), not applied"
 		exit 1
 	fi
 	iptables -t mangle -I POSTROUTING -o "$IFACE" -m comment --comment $TAG -j TTL --ttl-set "$TTL"
 	[ "$IPV6" = 1 ] && ip6tables -t mangle -I POSTROUTING -o "$IFACE" -m comment --comment $TAG -j HL --hl-set "$TTL"
-	logger -t $TAG "TTL/HL=$TTL aplicado en $IFACE (ipv6=$IPV6)"
+	logger -t $TAG "TTL/HL=$TTL applied on $IFACE (ipv6=$IPV6)"
 	;;
 esac
 exit 0
