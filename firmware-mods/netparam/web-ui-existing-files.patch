@@ -1,0 +1,79 @@
+diff -ru a/www/index.html b/www/index.html
+--- a/www/index.html
++++ b/www/index.html
+@@ -92,6 +92,7 @@
+ 		<script type="text/javascript" src="js/panel/router/vpn.js" language="javascript"></script>
+ 		<script type="text/javascript" src="js/panel/router/UPnPSettings.js" language="javascript"></script>
+ 		<script type="text/javascript" src="js/panel/router/sipalg.js" language="javascript"></script>
++		<script type="text/javascript" src="js/panel/router/netparam.js" language="javascript"></script>
+ 		<script type="text/javascript" src="js/panel/router/bandwidthControl.js" language="javascript"></script>
+ 
+ 	<script type="text/javascript" src="js/panel/router/VoLTE.js"></script>
+diff -ru a/www/properties/Messages_cn.properties b/www/properties/Messages_cn.properties
+--- a/www/properties/Messages_cn.properties
++++ b/www/properties/Messages_cn.properties
+@@ -2194,3 +2194,18 @@
+ lt_lock_pciNoempty = PCI不能为空
+ lt_lock_pcierror  = PCI输入格式不正确
+ lt_set_params_fail  =   参数设置不正确，请检查配置
++
++lt_NetParam_title = 网络参数
++lt_NetParam_note = 设备对经移动网络发出的流量所应用的参数值。该值保存在设备中，重启或4G/5G切换后自动重新生效。
++lt_NetParam_enable = 启用网络参数
++lt_NetParam_value = 参数值：
++lt_NetParam_range = （1-255，建议64）
++lt_NetParam_ipv6 = 同时应用于IPv6
++lt_NetParam_status = 状态：
++lt_NetParam_on = 已启用，参数值
++lt_NetParam_off = 已禁用
++lt_NetParam_invalid = 参数值必须是1到255之间的数字。
++lt_NetParam_btnRestore = 推荐值
++lt_NetParam_btnRemove = 恢复出厂
++lt_NetParam_confirmRestore = 恢复为推荐值（64，启用，同时应用于IPv6）？
++lt_NetParam_confirmRemove = 恢复设备出厂状态？将清除此设置，各终端使用其自身的值。
+diff -ru a/www/properties/Messages_en.properties b/www/properties/Messages_en.properties
+--- a/www/properties/Messages_en.properties
++++ b/www/properties/Messages_en.properties
+@@ -2138,3 +2138,18 @@
+ 
+ 
+ 
++
++lt_NetParam_title = Network parameter
++lt_NetParam_note = Value the device applies to traffic leaving through the mobile network. It is stored on the device and re-applied automatically after reboots and 4G/5G changes.
++lt_NetParam_enable = Enable network parameter
++lt_NetParam_value = Value:
++lt_NetParam_range = (1-255, recommended 64)
++lt_NetParam_ipv6 = Also apply to IPv6
++lt_NetParam_status = Status:
++lt_NetParam_on = Active, value
++lt_NetParam_off = Disabled
++lt_NetParam_invalid = The value must be a number between 1 and 255.
++lt_NetParam_btnRestore = Recommended value
++lt_NetParam_btnRemove = Factory behavior
++lt_NetParam_confirmRestore = Go back to the recommended value (64, enabled, IPv6 too)?
++lt_NetParam_confirmRemove = Return the device to its factory behavior? This setting is removed and each device keeps its own value.
+diff -ru a/www/properties/Messages_es.properties b/www/properties/Messages_es.properties
+--- a/www/properties/Messages_es.properties
++++ b/www/properties/Messages_es.properties
+@@ -1965,4 +1965,18 @@
+ lt_lock_Freqerror  	  =	El formato de la frecuencia ingresada es incorrecto
+ lt_lock_pciNoempty 	  =	El PCI no puede estar vacío
+ lt_lock_pcierror  	  =	El formato del PCI ingresado es incorrecto
+-lt_set_params_fail  	  =	La configuración de parámetros es incorrecta, por favor verifique la configuración
+\ No newline at end of file
++lt_set_params_fail  	  =	La configuración de parámetros es incorrecta, por favor verifique la configuración
++lt_NetParam_title = Parámetro de red
++lt_NetParam_note = Valor que el equipo aplica al tráfico que sale por la red móvil. Se guarda en el equipo y se vuelve a aplicar automáticamente tras reinicios y cambios 4G/5G.
++lt_NetParam_enable = Activar parámetro de red
++lt_NetParam_value = Valor:
++lt_NetParam_range = (1-255, recomendado 64)
++lt_NetParam_ipv6 = Aplicar también a IPv6
++lt_NetParam_status = Estado:
++lt_NetParam_on = Activo, valor
++lt_NetParam_off = Desactivado
++lt_NetParam_invalid = El valor debe ser un número entre 1 y 255.
++lt_NetParam_btnRestore = Valor recomendado
++lt_NetParam_btnRemove = Como de fábrica
++lt_NetParam_confirmRestore = ¿Volver al valor recomendado (64, activo, también IPv6)?
++lt_NetParam_confirmRemove = ¿Dejar el equipo como de fábrica? Se quita esta configuración y cada dispositivo sale con su valor propio.

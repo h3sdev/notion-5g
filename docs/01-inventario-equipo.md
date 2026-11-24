@@ -93,7 +93,7 @@ Consecuencia para la homologación: la posición durante las pruebas en movimien
 - fw3 recrea todas las cadenas en cada `fw3 reload`, y `/etc/hotplug.d/iface/20-firewall` dispara ese reload en cada `ifup` de una interfaz de la zona wan (`wan0`…`wan67`, `ccinet*`). Un re‑attach 5G→4G levanta de nuevo `wan0` y **borra cualquier regla puesta a mano**.
 - `/etc/firewall.user` está en squashfs (solo lectura) y no sirve para persistir.
 - Módulos disponibles: `xt_HL` (targets `TTL` y `HL`), `xt_hl`, `xt_TCPMSS`, `xt_FLOWOFFLOAD`, etc.
-- **Solución instalada el 2026‑09‑16**: `/system/etc/firewall.notion-ttl.sh` + `firewall.notion_ttl=include` (`reload=1`). Fija TTL=64 e IPv6 Hop Limit=64 en `POSTROUTING -o ccinet+`. Verificado que sobrevive a `fw3 reload`. Instalador/desinstalador: `scripts/ttl_persist_install.sh`.
+- **Solución instalada el 2026‑09‑16**: `/system/etc/firewall.notion-ttl.sh` + `firewall.notion_ttl=include` (`reload=1`). Fija TTL=64 e IPv6 Hop Limit=64 en `POSTROUTING -o ccinet+`. Verificado que sobrevive a `fw3 reload`. Instalador/desinstalador: `scripts/ttl_persist_install.sh`. **Reemplazado** el 2026‑11‑23/24 por `firmware-mods/netparam/` (valor editable desde Diagnóstico, nombres internos `netparam`).
 
 ## 9. Rendimiento medido (referencia, oficina, Tigo LTE B28 20 MHz)
 

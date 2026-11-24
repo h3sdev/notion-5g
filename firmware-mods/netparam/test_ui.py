@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Web UI test of the "Network parameter" section (the TTL setting) of the Diagnostics page in Chromium (Playwright), driven the way a person would use it.
 
-Usage (from the repo root):  NOTION_PASS=... python3 firmware-mods/notion-ttl/test_ui.py [screenshot_dir]
+Usage (from the repo root):  NOTION_PASS=... python3 firmware-mods/netparam/test_ui.py [screenshot_dir]
 Walks login -> Router -> System Settings -> Diagnostics (the section sits below ping/nslookup/traceroute), applies values, checks validation errors,
 disables/enables, checks the English and Chinese strings, and verifies every change in the device's iptables.
 The UI is in Spanish (device default), so the expected texts below are the Spanish UI strings.
-Leaves the device at enabled=1, ttl=64, ipv6=1, UI language Spanish.
+Leaves the device at enabled=1, value=64, ipv6=1, UI language Spanish.
 """
 import os, subprocess, sys
 from playwright.sync_api import sync_playwright
@@ -23,7 +23,7 @@ def check(name, ok, detail=""):
 
 def rules():
     r = subprocess.run([os.path.join(ROOT, "scripts/rsh.sh"),
-                        "iptables -t mangle -S POSTROUTING | grep notion-ttl; ip6tables -t mangle -S POSTROUTING | grep notion-ttl"],
+                        "iptables -t mangle -S POSTROUTING | grep netparam; ip6tables -t mangle -S POSTROUTING | grep netparam"],
                        capture_output=True, text=True, timeout=30)
     return r.stdout
 
@@ -46,7 +46,7 @@ def body(pg):
 
 def apply(pg, ttl=None):
     if ttl is not None:
-        pg.fill("#txtNotionTTL", str(ttl))
+        pg.fill("#txtNetParam", str(ttl))
     pg.click("#lt_btnApply"); pg.wait_for_timeout(2500)
     text = body(pg); dismiss(pg)
     return text
@@ -70,78 +70,78 @@ with sync_playwright() as p:
     check("login", pg.get_by_text("Router", exact=True).count() > 0)
 
     open_ttl(pg, "Router", "Configuración del sistema", "Diagnóstico")
-    check("page opens from the menu", pg.locator("#lt_NotionTTL_title").inner_text() == "Parámetro de red")
+    check("page opens from the menu", pg.locator("#lt_NetParam_title").inner_text() == "Parámetro de red")
     check("section is inside Diagnostics (ping form on the same page)", pg.locator("#diagnostics_addr").count() == 1
-          and pg.locator("#NotionTTLSection #txtNotionTTL").count() == 1)
+          and pg.locator("#NetParamSection #txtNetParam").count() == 1)
     check("no separate menu entry", pg.get_by_text("Parámetro de red", exact=True).count() == 1)
     check("no 'TTL'/'Hop' visible on screen (es)", not any(w in body(pg) for w in ("TTL", "Hop Limit")))
-    check("loads current value", pg.input_value("#txtNotionTTL").isdigit(), pg.input_value("#txtNotionTTL"))
+    check("loads current value", pg.input_value("#txtNetParam").isdigit(), pg.input_value("#txtNetParam"))
     pg.screenshot(path=f"{OUT}/ui_1_initial.png")
 
     t = apply(pg, 70)
     check("apply 70: success dialog", "¡Datos modificados con éxito!" in t)
-    check("apply 70: status on page", "valor 70" in pg.locator("#NotionTTLStatus").inner_text())
+    check("apply 70: status on page", "valor 70" in pg.locator("#NetParamStatus").inner_text())
     r = rules(); check("apply 70: iptables/ip6tables", "--ttl-set 70" in r and "--hl-set 70" in r)
 
     for bad in ["999", "0", "abc", "", "12a"]:
         t = apply(pg, bad)
         check(f"rejects '{bad}'", "El valor debe ser un número entre 1 y 255." in t)
     check("invalid value does not change the device", "--ttl-set 70" in rules())
-    pg.fill("#txtNotionTTL", "70")   # the field still holds the last invalid value ("12a")
+    pg.fill("#txtNetParam", "70")   # the field still holds the last invalid value ("12a")
 
-    pg.uncheck("#NotionTTLIpv6"); apply(pg)
+    pg.uncheck("#NetParamIpv6"); apply(pg)
     r = rules(); check("IPv6 unchecked: IPv4 rule only", "--ttl-set 70" in r and "--hl-set" not in r)
-    pg.check("#NotionTTLIpv6"); apply(pg)
+    pg.check("#NetParamIpv6"); apply(pg)
     check("IPv6 checked again", "--hl-set 70" in rules())
 
-    pg.uncheck("#NotionTTLEnable")
-    check("disabling locks the field", pg.is_disabled("#txtNotionTTL"))
+    pg.uncheck("#NetParamEnable")
+    check("disabling locks the field", pg.is_disabled("#txtNetParam"))
     apply(pg)
-    check("disabled: status", "Desactivado" in pg.locator("#NotionTTLStatus").inner_text())
+    check("disabled: status", "Desactivado" in pg.locator("#NetParamStatus").inner_text())
     check("disabled: no rules", rules().strip() == "")
     pg.screenshot(path=f"{OUT}/ui_2_disabled.png")
 
-    pg.check("#NotionTTLEnable"); apply(pg, 64)
+    pg.check("#NetParamEnable"); apply(pg, 64)
     r = rules(); check("re-enable at 64", "--ttl-set 64" in r and "--hl-set 64" in r)
 
     # "Factory behavior" (remove) / "Recommended value" (restore) buttons: both ask Yes/No first ("No" must change nothing)
-    pg.fill("#txtNotionTTL", "70"); apply(pg)
-    pg.click("#lt_NotionTTL_btnRemove"); pg.wait_for_timeout(800)
+    pg.fill("#txtNetParam", "70"); apply(pg)
+    pg.click("#lt_NetParam_btnRemove"); pg.wait_for_timeout(800)
     check("remove: asks for confirmation", "¿Dejar el equipo como de fábrica?" in body(pg))
     pg.locator("#mbd #lt_btnConfirmNo").click(); pg.wait_for_timeout(800)
     r = rules(); check("remove, answer No: nothing changes", "--ttl-set 70" in r)
-    pg.click("#lt_NotionTTL_btnRemove"); pg.wait_for_timeout(800)
+    pg.click("#lt_NetParam_btnRemove"); pg.wait_for_timeout(800)
     pg.locator("#mbd #lt_btnConfirmYes").click(); pg.wait_for_timeout(2500)
     check("remove, answer Yes: success dialog", "¡Datos modificados con éxito!" in body(pg))
     dismiss(pg)
-    check("remove: no rules", "notion-ttl" not in rules())
-    check("remove: page shows disabled", "Desactivado" in pg.locator("#NotionTTLStatus").inner_text()
-          and not pg.is_checked("#NotionTTLEnable"))
-    pg.click("#lt_NotionTTL_btnRestore"); pg.wait_for_timeout(800)
+    check("remove: no rules", "netparam" not in rules())
+    check("remove: page shows disabled", "Desactivado" in pg.locator("#NetParamStatus").inner_text()
+          and not pg.is_checked("#NetParamEnable"))
+    pg.click("#lt_NetParam_btnRestore"); pg.wait_for_timeout(800)
     check("restore: asks for confirmation", "¿Volver al valor recomendado" in body(pg))
     pg.locator("#mbd #lt_btnConfirmYes").click(); pg.wait_for_timeout(2500); dismiss(pg)
     r = rules(); check("restore: 64 on IPv4 and IPv6", "--ttl-set 64" in r and "--hl-set 64" in r)
-    check("restore: page shows 64, enabled, IPv6", pg.input_value("#txtNotionTTL") == "64"
-          and pg.is_checked("#NotionTTLEnable") and pg.is_checked("#NotionTTLIpv6"))
+    check("restore: page shows 64, enabled, IPv6", pg.input_value("#txtNetParam") == "64"
+          and pg.is_checked("#NetParamEnable") and pg.is_checked("#NetParamIpv6"))
 
     pg.reload(wait_until="networkidle"); pg.wait_for_timeout(6000); dismiss(pg)
     open_ttl(pg, "Router", "Configuración del sistema", "Diagnóstico")
-    check("after browser reload shows 64", pg.input_value("#txtNotionTTL") == "64")
+    check("after browser reload shows 64", pg.input_value("#txtNetParam") == "64")
 
     # Switch language with the top selector (this is also saved on the device; set back to "es" at the end).
     for lang, item, title, status in [("en", "Diagnostics", "Network parameter", "Active, value 64"),
                                       ("cn", "网络诊断", "网络参数", "已启用，参数值 64")]:
         pg.select_option("#selLang", value=lang); pg.wait_for_timeout(4000); dismiss(pg)
-        got = pg.locator("#lt_NotionTTL_title").inner_text()
+        got = pg.locator("#lt_NetParam_title").inner_text()
         check(f"language {lang}: title", got == title, got)
         check(f"language {lang}: menu", pg.get_by_text(item, exact=True).count() > 0)
-        st = pg.locator("#NotionTTLStatus").inner_text()
+        st = pg.locator("#NetParamStatus").inner_text()
         check(f"language {lang}: translated status", st.startswith(status), st)
         check(f"language {lang}: no 'TTL' visible", not any(w in body(pg) for w in ("TTL", "Hop Limit")))
         pg.screenshot(path=f"{OUT}/ui_3_{lang}.png")
     pg.select_option("#selLang", value="es"); pg.wait_for_timeout(3000); dismiss(pg)
-    check("language restored to es", pg.locator("#lt_NotionTTL_title").inner_text() == "Parámetro de red")
-    check("language es: status", pg.locator("#NotionTTLStatus").inner_text().startswith("Activo, valor 64"))
+    check("language restored to es", pg.locator("#lt_NetParam_title").inner_text() == "Parámetro de red")
+    check("language es: status", pg.locator("#NetParamStatus").inner_text().startswith("Activo, valor 64"))
 
     check("no JavaScript errors", not errs, "; ".join(errs))
     b.close()

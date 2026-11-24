@@ -104,8 +104,8 @@ Prueba de Wi‑Fi del módem (lo que verá el cliente): repetir §4.3 con el PC 
 ## 6. TTL persistente (ya instalado)
 
 - Por qué se borraba: cada `ifup` de `wan0` (re‑attach 5G↔4G) dispara `fw3 reload`, que reconstruye iptables.
-- Instalado: `/system/etc/firewall.notion-ttl.sh` registrado como `include` con `reload=1`. Fija **TTL 64** e **IPv6 Hop Limit 64** en salida por `ccinet+`. Se ejecuta en cada arranque y cada reload.
-- Verificar: `scripts/rsh.sh 'iptables -t mangle -S POSTROUTING | grep notion-ttl'` o columna `ttl_rules` de cualquier muestra.
+- Instalado: `/system/etc/firewall.netparam.sh` (antes `firewall.notion-ttl.sh`; ver `firmware-mods/netparam/`) registrado como `include` con `reload=1`. Fija **TTL 64** e **IPv6 Hop Limit 64** en salida por `ccinet+`. Se ejecuta en cada arranque y cada reload.
+- Verificar: `scripts/rsh.sh 'iptables -t mangle -S POSTROUTING | grep netparam'` o columna `ttl_rules` de cualquier muestra.
 - Cambiar valor: `scripts/ttl_persist_install.sh 65`. Quitar: `scripts/ttl_persist_install.sh --remove`.
 - Nota: la regla está en POSTROUTING (después del decremento de reenvío), así que el valor configurado es el TTL real que sale por la antena; 64 es lo que emite un celular.
 
@@ -119,7 +119,7 @@ python3 scripts/notion5g.py drive --interval 10 --gps win
 python3 scripts/notion5g.py at 'AT+C5GREG?'
 python3 scripts/notion5g.py ubus cm get_zcainfo
 python3 scripts/summarize.py --md
-scripts/rsh.sh 'logread -f'                        # log en vivo del módem (handovers, cm, notion-ttl)
+scripts/rsh.sh 'logread -f'                        # log en vivo del módem (handovers, cm, netparam)
 ```
 
 ## 8. Pendientes / ideas

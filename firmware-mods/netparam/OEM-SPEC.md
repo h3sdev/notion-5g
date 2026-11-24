@@ -4,7 +4,7 @@
 **Status:** fully working reference implementation running on a production unit (firmware built 2026-08-17).
 Everything below was tested on real hardware. The integration can copy it as-is, or reimplement it natively.
 
-![The setting as a "Network parameter" section of the Diagnostics page](screenshot-ttl-page.png)
+![The setting as a "Network parameter" section of the Diagnostics page](screenshot-netparam.png)
 
 ## 0. File manifest — what goes where
 
@@ -19,11 +19,11 @@ The `rootfs/` folder of this package mirrors the device filesystem exactly: `roo
 
 | # | Source in this package | Destination in image | Mode | Type | Option A | Option B |
 |---|---|---|---|---|---|---|
-| 1 | `rootfs/system/etc/config/notion_ttl` | `/system/etc/config/notion_ttl` | 0644 | Configuration, factory default | ✔ | ✔ |
-| 2 | `rootfs/system/etc/firewall.notion-ttl.sh` | `/system/etc/firewall.notion-ttl.sh` | 0755 | Firewall script, applies the rules | ✔ | ✔ |
-| 3 | `rootfs/system/etc/www/html/router/notion_ttl.html` | `/system/etc/www/html/router/notion_ttl.html` | 0644 | **Web UI** section markup (shown inside Diagnostics) | ✔ | ✔ |
-| 4 | `rootfs/system/etc/www/js/panel/router/notion_ttl.js` | `/system/etc/www/js/panel/router/notion_ttl.js` | 0644 | **Web UI** logic, and the hook that adds the section to Diagnostics | ✔ | ✔ (change calls to `PostXml`) |
-| 5 | `rootfs/system/etc/www/notion_ttl.cgi` | `/system/etc/www/notion_ttl.cgi` | 0755 | Web backend (shell CGI) | ✔ | ✘ not needed |
+| 1 | `rootfs/system/etc/config/netparam` | `/system/etc/config/netparam` | 0644 | Configuration, factory default | ✔ | ✔ |
+| 2 | `rootfs/system/etc/firewall.netparam.sh` | `/system/etc/firewall.netparam.sh` | 0755 | Firewall script, applies the rules | ✔ | ✔ |
+| 3 | `rootfs/system/etc/www/html/router/netparam.html` | `/system/etc/www/html/router/netparam.html` | 0644 | **Web UI** section markup (shown inside Diagnostics) | ✔ | ✔ |
+| 4 | `rootfs/system/etc/www/js/panel/router/netparam.js` | `/system/etc/www/js/panel/router/netparam.js` | 0644 | **Web UI** logic, and the hook that adds the section to Diagnostics | ✔ | ✔ (change calls to `PostXml`) |
+| 5 | `rootfs/system/etc/www/netparam.cgi` | `/system/etc/www/netparam.cgi` | 0755 | Web backend (shell CGI) | ✔ | ✘ not needed |
 
 ### 0.2 EXISTING files to modify
 
@@ -31,7 +31,7 @@ Exact changes are in `web-ui-existing-files.patch` (unified diff against the fac
 
 | # | File in image | Type | Change |
 |---|---|---|---|
-| 6 | `/system/etc/www/index.html` | **Web UI** | Add 1 line right after the `js/panel/router/sipalg.js` line: `<script type="text/javascript" src="js/panel/router/notion_ttl.js" language="javascript"></script>` |
+| 6 | `/system/etc/www/index.html` | **Web UI** | Add 1 line right after the `js/panel/router/sipalg.js` line: `<script type="text/javascript" src="js/panel/router/netparam.js" language="javascript"></script>` |
 | 7 | `/system/etc/www/properties/Messages_es.properties` | **Web UI** text (Spanish) | Append the 14 lines of `i18n/Messages_es.properties` |
 | 8 | `/system/etc/www/properties/Messages_en.properties` | **Web UI** text (English) | Append the 14 lines of `i18n/Messages_en.properties` |
 | 9 | `/system/etc/www/properties/Messages_cn.properties` | **Web UI** text (Chinese) | Append the 14 lines of `i18n/Messages_cn.properties` |
@@ -39,31 +39,31 @@ Exact changes are in `web-ui-existing-files.patch` (unified diff against the fac
 
 **Do not** add a menu entry: `/system/etc/www/xml/ui_mifi.xml` stays as it is. The setting has no menu item of
 its own. It appears as a section at the bottom of the existing **Diagnostics** page (see section 4). Do not
-modify `diagnostics.html` or `diagnostics.js` either: `notion_ttl.js` adds the section at runtime.
+modify `diagnostics.html` or `diagnostics.js` either: `netparam.js` adds the section at runtime.
 
 Section to append to `/system/etc/config/firewall`:
 
 ```
-config include 'notion_ttl'
+config include 'netparam'
 	option type 'script'
-	option path '/system/etc/firewall.notion-ttl.sh'
+	option path '/system/etc/firewall.netparam.sh'
 	option reload '1'
 	option family 'any'
 ```
 
 ### 0.3 Files NOT to put in the image
 
-`OEM-SPEC*.md`, `README.md`, `screenshot-ttl-page.png`, `web-ui-existing-files.patch`, `i18n/` (source of rows
+`OEM-SPEC*.md`, `README.md`, `screenshot-netparam.png`, `web-ui-existing-files.patch`, `i18n/` (source of rows
 7–9), `install.sh` (field installer over SSH), `test_cgi.py` and `test_ui.py` (tests, run from a PC).
 
 ### 0.4 Final check on the device
 
 ```
-ls -l /system/etc/config/notion_ttl /system/etc/firewall.notion-ttl.sh \
-      /www/html/router/notion_ttl.html /www/js/panel/router/notion_ttl.js /www/notion_ttl.cgi
-uci show notion_ttl; uci show firewall.notion_ttl
-iptables -t mangle -S POSTROUTING | grep notion-ttl     # expect: --ttl-set 64
-ip6tables -t mangle -S POSTROUTING | grep notion-ttl    # expect: --hl-set 64
+ls -l /system/etc/config/netparam /system/etc/firewall.netparam.sh \
+      /www/html/router/netparam.html /www/js/panel/router/netparam.js /www/netparam.cgi
+uci show netparam; uci show firewall.netparam
+iptables -t mangle -S POSTROUTING | grep netparam     # expect: --ttl-set 64
+ip6tables -t mangle -S POSTROUTING | grep netparam    # expect: --hl-set 64
 ```
 
 ## 1. What we need
@@ -77,17 +77,23 @@ ip6tables -t mangle -S POSTROUTING | grep notion-ttl    # expect: --hl-set 64
 4. **UI wording (product requirement):** the visible UI text must not contain the words "TTL" or "Hop Limit" in
    any language. The setting is labelled "Network parameter" / "Parámetro de red" / "网络参数" and the field
    "Value". Use the strings in `i18n/` exactly as provided.
-5. The value must **stay in force** after reboots, SIM changes, and every 4G ↔ 5G (NSA/SA) re-attach.
+5. **Internal names (product requirement):** nothing a user or an operator can see on the device may name the
+   feature either. Everything uses the neutral name **`netparam`**: the files (`netparam.cgi`, `netparam.js`,
+   `netparam.html`, `firewall.netparam.sh`), the uci config `/etc/config/netparam` (option `value`, not `ttl`),
+   the fw3 include `firewall.netparam`, the iptables comment, the syslog tag, the JSON fields, the element ids
+   and the string keys. The files served to the browser (`netparam.js`, `netparam.html`) and the JSON must not
+   contain the words "ttl" or "hop limit", not even in comments. Keep these names if you reimplement it.
+6. The value must **stay in force** after reboots, SIM changes, and every 4G ↔ 5G (NSA/SA) re-attach.
 
 Why: some operators find tethering or CPE traffic by its TTL, which is 63 after one forwarding hop instead of 64.
 They throttle or block it. Distributors have to be able to set the value per operator from the UI without SSH.
 
-## 2. Configuration file — `/etc/config/notion_ttl`
+## 2. Configuration file — `/etc/config/netparam`
 
 ```
-config ttl 'main'
+config netparam 'main'
 	option enabled '1'        # 0|1  apply or not
-	option ttl '64'           # 1..255
+	option value '64'         # 1..255  TTL / Hop Limit
 	option ipv6 '1'           # 0|1  also set IPv6 Hop Limit
 	option iface 'ccinet+'    # egress interface pattern (cellular data interfaces)
 ```
@@ -96,24 +102,24 @@ The file must ship in the factory defaults. The firewall script below treats a m
 
 ## 3. Applying the rules (firewall script)
 
-File: `rootfs/system/etc/firewall.notion-ttl.sh` in this package. It reads the uci file and then:
+File: `rootfs/system/etc/firewall.netparam.sh` in this package. It reads the uci file and then:
 
 ```
-iptables  -t mangle -I POSTROUTING -o ccinet+ -m comment --comment notion-ttl -j TTL --ttl-set <ttl>
-ip6tables -t mangle -I POSTROUTING -o ccinet+ -m comment --comment notion-ttl -j HL  --hl-set  <ttl>
+iptables  -t mangle -I POSTROUTING -o ccinet+ -m comment --comment netparam -j TTL --ttl-set <value>
+ip6tables -t mangle -I POSTROUTING -o ccinet+ -m comment --comment netparam -j HL  --hl-set  <value>
 ```
 
-Before inserting, it deletes **every** existing rule tagged `notion-ttl`, so changing the value never leaves a
+Before inserting, it deletes **every** existing rule tagged `netparam`, so changing the value never leaves a
 stale rule behind. With `enabled=0` it only deletes the rules.
 
 It is registered as a fw3 include:
 
 ```
-uci set firewall.notion_ttl=include
-uci set firewall.notion_ttl.type=script
-uci set firewall.notion_ttl.path=/system/etc/firewall.notion-ttl.sh
-uci set firewall.notion_ttl.reload=1                            # REQUIRED, see below
-uci set firewall.notion_ttl.family=any
+uci set firewall.netparam=include
+uci set firewall.netparam.type=script
+uci set firewall.netparam.path=/system/etc/firewall.netparam.sh
+uci set firewall.netparam.reload=1                            # REQUIRED, see below
+uci set firewall.netparam.family=any
 ```
 
 **Important findings from testing**
@@ -137,9 +143,9 @@ Reference files, which follow the existing UI conventions (same structure as `si
 
 | File | Purpose |
 |---|---|
-| `www/html/router/notion_ttl.html` | section markup (ids `lt_*` are localized by `LocalAllElement()`) |
-| `www/js/panel/router/notion_ttl.js` | `$.fn.objNotionTTL` object, plus the hook that appends the section to the Diagnostics page |
-| `www/notion_ttl.cgi` | backend endpoint, a shell CGI (GET = read, POST = save and apply; `action=restore` / `action=remove` for the two extra buttons) |
+| `www/html/router/netparam.html` | section markup (ids `lt_*` are localized by `LocalAllElement()`) |
+| `www/js/panel/router/netparam.js` | `$.fn.objNetParam` object, plus the hook that appends the section to the Diagnostics page |
+| `www/netparam.cgi` | backend endpoint, a shell CGI (GET = read, POST = save and apply; `action=restore` / `action=remove` for the two extra buttons) |
 | `web-ui-existing-files.patch` | the only changes to existing firmware files: 1 `<script>` line in `index.html` and 14 strings appended to each of `Messages_{es,en,cn}.properties` |
 
 ### Where each piece goes in your firmware tree
@@ -149,14 +155,14 @@ an Apply button. We analyzed the installed image (web server, config, pages), no
 
 | Piece | Your existing equivalent (SIP ALG) | TTL reference implementation | Same convention? |
 |---|---|---|---|
-| Page markup | `/www/html/router/sipalg.html` | `/www/html/router/notion_ttl.html` | Yes |
-| Page logic | `/www/js/panel/router/sipalg.js` (`$.fn.objSIPALG`) | `/www/js/panel/router/notion_ttl.js` (`$.fn.objNotionTTL`) | Yes |
+| Page markup | `/www/html/router/sipalg.html` | `/www/html/router/netparam.html` | Yes |
+| Page logic | `/www/js/panel/router/sipalg.js` (`$.fn.objSIPALG`) | `/www/js/panel/router/netparam.js` (`$.fn.objNetParam`) | Yes |
 | Script include | `<script>` line in `/www/index.html` | one line right after `sipalg.js` | Yes |
 | Placement | own `<ThirdlevelMenu>` in `/www/xml/ui_mifi.xml` | **no menu entry**: a section appended to the Diagnostics page (`objDiagnostics`) | Different, on purpose (see below) |
-| UI strings | `/www/properties/Messages_{es,en,cn}.properties` | 14 `lt_NotionTTL_*` keys per file | Yes |
-| Configuration | uci under `/etc/config/` (`/system/etc/config`) | `/etc/config/notion_ttl` | Yes |
+| UI strings | `/www/properties/Messages_{es,en,cn}.properties` | 14 `lt_NetParam_*` keys per file | Yes |
+| Configuration | uci under `/etc/config/` (`/system/etc/config`) | `/etc/config/netparam` | Yes |
 | Firewall rules | fw3, `/etc/config/firewall` | fw3 `include` in `/etc/config/firewall` | Yes (standard OpenWrt) |
-| **Backend** | `xml_action.cgi` → ubus object `firewall`, served by **`/usr/bin/router`** (`fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`) | `/www/notion_ttl.cgi` (shell CGI) | **No**: the only difference (see Option B) |
+| **Backend** | `xml_action.cgi` → ubus object `firewall`, served by **`/usr/bin/router`** (`fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`) | `/www/netparam.cgi` (shell CGI) | **No**: the only difference (see Option B) |
 
 On the web side `/www` is a symlink to `/system/etc/www`. We also checked that the current firmware has **no
 existing TTL support**: `/usr/bin/router` has no TTL or Hop Limit strings, and no page or config mentions it. This
@@ -169,14 +175,14 @@ The setting lives inside the factory Diagnostics page (Router → System Setting
 `js/panel/router/diagnostics.js`), below the ping / nslookup / traceroute form. How the reference does it,
 without editing the Diagnostics files:
 
-1. `notion_ttl.js` is loaded by `index.html` like any other panel script.
+1. `netparam.js` is loaded by `index.html` like any other panel script.
 2. On document ready it wraps `$.fn.objDiagnostics`: after the original `onLoad(flag)` has rendered the page
-   with `LoadWebPage()`, it appends `<div id="NotionTTLSection">` with the content of
-   `html/router/notion_ttl.html` (loaded with `CallHtmlFile()`) to `#Content`, calls `LocalAllElement()`, and
+   with `LoadWebPage()`, it appends `<div id="NetParamSection">` with the content of
+   `html/router/netparam.html` (loaded with `CallHtmlFile()`) to `#Content`, calls `LocalAllElement()`, and
    binds the handlers.
 3. The ping / nslookup / traceroute function of the page is unchanged (tested).
 
-If you prefer, you can instead put the markup of `notion_ttl.html` directly at the end of `diagnostics.html`
+If you prefer, you can instead put the markup of `netparam.html` directly at the end of `diagnostics.html`
 and call the init code from `objDiagnostics.onLoad`. The result must look the same: one page, Diagnostics on
 top, "Network parameter" below it, no separate menu entry.
 
@@ -193,10 +199,10 @@ Add files 1–5 and modify files 6–10 exactly as listed in section 0. The CGI:
   - **Recommended value** (`action=restore`): back to the factory defaults: enabled, 64, IPv6 on. The rules are re-applied.
   - **Factory behavior** (`action=remove`): disabled and the rules deleted, as the factory firmware behaves:
     each client keeps its own TTL minus 1 (Windows 127, phones/Linux/macOS 63). The stored value is reset to 64, so enabling it again starts from the default.
-- Validates strictly: `ttl` must be digits only and in the range 1..255, and `enabled`/`ipv6` must be 0 or 1.
+- Validates strictly: `value` must be digits only and in the range 1..255, and `enabled`/`ipv6` must be 0 or 1.
   Anything else returns 400. Leading zeros are removed as text, never with shell arithmetic, because
   `$((064))` is octal (52). We hit that bug during testing.
-- Saves with `uci set` + `uci commit notion_ttl`, logs to syslog (`logger -t notion-ttl`), then runs the
+- Saves with `uci set` + `uci commit netparam`, logs to syslog (`logger -t netparam`), then runs the
   firewall script directly. It does not run a full `fw3 reload`, to avoid disrupting traffic.
 
 ### Option B: native integration (preferred if you maintain `xml_action.cgi`)
@@ -206,18 +212,18 @@ serves `fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`):
 
 | obj_path | obj_method | request (`RGW/...`) | response |
 |---|---|---|---|
-| `firewall` | `fw_get_ttl` | — | `<enabled>`, `<ttl>`, `<ipv6>` |
-| `firewall` | `fw_set_ttl` | `RGW/firewall/enabled`, `RGW/firewall/ttl`, `RGW/firewall/ipv6` | `<setting_response>OK</setting_response>` |
+| `firewall` | `fw_get_netparam` | — | `<enabled>`, `<value>`, `<ipv6>` |
+| `firewall` | `fw_set_netparam` | `RGW/firewall/enabled`, `RGW/firewall/value`, `RGW/firewall/ipv6` | `<setting_response>OK</setting_response>` |
 
 The set handler validates the values, writes the uci options (they may live in `firewall.@defaults[0]` next
 to `sip_alg_enable` instead of a separate file, if you prefer), and re-applies the rules. With this option, the
-JS calls `PostXml("firewall","fw_get_ttl")` and `PostXml("firewall","fw_set_ttl",configMap)` like every other
-page, and `notion_ttl.cgi` is not needed. Keep the placement inside Diagnostics, the element ids, the panel
-`objNotionTTL`, and the `lt_NotionTTL_*` string keys, so our documentation and tests still match.
+JS calls `PostXml("firewall","fw_get_netparam")` and `PostXml("firewall","fw_set_netparam",configMap)` like every other
+page, and `netparam.cgi` is not needed. Keep the placement inside Diagnostics, the element ids, the panel
+`objNetParam`, and the `lt_NetParam_*` string keys, so our documentation and tests still match.
 
 Also recommended:
-- Include `/etc/config/notion_ttl` in the configuration backup and restore (`conf_management`).
-- Expose `notion_ttl.main.ttl` / `enabled` in TR-069, if your data model allows vendor parameters.
+- Include `/etc/config/netparam` in the configuration backup and restore (`conf_management`).
+- Expose `netparam.main.value` / `enabled` in TR-069, if your data model allows vendor parameters.
 
 ## 5. Acceptance tests
 
@@ -225,10 +231,10 @@ Also recommended:
 
 1. No session → 401. A forged `CGISID` → 401.
 2. POST without `X-Requested-With` → 403.
-3. `ttl` = 0, 256, 300, `000`, `6;reboot` → 400, and nothing changes.
-4. `ttl=65` → `iptables -t mangle -S POSTROUTING` shows `--ttl-set 65`, and `ip6tables` shows `--hl-set 65`.
-5. `ttl=010` saves 10, and `ttl=064` saves 64. This checks that the value is not read as octal.
-6. `enabled=0` → no `notion-ttl` rules remain. `enabled=1` → the rules come back.
+3. `value` = 0, 256, 300, `000`, `6;reboot` → 400, and nothing changes.
+4. `value=65` → `iptables -t mangle -S POSTROUTING` shows `--ttl-set 65`, and `ip6tables` shows `--hl-set 65`.
+5. `value=010` saves 10, and `value=064` saves 64. This checks that the value is not read as octal.
+6. `enabled=0` → no `netparam` rules remain. `enabled=1` → the rules come back.
 7. `fw3 reload` (equivalent to a 4G↔5G change) → the rules are still there, with the configured value.
 8. Reboot → the rules are there, with the configured value.
 9. Factory reset → the value is back to 64 and enabled.
@@ -237,21 +243,21 @@ Also recommended:
 11. UI: Router → System Settings → Diagnostics shows the "Network parameter" section below the ping form, in
     ES/EN/CN, and Apply shows the success dialog. A value of 999 shows the validation message. There is no
     separate menu entry, the words "TTL" and "Hop Limit" appear nowhere on screen, and ping still works.
-12. UI: "Factory behavior" asks Yes/No; "No" changes nothing; "Yes" leaves no `notion-ttl` rules and the section shows
+12. UI: "Factory behavior" asks Yes/No; "No" changes nothing; "Yes" leaves no `netparam` rules and the section shows
     "Disabled". "Recommended value" asks Yes/No; "Yes" leaves 64 on IPv4 and IPv6, enabled. `action=` with any other value → 400.
 
 ## 6. Package contents
 
 ```
-firmware-mods/notion-ttl/
+firmware-mods/netparam/
   OEM-SPEC.md                         this document
-  screenshot-ttl-page.png
+  screenshot-netparam.png
   web-ui-existing-files.patch         diff vs factory index.html / Messages_*.properties
-  rootfs/system/etc/config/notion_ttl
-  rootfs/system/etc/firewall.notion-ttl.sh
-  rootfs/system/etc/www/notion_ttl.cgi
-  rootfs/system/etc/www/html/router/notion_ttl.html
-  rootfs/system/etc/www/js/panel/router/notion_ttl.js
+  rootfs/system/etc/config/netparam
+  rootfs/system/etc/firewall.netparam.sh
+  rootfs/system/etc/www/netparam.cgi
+  rootfs/system/etc/www/html/router/netparam.html
+  rootfs/system/etc/www/js/panel/router/netparam.js
   i18n/Messages_{es,en,cn}.properties  strings appended to the firmware's property files
   install.sh                          installs/removes on a running unit over SSH (field use, not for the build)
   test_cgi.py                         acceptance tests 1–7

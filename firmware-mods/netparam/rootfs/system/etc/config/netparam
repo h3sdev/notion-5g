@@ -1,6 +1,6 @@
 
-config ttl 'main'
+config netparam 'main'
 	option enabled '1'
-	option ttl '64'
+	option value '64'
 	option ipv6 '1'
 	option iface 'ccinet+'

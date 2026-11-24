@@ -12,10 +12,10 @@
 # Uso:  scripts/ttl_persist_install.sh [TTL]        (default 64 = el TTL de un celular)
 #       scripts/ttl_persist_install.sh --remove
 set -e
-# OBSOLETO (2026-11-23): reemplazado por firmware-mods/notion-ttl/ (TTL en /etc/config/notion_ttl,
-# editable desde la interfaz web). Este script reescribiría firewall.notion-ttl.sh con un TTL fijo.
+# OBSOLETO (2026-11-23): reemplazado por firmware-mods/netparam/ (valor en /etc/config/netparam,
+# editable desde la interfaz web; nombres internos neutros desde 2026-11-24). Este script reescribiría firewall.notion-ttl.sh con un TTL fijo.
 if [ "${FORCE_OLD_TTL:-}" != 1 ]; then
-  echo "obsoleto: usa firmware-mods/notion-ttl/install.sh (o FORCE_OLD_TTL=1 para forzar este)" >&2
+  echo "obsoleto: usa firmware-mods/netparam/install.sh (o FORCE_OLD_TTL=1 para forzar este)" >&2
   exit 1
 fi
 HERE="$(cd "$(dirname "$0")" && pwd)"
