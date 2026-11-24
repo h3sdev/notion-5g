@@ -82,6 +82,26 @@ Archivos de referencia, que siguen las convenciones de la interfaz existente (mi
 | `www/notion_ttl.cgi` | endpoint del backend, un CGI en shell (GET = leer, POST = guardar y aplicar) |
 | `web-ui-existing-files.patch` | los únicos cambios a archivos existentes del firmware: 1 línea `<script>` en `index.html`, 1 `<ThirdlevelMenu>` en `xml/ui_mifi.xml`, 11 textos agregados al final de cada `Messages_{es,en,cn}.properties` |
 
+### Dónde va cada pieza en el árbol del firmware
+
+Todo sigue la página existente de **SIP ALG** (Router → Seguridad), que tiene la misma forma: un ajuste y un botón
+Aplicar. Analizamos la imagen instalada en el equipo (servidor web, configuración, páginas), no su código fuente.
+
+| Pieza | Equivalente existente (SIP ALG) | Implementación de referencia del TTL | ¿Misma convención? |
+|---|---|---|---|
+| Marcado de la página | `/www/html/router/sipalg.html` | `/www/html/router/notion_ttl.html` | Sí |
+| Lógica de la página | `/www/js/panel/router/sipalg.js` (`$.fn.objSIPALG`) | `/www/js/panel/router/notion_ttl.js` (`$.fn.objNotionTTL`) | Sí |
+| Carga del script | línea `<script>` en `/www/index.html` | una línea justo después de `sipalg.js` | Sí |
+| Entrada del menú | `<ThirdlevelMenu>` en `/www/xml/ui_mifi.xml` | entrada después de `mWifiDDNS` (Configuraciones avanzadas) | Sí |
+| Textos de la interfaz | `/www/properties/Messages_{es,en,cn}.properties` | 11 claves `lt_NotionTTL_*` / `mNotionTTL` por archivo | Sí |
+| Configuración | uci en `/etc/config/` (`/system/etc/config`) | `/etc/config/notion_ttl` | Sí |
+| Reglas del firewall | fw3, `/etc/config/firewall` | `include` de fw3 en `/etc/config/firewall` | Sí (estándar OpenWrt) |
+| **Backend** | `xml_action.cgi` → objeto ubus `firewall`, atendido por **`/usr/bin/router`** (`fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`) | `/www/notion_ttl.cgi` (CGI en shell) | **No**: es la única diferencia (ver Opción B) |
+
+En el lado web, `/www` es un enlace simbólico a `/system/etc/www`. También comprobamos que el firmware actual **no
+trae soporte de TTL**: `/usr/bin/router` no contiene textos de TTL ni de Hop Limit, y ninguna página ni archivo de
+configuración lo menciona. Es una función nueva, no una opción escondida que haya que activar.
+
 ### Opción A: incluir la implementación de referencia tal cual (menor esfuerzo)
 
 Copiar los archivos de `rootfs/` a la imagen y aplicar `web-ui-existing-files.patch`. El CGI:

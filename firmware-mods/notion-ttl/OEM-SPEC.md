@@ -78,6 +78,26 @@ Reference files, which follow the existing UI conventions (same structure as `si
 | `www/notion_ttl.cgi` | backend endpoint, a shell CGI (GET = read, POST = save and apply) |
 | `web-ui-existing-files.patch` | the only changes to existing firmware files: 1 `<script>` line in `index.html`, 1 `<ThirdlevelMenu>` in `xml/ui_mifi.xml`, 11 strings appended to each of `Messages_{es,en,cn}.properties` |
 
+### Where each piece goes in your firmware tree
+
+Everything follows the existing **SIP ALG** page (Router → Security), which has the same shape: one setting and
+an Apply button. We analyzed the installed image (web server, config, pages), not your source code.
+
+| Piece | Your existing equivalent (SIP ALG) | TTL reference implementation | Same convention? |
+|---|---|---|---|
+| Page markup | `/www/html/router/sipalg.html` | `/www/html/router/notion_ttl.html` | Yes |
+| Page logic | `/www/js/panel/router/sipalg.js` (`$.fn.objSIPALG`) | `/www/js/panel/router/notion_ttl.js` (`$.fn.objNotionTTL`) | Yes |
+| Script include | `<script>` line in `/www/index.html` | one line right after `sipalg.js` | Yes |
+| Menu entry | `<ThirdlevelMenu>` in `/www/xml/ui_mifi.xml` | entry after `mWifiDDNS` (Advanced Settings) | Yes |
+| UI strings | `/www/properties/Messages_{es,en,cn}.properties` | 11 `lt_NotionTTL_*` / `mNotionTTL` keys per file | Yes |
+| Configuration | uci under `/etc/config/` (`/system/etc/config`) | `/etc/config/notion_ttl` | Yes |
+| Firewall rules | fw3, `/etc/config/firewall` | fw3 `include` in `/etc/config/firewall` | Yes (standard OpenWrt) |
+| **Backend** | `xml_action.cgi` → ubus object `firewall`, served by **`/usr/bin/router`** (`fw_get_sip_alg_enable` / `fw_set_sip_alg_enable`) | `/www/notion_ttl.cgi` (shell CGI) | **No**: the only difference (see Option B) |
+
+On the web side `/www` is a symlink to `/system/etc/www`. We also checked that the current firmware has **no
+existing TTL support**: `/usr/bin/router` has no TTL or Hop Limit strings, and no page or config mentions it. This
+is a new feature, not a hidden option to enable.
+
 ### Option A: ship the reference implementation as-is (least effort)
 
 Copy the files from `rootfs/` into the image and apply `web-ui-existing-files.patch`. The CGI:
