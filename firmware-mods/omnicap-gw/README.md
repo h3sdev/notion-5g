@@ -23,7 +23,16 @@ re-bound on the next captured request), `ocgw_wg` (rebuilt on every refresh), `o
 TCP gets a reset, the rest is rejected. Hotspot clients reach the router itself only for DNS, DHCP(v6), ping
 and the portal ports (8002 and the HTTPS login): the web UI, SSH and the vendor services are closed to them.
 The admin uses a port excluded from the portal (e.g. the cable), a bypass MAC, or the management VPN.
-LAN-to-LAN is never touched. Access-Accept/Reject must carry a valid Message-Authenticator (Blast-RADIUS);
+LAN-to-LAN is never touched.
+
+Report to omnicap (`pull.go`): `POST /agent/v1/pull` with the agent token, like the RouterOS agent (uptime,
+memory, version, sessions, certificate fingerprint/expiry/status, SSID, RADIUS, the clock's offset as
+`Etc/GMT±N`). The panel shows the device online with its certificate state. omnicap answers an OpenWrt
+device with JSON: `pull_interval_seconds` (panel: device > "Segundos entre reportes", 10-86399 s, default
+60), `jitter_seconds` and the current walled garden (applied and saved to uci). Load on the server: first
+pull after a fixed per-device jitter (sha256 of the token, as RouterOS), then one per interval; if omnicap
+does not answer or answers 429, the wait doubles up to 30 min (+ jitter). An omnicap without the JSON answer
+still records the heartbeat. The web UI status line shows the last report. Access-Accept/Reject must carry a valid Message-Authenticator (Blast-RADIUS);
 uci `require_reply_ma '0'` relaxes it only for a RADIUS server that does not send one.
 If fw3 flushes the tables (`firewall restart`), the daemon puts everything back within 10 s; sessions are kept
 in `/tmp/omnicap-gw.state` (survive a daemon restart, not a reboot: after a reboot the user registers again

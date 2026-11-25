@@ -213,6 +213,9 @@ type Gateway struct {
 	// last RADIUS outcome, for the web UI status
 	radiusOK  bool
 	radiusErr string
+	pull      pullStatus // last report to omnicap, for the web UI
+	uciPkg    string
+	wgMu      sync.Mutex // one walled-garden refresh at a time (ticker and pull answers)
 }
 
 const (
@@ -461,7 +464,11 @@ func (g *Gateway) teardownFirewall() {
 // whole set, so a host removed in the web UI or an address a CDN dropped stops being reachable. A host
 // that does not resolve right now keeps its last good addresses.
 func (g *Gateway) refreshWalledGarden() {
+	g.wgMu.Lock()
+	defer g.wgMu.Unlock()
+	g.mu.Lock() // the walled garden can change from omnicap (pull.go)
 	hosts := append([]string{}, g.cfg.WalledGarden...)
+	g.mu.Unlock()
 	if u, err := url.Parse(g.cfg.PortalURL); err == nil {
 		hosts = append(hosts, u.Hostname())
 	}
@@ -1460,7 +1467,8 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	g := &Gateway{cfg: cfg, sessions: map[string]*Session{}, slots: map[int]bool{}, wgByHost: map[string][]string{},
-		fails: map[string][]time.Time{}, connSem: make(chan struct{}, 64), started: time.Now()}
+		fails: map[string][]time.Time{}, connSem: make(chan struct{}, 64), started: time.Now(), uciPkg: *uciPkg,
+		pull: pullStatus{Interval: defaultPullInterval}}
 	g.loadState()
 	if *cleanup {
 		g.syncLoginHost(false)
@@ -1494,6 +1502,7 @@ func main() {
 	}
 	g.syncLoginHost(cfg.HTTPS)
 	go g.serveAdmin()
+	go g.pullLoop()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)

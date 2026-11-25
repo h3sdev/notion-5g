@@ -369,14 +369,14 @@ func (g *Gateway) adminStatus() []byte {
 		ss = append(ss, adminSession{s.MAC, s.IP, s.Username, int(time.Since(s.Start).Minutes()), left,
 			s.InOctets, s.OutOctets, s.UpKbit, s.DownKbit})
 	}
-	radiusOK, radiusErr := g.radiusOK, g.radiusErr
+	radiusOK, radiusErr, pull := g.radiusOK, g.radiusErr, g.pull
 	g.mu.Unlock()
 	g.certs.mu.RLock()
 	ci := g.certs.info
 	g.certs.mu.RUnlock()
 	b, _ := json.Marshal(map[string]any{
 		"running": true, "sessions": ss, "cert": ci, "https": g.cfg.HTTPS, "https_active": g.httpsActive(),
-		"login_url": g.loginURL(), "radius_ok": radiusOK, "radius_error": radiusErr,
+		"login_url": g.loginURL(), "radius_ok": radiusOK, "radius_error": radiusErr, "pull": pull,
 		"started": g.started.UTC().Format(time.RFC3339),
 	})
 	return b

@@ -138,6 +138,10 @@
 			else{
 				txt = T("lt_OCGW_stOn") + " · " + T("lt_OCGW_stLogin") + " " + st.login_url;
 				if(st.radius_error){ txt += " · RADIUS: " + st.radius_error; }
+				var pl = st.pull || {};
+				if(pl.last){
+					txt += " · " + T("lt_OCGW_pull") + " " + (pl.ok ? T("lt_OCGW_pullOk") + " " + pl.interval_s + " s" : T("lt_OCGW_pullErr"));
+				}
 			}
 			$('#ocgwState').text(txt);
 			var c = st.cert || {};
