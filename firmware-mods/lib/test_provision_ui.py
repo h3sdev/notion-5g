@@ -62,7 +62,7 @@ with sync_playwright() as p:
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.goto("http://192.168.1.1/", wait_until="networkidle")
-    pg.fill("#tbarouter_username", "admin"); pg.fill("#tbarouter_password", "admin"); pg.click("#btnSignIn")
+    pg.fill("#tbarouter_username", os.environ.get("NOTION_HTTP_USER", "admin")); pg.fill("#tbarouter_password", os.environ.get("NOTION_HTTP_PASS", "admin")); pg.click("#btnSignIn")
     pg.wait_for_timeout(10000); dismiss(pg)
 
     # ---------------- Management VPN, from factory state

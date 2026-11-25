@@ -15,6 +15,9 @@ CTL=/usr/sbin/tunvpn.sh; [ -x "$CTL" ] || CTL=$D/tunvpn.sh
 PKG=tunvpn
 LOG=/tmp/tunvpn.log
 
+# lighttpd runs CGIs with a reduced PATH: uci, iptables, ip live in /sbin and /usr/sbin
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+
 out() {
 	printf 'Status: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n%s\n' "$1" "$2"
 	exit 0

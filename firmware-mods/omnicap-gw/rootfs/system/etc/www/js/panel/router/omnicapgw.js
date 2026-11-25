@@ -11,6 +11,7 @@
 			$('#lt_btnApply').click(save);
 			$('#lt_OCGW_btnFetch').click(function(){ post("action=fetchcert", true); });
 			$('#lt_OCGW_btnUploadCert').click(uploadCert);
+			$('#lt_OCGW_btnRegister').click(register);
 			$('#ocgwCertSource').change(toggleSource);
 			$('#ocgwEnable, #ocgwHttps').change(toggleFields);
 			$('#ocgwClients').on('click', '.ocgwKick', function(){
@@ -65,6 +66,23 @@
 			post(data, true);
 		}
 
+		function register(){
+			var u = val('#ocgwInstallUrl'), id = val('#ocgwIdentity');
+			if(!/^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?\/agent\/v1\/install\/[0-9a-fA-F]{16,128}\/?$/.test(u)){
+				showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_errInstallUrl")); return;
+			}
+			if(!/^[A-Za-z0-9_.-]{1,64}$/.test(id)){ showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_errIdentity")); return; }
+			request("POST", "action=register&install_url=" + enc(u) + "&identity=" + enc(id), function(ok, d){
+				if(ok){
+					$('#ocgwInstallUrl').val("");
+					showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_registered") + " " + d.register.nas_identifier);
+				} else {
+					var why = d && d.register && d.register.error ? d.register.error : (d && d.error ? d.error : "");
+					showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_registerFail") + (why ? " " + why : ""));
+				}
+			});
+		}
+
 		function uploadCert(){
 			var c = $('#ocgwCertPem').val(), k = $('#ocgwKeyPem').val();
 			if(c.indexOf("BEGIN CERTIFICATE") < 0 || k.indexOf("PRIVATE KEY") < 0){
@@ -99,7 +117,7 @@
 		function toggleFields(){
 			var on = $('#ocgwEnable').prop('checked');
 			$('#Content input[type=text], #Content input[type=password], #Content select, #ocgwHttps')
-				.not('#ocgwEnable').prop('disabled', !on);
+				.not('#ocgwEnable, #ocgwInstallUrl, #ocgwIdentity').prop('disabled', !on);
 			$('#ocgwLoginHost, #ocgwHttpsPort, #ocgwCertSource, #ocgwAgentUrl, #ocgwAgentToken')
 				.prop('disabled', !on || !$('#ocgwHttps').prop('checked'));
 		}

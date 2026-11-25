@@ -20,6 +20,9 @@ Network parameter: requirements R0–R12 of the earlier netparam package, unchan
   without `X-Requested-With`) and validate every value; passwords, secrets and tokens are never shown.
 - U3. Management VPN: the CA certificate is installed from the page; the VPN cannot be enabled without it; after
   entering server, port, protocol, user and password it connects and shows its IP, the traffic and the log.
+- U5. Captive portal registration: with the install URL of a location (omnicap panel) and an identifier, the
+  page registers the device in omnicap and fills in every setting by itself; the portal runs with the secure
+  login and the certificate downloaded from omnicap.
 - U4. Captive portal: after entering the portal URL, NAS identifier, RADIUS server/secret and the secure login
   (name, port, certificate downloaded from omnicap or pasted), the page shows "Funcionando", the login URL
   (`https://<name>:<port>/login`), the certificate and the connected clients, and can disconnect a client.

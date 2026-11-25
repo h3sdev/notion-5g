@@ -144,8 +144,21 @@ func writeAtomic(path string, b []byte, mode os.FileMode) error {
 	return os.Rename(tmp, path)
 }
 
-// agentGet: minimal HTTP(S) GET (no net/http, it doubles the binary). Verifies TLS with the system roots.
+// agentGet: GET a PEM file from the omnicap agent.
 func agentGet(rawURL, token string) ([]byte, error) {
+	body, err := agentRequest("GET", rawURL, token, nil)
+	if err != nil {
+		return nil, err
+	}
+	if p, _ := pem.Decode(body); p == nil {
+		return nil, errors.New("agent did not return PEM")
+	}
+	return body, nil
+}
+
+// agentRequest: minimal HTTP(S) client (no net/http, it doubles the binary). Verifies TLS with the system
+// roots. Returns the body of a 200 answer.
+func agentRequest(method, rawURL, token string, payload []byte) ([]byte, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err
@@ -173,8 +186,19 @@ func agentGet(rawURL, token string) ([]byte, error) {
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(20 * time.Second))
-	fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nAuthorization: Bearer %s\r\nUser-Agent: omnicap-gw\r\nConnection: close\r\n\r\n",
-		u.RequestURI(), u.Host, token)
+	auth := ""
+	if token != "" {
+		auth = "Authorization: Bearer " + token + "\r\n"
+	}
+	ctype := ""
+	if payload != nil {
+		ctype = fmt.Sprintf("Content-Type: application/json\r\nContent-Length: %d\r\n", len(payload))
+	}
+	fmt.Fprintf(conn, "%s %s HTTP/1.1\r\nHost: %s\r\n%s%sUser-Agent: omnicap-gw\r\nConnection: close\r\n\r\n",
+		method, u.RequestURI(), u.Host, auth, ctype)
+	if payload != nil {
+		conn.Write(payload)
+	}
 	br := bufio.NewReader(conn)
 	status, err := br.ReadString('\n')
 	if err != nil {
@@ -237,9 +261,6 @@ func agentGet(rawURL, token string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-	}
-	if p, _ := pem.Decode(body); p == nil {
-		return nil, errors.New("agent did not return PEM")
 	}
 	return body, nil
 }

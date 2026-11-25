@@ -1101,7 +1101,14 @@ func main() {
 	cfgPath := flag.String("config", "", "JSON config file (default: read uci package -uci)")
 	uciPkg := flag.String("uci", "omnicapgw", "uci package written by the web UI")
 	cleanup := flag.Bool("cleanup", false, "remove all firewall/tc state and exit")
+	installURL := flag.String("install", "", "register in omnicap with this install URL (.../agent/v1/install/<key>), write uci and exit")
+	identity := flag.String("identity", "", "device identity (NAS-Identifier) for -install")
 	flag.Parse()
+	// started from a CGI or cron: make sure uci, iptables, ipset and tc are found
+	os.Setenv("PATH", os.Getenv("PATH")+":/usr/sbin:/usr/bin:/sbin:/bin")
+	if *installURL != "" {
+		os.Exit(runInstall(*installURL, *identity, *uciPkg))
+	}
 	log.SetFlags(log.LstdFlags)
 	var cfg *Config
 	var err error

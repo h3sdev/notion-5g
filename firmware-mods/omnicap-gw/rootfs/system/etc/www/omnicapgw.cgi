@@ -6,6 +6,8 @@
 #   POST action=cert&cert_pem=..&key_pem=..   -> install a certificate for the secure login, restart
 #   POST action=fetchcert               -> download the certificate from the omnicap agent now
 #   POST action=kick&mac=..             -> disconnect one client (RADIUS Stop, Admin-Reset)
+#   POST action=register&install_url=..&identity=..  -> register this unit in omnicap with an install key
+#                                          (omnicap panel > location > install) and fill in every setting
 #
 # Security: valid web session (CGISID -> /tmp/cgisess_<id> with log_status=login) or 401; POST needs
 # X-Requested-With (CSRF); every value is validated before it reaches uci. Secrets (RADIUS secret, agent
@@ -13,7 +15,11 @@
 
 D=/data/omnicap-gw
 CTL=/usr/sbin/ocgw.sh; [ -x "$CTL" ] || CTL=$D/ocgw.sh
+BIN=/usr/sbin/omnicap-gw; [ -x "$BIN" ] || BIN=$D/omnicap-gw
 PKG=omnicapgw
+
+# lighttpd runs CGIs with a reduced PATH: uci, iptables, ip live in /sbin and /usr/sbin
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 out() {
 	printf 'Status: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n%s\n' "$1" "$2"
@@ -53,6 +59,8 @@ RE_SECRET='^[A-Za-z0-9!#$%()*+,./:;<=>?@^_{|}~-]{8,128}$'
 RE_TOKEN='^[A-Za-z0-9._~+/=-]{8,255}$'
 RE_WG='^[A-Za-z0-9.-]+(/[0-9]{1,2})?$'
 RE_MAC='^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$'
+RE_INSTALL='^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/agent/v1/install/[0-9a-fA-F]{16,128}/?$'
+RE_IDENT='^[A-Za-z0-9_.-]{1,64}$'
 port_ok() { match "$1" '^[0-9]{1,5}$' && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
 
 restart() { sh "$CTL" restart >/dev/null 2>&1; sleep 2; }
@@ -75,6 +83,25 @@ kick)
 	wget -q -T 5 -O /dev/null "http://127.0.0.1:8009/admin/kick?mac=$mac"
 	logger -t omnicap-gw "web: kick $mac (from ${REMOTE_ADDR:-?})"
 	out "200 OK" "$(status_json)"
+	;;
+register)
+	iu="$(param install_url)"; id="$(param identity)"
+	match "$iu" "$RE_INSTALL" || fail install_url
+	match "$id" "$RE_IDENT" || fail identity
+	r="$("$BIN" -uci $PKG -install "$iu" -identity "$id" 2>/dev/null | tail -n1)"
+	case "$r" in
+	*'"result":"ok"'*)
+		logger -t omnicap-gw "web: registered in omnicap as $id (from ${REMOTE_ADDR:-?})"
+		restart
+		st="$(status_json)"
+		out "200 OK" "${st%\}},\"register\":$r}"
+		;;
+	*)
+		logger -t omnicap-gw "web: registration as $id failed (from ${REMOTE_ADDR:-?})"
+		[ -n "$r" ] || r='{"result":"fail","error":"no answer"}'
+		out "400 Bad Request" "{\"result\":\"fail\",\"error\":\"register\",\"register\":$r}"
+		;;
+	esac
 	;;
 fetchcert)
 	r="$(wget -q -T 40 -O - http://127.0.0.1:8009/admin/fetchcert 2>/dev/null)"

@@ -11,6 +11,10 @@ parameter files are included here, unchanged), because the three features change
 | Management VPN | Router → Advanced Settings → "VPN de gestión" (below "VPN") | OpenVPN client to the H3S management server |
 | Captive portal | Router → Advanced Settings → "Portal cautivo" (below "VPN") | Wi-Fi/LAN clients must log in on the H3S portal (RADIUS) before browsing |
 
+Provisioning of the captive portal is one step in the web UI: the technician pastes the install URL of the
+location (from the H3S omnicap panel) and the device identifier, presses "Registrar en omnicap", and the device
+registers itself and receives all its settings (this needs the omnicap version with OpenWrt support).
+
 The firmware must ship **without any H3S data**: no VPN server, user, password or CA certificate, and no portal
 URL, RADIUS server, secret or certificate. H3S enters all of that in the web UI when the unit is provisioned.
 The default configuration files in this package are already empty; do not fill them in.
