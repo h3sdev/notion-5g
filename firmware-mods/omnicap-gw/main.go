@@ -59,6 +59,87 @@ type Config struct {
 	HotspotName    string   `json:"hotspot_name"`     // Called-Station-Id, default "hotspot1"
 	DefaultInterim int      `json:"default_interim_s"`
 	StateFile      string   `json:"state_file"`
+	// Secure login (like RouterOS "login-by=https" with the omnicap certificate): the portal posts the
+	// credential to https://<LoginHost>:<HTTPSPort>/login; dnsmasq resolves LoginHost to the router.
+	HTTPS      bool   `json:"https"`
+	LoginHost  string `json:"login_host"` // login.h3s-iot.com
+	HTTPSPort  int    `json:"https_port"` // 8443 (443 belongs to the web UI)
+	CertFile   string `json:"cert_file"`  // PEM chain, from the web UI or from the omnicap agent
+	KeyFile    string `json:"key_file"`
+	AgentURL   string `json:"agent_url"`   // https://cautivo.h3s-iot.com: fetch the certificate like RouterOS does
+	AgentToken string `json:"agent_token"` // device agent_token (Authorization: Bearer)
+	AdminAddr  string `json:"admin_addr"`  // 127.0.0.1:8009, status/kick for the web UI CGI
+}
+
+func defaultConfig() *Config {
+	return &Config{LanIf: "br-lan", WanIf: "ccinet0", RouterIP: "192.168.1.1", ListenPort: 8002,
+		RadiusAuthPort: 1812, RadiusAcctPort: 1813, HotspotName: "hotspot1", DefaultInterim: 300,
+		StateFile: "/tmp/omnicap-gw.state", LoginHost: "login.h3s-iot.com", HTTPSPort: 8443,
+		CertFile: "/data/omnicap-gw/login.crt", KeyFile: "/data/omnicap-gw/login.key", AdminAddr: "127.0.0.1:8009"}
+}
+
+func (c *Config) finish() (*Config, error) {
+	if c.PortalURL == "" || c.NASIdentifier == "" || c.RadiusServer == "" || c.RadiusSecret == "" {
+		return nil, errors.New("portal_url, nas_identifier, radius_server and radius_secret are required")
+	}
+	c.PortalURL = strings.TrimSuffix(strings.TrimSuffix(c.PortalURL, "/"), "/login")
+	c.AgentURL = strings.TrimSuffix(c.AgentURL, "/")
+	return c, nil
+}
+
+// loadUCI reads the config written by the web UI (uci package, section "main").
+func loadUCI(pkg string) (*Config, error) {
+	out, err := sh("uci", "-q", "show", pkg+".main")
+	if err != nil {
+		return nil, fmt.Errorf("uci %s: %v", pkg, err)
+	}
+	c := defaultConfig()
+	vals := map[string][]string{}
+	for _, l := range strings.Split(out, "\n") {
+		k, v, ok := strings.Cut(l, "=")
+		if !ok {
+			continue
+		}
+		k = strings.TrimPrefix(k, pkg+".main.")
+		var items []string
+		for _, f := range strings.Split(v, "' '") {
+			items = append(items, strings.Trim(f, "'"))
+		}
+		vals[k] = items
+	}
+	str := func(k string) string {
+		if v := vals[k]; len(v) > 0 {
+			return v[0]
+		}
+		return ""
+	}
+	num := func(k string, d int) int {
+		if n, err := strconv.Atoi(str(k)); err == nil && n > 0 {
+			return n
+		}
+		return d
+	}
+	list := func(k string) []string {
+		var out []string
+		for _, v := range vals[k] {
+			if v = strings.TrimSpace(v); v != "" {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+	c.PortalURL, c.NASIdentifier, c.RadiusServer, c.RadiusSecret = str("portal_url"), str("nas_identifier"), str("radius_server"), str("radius_secret")
+	c.RadiusAuthPort, c.RadiusAcctPort = num("radius_auth_port", 1812), num("radius_acct_port", 1813)
+	c.WalledGarden, c.BypassMACs = list("walled_garden"), list("bypass_mac")
+	c.HTTPS = str("https") == "1"
+	if h := str("login_host"); h != "" {
+		c.LoginHost = h
+	}
+	c.HTTPSPort = num("https_port", 8443)
+	if str("cert_source") == "agent" {
+		c.AgentURL, c.AgentToken = str("agent_url"), str("agent_token")
+	}
+	return c.finish()
 }
 
 func loadConfig(path string) (*Config, error) {
@@ -66,17 +147,11 @@ func loadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &Config{LanIf: "br-lan", WanIf: "ccinet0", RouterIP: "192.168.1.1", ListenPort: 8002,
-		RadiusAuthPort: 1812, RadiusAcctPort: 1813, HotspotName: "hotspot1", DefaultInterim: 300,
-		StateFile: "/tmp/omnicap-gw.state"}
+	c := defaultConfig()
 	if err := json.Unmarshal(b, c); err != nil {
 		return nil, err
 	}
-	if c.PortalURL == "" || c.NASIdentifier == "" || c.RadiusServer == "" || c.RadiusSecret == "" {
-		return nil, errors.New("portal_url, nas_identifier, radius_server and radius_secret are required")
-	}
-	c.PortalURL = strings.TrimSuffix(strings.TrimSuffix(c.PortalURL, "/"), "/login")
-	return c, nil
+	return c.finish()
 }
 
 // ---------------------------------------------------------------- shell helpers
@@ -113,6 +188,11 @@ type Gateway struct {
 	slots    map[int]bool
 	wgIPs    map[string]bool
 	nasPort  uint32
+	certs    certStore
+	started  time.Time
+	// last RADIUS outcome, for the web UI status
+	radiusOK  bool
+	radiusErr string
 }
 
 const (
@@ -545,6 +625,18 @@ func (g *Gateway) exchange(code byte, port int, as []attr) (*reply, error) {
 	return nil, fmt.Errorf("no RADIUS answer from %s: %v", addr, lastErr)
 }
 
+func (g *Gateway) exchangeTracked(code byte, port int, as []attr) (*reply, error) {
+	r, err := g.exchange(code, port, as)
+	g.mu.Lock()
+	g.radiusOK = err == nil
+	g.radiusErr = ""
+	if err != nil {
+		g.radiusErr = err.Error()
+	}
+	g.mu.Unlock()
+	return r, err
+}
+
 func macRadius(mac string) string { return strings.ToUpper(mac) }
 
 func (g *Gateway) baseAttrs(mac, ip string) []attr {
@@ -619,7 +711,7 @@ func (g *Gateway) accounting(s *Session, status uint32, cause uint32) error {
 	if status == 2 {
 		as = append(as, aInt(attrAcctTermCause, cause))
 	}
-	r, err := g.exchange(4, g.cfg.RadiusAcctPort, as)
+	r, err := g.exchangeTracked(4, g.cfg.RadiusAcctPort, as)
 	if err != nil {
 		return err
 	}
@@ -659,7 +751,7 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 		aInt(attrServiceType, 1),
 		aInt(attrNASPort, port),
 	)
-	r, err := g.exchange(1, g.cfg.RadiusAuthPort, as)
+	r, err := g.exchangeTracked(1, g.cfg.RadiusAuthPort, as)
 	if err != nil {
 		log.Printf("login %s %s: %v", mac, user, err)
 		return "RADIUS server is not responding"
@@ -831,7 +923,7 @@ func (g *Gateway) trampoline(w *response, success bool, mac, ip, user, dst, errM
 	if success {
 		suffix, res = "/conectado", "success"
 	}
-	link := fmt.Sprintf("http://%s:%d/login", g.cfg.RouterIP, g.cfg.ListenPort)
+	link := g.loginURL()
 	fields := [][2]string{
 		{"res", res}, {"mac", strings.ToUpper(mac)}, {"ip", ip}, {"username", user},
 		{"link_login_only", link}, {"link_orig", dst}, {"nasid", g.cfg.NASIdentifier},
@@ -940,7 +1032,7 @@ func (g *Gateway) handle(w *response, r *request) {
 	ip := r.RemoteIP
 	mac := arpMAC(ip)
 	self := fmt.Sprintf("http://%s:%d", g.cfg.RouterIP, g.cfg.ListenPort)
-	if !strings.HasPrefix(r.Host, g.cfg.RouterIP) {
+	if !strings.HasPrefix(r.Host, g.cfg.RouterIP) && !(g.cfg.LoginHost != "" && strings.HasPrefix(r.Host, g.cfg.LoginHost)) {
 		// captured request: send the client to the login page with the URL it wanted
 		orig := "http://" + r.Host + r.Path
 		if r.RawQuery != "" {
@@ -1006,17 +1098,28 @@ func (g *Gateway) handleLogin(w *response, r *request, ip, mac string) {
 // ---------------------------------------------------------------- main
 
 func main() {
-	cfgPath := flag.String("config", "/data/omnicap-gw/config.json", "config file")
+	cfgPath := flag.String("config", "", "JSON config file (default: read uci package -uci)")
+	uciPkg := flag.String("uci", "omnicapgw", "uci package written by the web UI")
 	cleanup := flag.Bool("cleanup", false, "remove all firewall/tc state and exit")
 	flag.Parse()
 	log.SetFlags(log.LstdFlags)
-	cfg, err := loadConfig(*cfgPath)
+	var cfg *Config
+	var err error
+	if *cfgPath != "" {
+		cfg, err = loadConfig(*cfgPath)
+	} else {
+		cfg, err = loadUCI(*uciPkg)
+	}
+	if err != nil && *cleanup {
+		cfg, err = defaultConfig(), nil // cleanup only needs the interface names and the state file
+	}
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-	g := &Gateway{cfg: cfg, sessions: map[string]*Session{}, slots: map[int]bool{}, wgIPs: map[string]bool{}}
+	g := &Gateway{cfg: cfg, sessions: map[string]*Session{}, slots: map[int]bool{}, wgIPs: map[string]bool{}, started: time.Now()}
 	g.loadState()
 	if *cleanup {
+		g.syncLoginHost(false)
 		g.teardownFirewall()
 		os.Remove(cfg.StateFile)
 		return
@@ -1025,6 +1128,13 @@ func main() {
 		log.Fatalf("firewall: %v", err)
 	}
 	g.refreshWalledGarden()
+	g.loadCertFiles("file")
+	if cfg.HTTPS {
+		g.fetchCert()
+		go g.serveTLS()
+	}
+	g.syncLoginHost(cfg.HTTPS)
+	go g.serveAdmin()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -1040,6 +1150,10 @@ func main() {
 			g.tick()
 			if n++; n%30 == 0 {
 				g.refreshWalledGarden()
+				g.syncLoginHost(cfg.HTTPS)
+			}
+			if cfg.HTTPS && n%2160 == 0 { // every 6 h, like the RouterOS agent pull picks up renewals
+				g.fetchCert()
 			}
 		}
 	}()
@@ -1047,8 +1161,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}
-	log.Printf("omnicap-gw up: nas=%s portal=%s radius=%s listen=:%d sessions=%d",
-		cfg.NASIdentifier, cfg.PortalURL, cfg.RadiusServer, cfg.ListenPort, len(g.sessions))
+	log.Printf("omnicap-gw up: nas=%s portal=%s radius=%s login=%s sessions=%d",
+		cfg.NASIdentifier, cfg.PortalURL, cfg.RadiusServer, g.loginURL(), len(g.sessions))
 	for {
 		c, err := ln.Accept()
 		if err != nil {

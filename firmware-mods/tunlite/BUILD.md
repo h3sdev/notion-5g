@@ -8,9 +8,14 @@ PPTP/L2TP/GRE. This directory adds a management OpenVPN tunnel without a new fir
   `TUNGETIFF`, `TUNSETPERSIST`, `TUNGETFEATURES`; read/write/poll). It is enough for OpenVPN and `ip tuntap`.
 - `bin/tunlite.ko`, `bin/openvpn`: the built module and OpenVPN 2.6.23 (mbed TLS 3.6.8, libcap-ng 0.8.5,
   only libc/libgcc_s dynamic, 710 KB).
-- `device/`: what goes to `/data/tunvpn` on the unit (`tunvpn.sh`, `client.conf`, `ca.crt`; `auth.txt` is
-  per unit and is not in git).
-- `tools/install.sh`: installs over SSH (`NOTION_PASS=... tools/install.sh <auth.txt>`, `--remove` undoes it).
+- `device/`: what goes to `/data/tunvpn` on the unit (`tunvpn.sh`, default `ca.crt` of the H3S lab server).
+- Web UI page **Router > Configuraciones avanzadas > VPN de gestión** (es/en/cn), like netparam: enable, server,
+  port, TCP/UDP, user, password (write-only), cipher/auth, "do not accept routes", CA replacement, live status
+  (IP, since, bytes), recent log and a "Reconectar" button. Settings in uci `tunvpn`; `tunvpn.sh` generates
+  `client.conf`/`auth.txt` from it on every start. Files: `rootfs/system/etc/{config/tunvpn,www/tunvpn.cgi,
+  www/html/router/tunvpn.html,www/js/panel/router/tunvpn.js}`, `i18n/`.
+- `tools/install.sh`: installs over SSH (`NOTION_PASS=... tools/install.sh`, `--remove` undoes it); migrates a
+  unit with the first hand-written `client.conf`/`auth.txt` to uci with the same values.
 
 The proper fix is still for the manufacturer to enable `CONFIG_TUN=m` and ship `openvpn` in the image; then
 `tunlite.ko` is no longer needed.

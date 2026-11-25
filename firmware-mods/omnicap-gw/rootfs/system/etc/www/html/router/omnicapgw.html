@@ -1,0 +1,131 @@
+<html>
+	<head>
+		<script type="text/javascript">
+			function redirect() {
+				var nowUrl = window.location.href;
+				if (nowUrl.indexOf('/html/') != -1) {
+					window.location.href = window.location.protocol + "//" + window.location.host;
+				}
+			}
+			redirect();
+		</script>
+	</head>
+	<body>
+		<label id="lt_OCGW_title" class="title"></label>
+		<div class="noteBox">
+			<p id="lt_OCGW_note" class="note_list"></p>
+		</div>
+
+		<div class="wps_group">
+			<input type="checkbox" id="ocgwEnable">
+			<span id="lt_OCGW_enable"></span>
+		</div>
+		<div class="wps_group">
+			<span class="wps_title" id="lt_OCGW_state"></span>
+			<span id="ocgwState"></span>
+		</div>
+
+		<label id="lt_OCGW_secPortal" class="subttl"></label>
+		<div class="wps_group">
+			<label id="lt_OCGW_portalUrl"></label>
+			<input type="text" id="ocgwPortalUrl" class="txtEditBox" maxlength="300" style="width:420px">
+		</div>
+		<div class="wps_group">
+			<label id="lt_OCGW_nas"></label>
+			<input type="text" id="ocgwNas" class="txtEditBox" maxlength="64">
+		</div>
+
+		<label id="lt_OCGW_secRadius" class="subttl"></label>
+		<div class="wps_group">
+			<label id="lt_OCGW_radiusServer"></label>
+			<input type="text" id="ocgwRadiusServer" class="txtEditBox" maxlength="253">
+		</div>
+		<div class="wps_group">
+			<label id="lt_OCGW_ports"></label>
+			<input type="text" id="ocgwAuthPort" class="txtEditBox" maxlength="5" style="width:70px">
+			<input type="text" id="ocgwAcctPort" class="txtEditBox" maxlength="5" style="width:70px">
+		</div>
+		<div class="wps_group">
+			<label id="lt_OCGW_secret"></label>
+			<input type="password" id="ocgwSecret" class="txtEditBox" maxlength="128" autocomplete="new-password">
+			<div id="lt_OCGW_keepBlank" style="font-size:11px;color:#777;margin-top:2px"></div>
+		</div>
+
+		<label id="lt_OCGW_secHttps" class="subttl"></label>
+		<div class="wps_group">
+			<input type="checkbox" id="ocgwHttps">
+			<span id="lt_OCGW_https"></span>
+		</div>
+		<div class="wps_group">
+			<label id="lt_OCGW_loginHost"></label>
+			<input type="text" id="ocgwLoginHost" class="txtEditBox" maxlength="253">
+			<input type="text" id="ocgwHttpsPort" class="txtEditBox" maxlength="5" style="width:70px">
+		</div>
+		<div class="wps_group">
+			<label id="lt_OCGW_certSource"></label>
+			<select id="ocgwCertSource">
+				<option id="lt_OCGW_srcAgent" value="agent"></option>
+				<option id="lt_OCGW_srcManual" value="manual"></option>
+			</select>
+		</div>
+		<div id="ocgwAgentBox">
+			<div class="wps_group">
+				<label id="lt_OCGW_agentUrl"></label>
+				<input type="text" id="ocgwAgentUrl" class="txtEditBox" maxlength="300" style="width:320px">
+			</div>
+			<div class="wps_group">
+				<label id="lt_OCGW_agentToken"></label>
+				<input type="password" id="ocgwAgentToken" class="txtEditBox" maxlength="256" autocomplete="new-password">
+				<div id="lt_OCGW_keepBlank2" style="font-size:11px;color:#777;margin-top:2px"></div>
+			</div>
+		</div>
+		<div class="wps_group">
+			<span class="wps_title" id="lt_OCGW_cert"></span>
+			<span id="ocgwCert"></span>
+		</div>
+		<div id="ocgwManualBox" style="display:none">
+			<div class="wps_group">
+				<label id="lt_OCGW_certPem"></label><br>
+				<textarea id="ocgwCertPem" rows="5" style="width:520px;font-family:monospace;font-size:11px"></textarea>
+			</div>
+			<div class="wps_group">
+				<label id="lt_OCGW_keyPem"></label><br>
+				<textarea id="ocgwKeyPem" rows="5" style="width:520px;font-family:monospace;font-size:11px"></textarea>
+			</div>
+			<div class="buttonRow1">
+				<input type="button" id="lt_OCGW_btnUploadCert" class="btn-apply">
+			</div>
+		</div>
+
+		<label id="lt_OCGW_secAccess" class="subttl"></label>
+		<div class="wps_group">
+			<label id="lt_OCGW_walled"></label>
+			<input type="text" id="ocgwWalled" class="txtEditBox" maxlength="1000" style="width:420px">
+		</div>
+		<div class="wps_group">
+			<label id="lt_OCGW_bypass"></label>
+			<input type="text" id="ocgwBypass" class="txtEditBox" maxlength="1000" style="width:420px">
+		</div>
+
+		<div class="buttonRow1">
+			<input type="button" id="lt_OCGW_btnFetch" class="btn-apply">
+			<input type="button" id="lt_btnApply" class="btn-apply">
+		</div>
+
+		<label id="lt_OCGW_secClients" class="subttl"></label>
+		<table width="100%" class="dataTbl10 example table-stripeclass:alternate" style="margin-top:5px">
+			<thead>
+				<tr>
+					<th id="lt_OCGW_colMac"></th>
+					<th id="lt_OCGW_colIp"></th>
+					<th id="lt_OCGW_colUser"></th>
+					<th id="lt_OCGW_colTime"></th>
+					<th id="lt_OCGW_colTraffic"></th>
+					<th id="lt_OCGW_colRate"></th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody id="ocgwClients"></tbody>
+		</table>
+	</body>
+</html>

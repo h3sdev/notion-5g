@@ -1,0 +1,9 @@
+
+config tunvpn 'main'
+	option enabled '0'
+	option remote ''
+	option port '1194'
+	option proto 'tcp'
+	option cipher 'AES-256-CBC'
+	option auth 'SHA1'
+	option route_nopull '1'

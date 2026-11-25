@@ -1,0 +1,83 @@
+<html>
+	<head>
+		<script type="text/javascript">
+			function redirect() {
+				var nowUrl = window.location.href;
+				if (nowUrl.indexOf('/html/') != -1) {
+					window.location.href = window.location.protocol + "//" + window.location.host;
+				}
+			}
+			redirect();
+		</script>
+	</head>
+	<body>
+		<label id="lt_TVPN_title" class="title"></label>
+		<div class="noteBox">
+			<p id="lt_TVPN_note" class="note_list"></p>
+		</div>
+		<div class="wps_group">
+			<input type="checkbox" id="tvpnEnable">
+			<span id="lt_TVPN_enable"></span>
+		</div>
+		<div class="wps_group">
+			<span class="wps_title" id="lt_TVPN_state"></span>
+			<span id="tvpnState"></span>
+		</div>
+		<div class="wps_group">
+			<label id="lt_TVPN_server"></label>
+			<input type="text" id="tvpnRemote" class="txtEditBox" maxlength="253">
+			<input type="text" id="tvpnPort" class="txtEditBox" maxlength="5" style="width:70px">
+			<select id="tvpnProto">
+				<option value="tcp">TCP</option>
+				<option value="udp">UDP</option>
+			</select>
+		</div>
+		<div class="wps_group">
+			<label id="lt_TVPN_user"></label>
+			<input type="text" id="tvpnUser" class="txtEditBox" maxlength="64" autocomplete="off">
+		</div>
+		<div class="wps_group">
+			<label id="lt_TVPN_pass"></label>
+			<input type="password" id="tvpnPass" class="txtEditBox" maxlength="128" autocomplete="new-password">
+			<div id="lt_TVPN_keepBlank" style="font-size:11px;color:#777;margin-top:2px"></div>
+		</div>
+		<div class="wps_group">
+			<label id="lt_TVPN_cipher"></label>
+			<select id="tvpnCipher">
+				<option>AES-256-CBC</option>
+				<option>AES-128-CBC</option>
+				<option>AES-256-GCM</option>
+				<option>AES-128-GCM</option>
+				<option>CHACHA20-POLY1305</option>
+			</select>
+			<select id="tvpnAuth">
+				<option>SHA1</option>
+				<option>SHA256</option>
+				<option>SHA512</option>
+			</select>
+		</div>
+		<div class="wps_group">
+			<input type="checkbox" id="tvpnNoPull">
+			<span id="lt_TVPN_nopull"></span>
+		</div>
+		<div class="buttonRow1">
+			<input type="button" id="lt_TVPN_btnReconnect" class="btn-apply">
+			<input type="button" id="lt_btnApply" class="btn-apply">
+		</div>
+
+		<label id="lt_TVPN_secCa" class="subttl"></label>
+		<div class="wps_group">
+			<span class="wps_title" id="lt_TVPN_ca"></span>
+			<span id="tvpnCaState"></span>
+		</div>
+		<div class="wps_group">
+			<textarea id="tvpnCaPem" rows="5" style="width:520px;font-family:monospace;font-size:11px"></textarea>
+		</div>
+		<div class="buttonRow1">
+			<input type="button" id="lt_TVPN_btnCa" class="btn-apply">
+		</div>
+
+		<label id="lt_TVPN_secLog" class="subttl"></label>
+		<pre id="tvpnLog" style="font-size:11px;white-space:pre-wrap;max-width:640px"></pre>
+	</body>
+</html>

@@ -27,18 +27,37 @@ The vendor fastpath is bypassed on this firmware (`/sys/kernel/fastpath/fp_forwa
 so iptables and tc see every forwarded packet. The vendor QoS daemon owns the HTB roots; omnicap-gw only adds
 classes 0x101.. under them and never writes `/etc/config/qos`.
 
+## Web UI (configured like netparam)
+
+**Router > Configuraciones avanzadas > Portal cautivo** (es/en/cn), right below the factory "VPN" entry:
+enable, portal URL, NAS-Identifier, RADIUS server/ports/secret, secure login (HTTPS name/port, certificate
+downloaded from omnicap or pasted as PEM), walled garden, MACs that bypass the portal, live status (login URL,
+last RADIUS error, certificate subject/issuer/expiry) and the connected clients with a "Desconectar" button
+(RADIUS Stop, Admin-Reset). Settings are stored in uci `omnicapgw` (`/etc/config/omnicapgw`); the RADIUS secret
+and the agent token are write-only (never returned by the CGI, blank keeps them).
+
+## Secure login (HTTPS)
+
+Like RouterOS with the omnicap certificate: the trampoline's `link_login_only` becomes
+`https://login.h3s-iot.com:8443/login` (443 is the web UI), the daemon serves TLS 1.2+ there with a certificate
+it reloads on change, and dnsmasq answers `login.h3s-iot.com` with the router address (`/tmp/hosts/omnicap-gw`,
+nothing persistent). The certificate comes from the omnicap agent exactly as on the MikroTiks
+(`GET <agent>/agent/v1/hotspot-cert/onmicap-portal.{crt,key}`, `Authorization: Bearer <device agent_token>`,
+checked again every 6 h) or is pasted in the page. It is installed only if the key matches and it is valid for
+the login name. HTTPS is used only when a valid certificate is loaded; otherwise the login falls back to HTTP.
+
 ## Files
 
-- `main.go`: the daemon. Build: `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w"`.
+- `main.go`, `tlsadmin.go`: the daemon. Build: `CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath
+  -ldflags="-s -w"` (6.4 MB; no net/http).
 - `device/ocgw.sh`: watchdog/boot hook, cron `* * * * * /data/omnicap-gw/ocgw.sh check` (`/etc/rc.d` is read
-  only). `ocgw.sh disable` removes every rule (open network again).
-- `/data/omnicap-gw/config.json` on the unit (not in git: it has the fleet secret):
-
-```json
-{"portal_url": "https://cautivo.h3s-iot.com/portal/<ref>", "nas_identifier": "NOTION5G_LAB_1",
- "radius_server": "<fleet address>", "radius_secret": "<fleet secret>",
- "walled_garden": [], "bypass_macs": ["<management PC>"]}
-```
+  only); `restart` reloads uci; `disable` removes every rule (open network again).
+- `rootfs/system/etc/`: `config/omnicapgw` (defaults), `www/omnicapgw.cgi`, `www/html/router/omnicapgw.html`,
+  `www/js/panel/router/omnicapgw.js`; `i18n/Messages_{es,en,cn}.properties`.
+- `tools/install.sh <binary>` / `--remove`: installs over SSH (menu entry, script tag and strings through
+  `../lib/webui.sh`, which only touches its own lines). Never keeps two copies of the binary in `/data`.
+- `tools/test_cgi.py [--apply cfg.json]`: session/CSRF/validation checks of the CGI, optionally saves a config.
+- `../lib/test_ui_modules.py`: drives both pages (portal and management VPN) in Chromium.
 
 ## Tested (2026-11-25) against a local copy of omnicap
 
@@ -54,15 +73,19 @@ config, `onmicap-api --role all`), location `notion5g-lab` with registration spl
 - `firewall reload` keeps the rules; `firewall restart` -> rules and session back within 10 s.
 - daemon restart keeps the session; full reboot: portal and VPN come back alone, same voucher reissued.
 
-Not tested yet: a real phone on the modem Wi-Fi (capture of its internet traffic, measured 512 kbit/s
-shaping, Interim-Update with real octets), and production omnicap.
+- a real Android phone (moto g6 plus, captive-portal WebView) registered through the modem Wi-Fi; omnicap got
+  Interim-Updates with real octets (8.4 MB up / 3.5 MB down in 15 min).
+
+2026-11-25, web UI and HTTPS (same local omnicap; certificate from a lab CA served by its agent):
+`test_cgi.py` 18/18 (401 without session, 403 without X-Requested-With, secrets never returned, 10 invalid
+inputs rejected), `test_ui_modules.py` 20/20 (both pages, live status, kick, VPN reconnect, es/en/cn, no JS
+errors), credential POST to `https://login.h3s-iot.com:8443/login` (TLS 1.3, chain verified), full reboot with
+everything configured from the UI.
 
 ## Missing for production
 
-1. **HTTPS login.** The production portal is HTTPS; posting the credential to `http://192.168.1.1:8002`
-   makes Chrome warn ("not secure"). RouterOS uses `https://login.h3s-iot.com` (DNS name -> router) with the
-   certificate omnicap distributes (`GET /agent/v1/hotspot-cert/*`). omnicap-gw needs TLS (+~1.5 MB) and a
-   dnsmasq entry for that name.
-2. **Agent pull.** Today the config is a local file. omnicap needs an `openwrt` platform in `internal/agentapi`
-   that answers JSON (portal ref, walled garden, RADIUS, certificate) instead of a RouterOS script.
-3. **Production data**: device with `nas_identifier`, `radius_enabled`, the fleet secret and address.
+1. **Production data**: device with `nas_identifier`, `device_config.radius_enabled=true`, splash, the fleet
+   secret/address, and an `agent_token` for the certificate download. Then set the page to the production URLs.
+2. **Agent pull** (optional): an `openwrt` platform in omnicap `internal/agentapi` answering JSON, so portal ref
+   and walled garden come from the panel instead of the page.
+3. `/data` has ~1.7 MB free with everything installed (the old `routeragent-arm.bak` takes 6.9 MB).
