@@ -59,6 +59,21 @@ for b in boots:
         print(f"  best NR: n{best['nr_band']} PCI {best['nr_pci']} RSRP {best['nr_rsrp']} SINR {best['nr_sinr']} at {fmt(int(best['ts']))}")
     else:
         print("  NR never attached in this boot")
+    num = lambda k: [float(r[k]) for r in rows if r.get(k) not in (None, "")]
+    for k, label, unit in (("tx_lte", "LTE TX power", "dBm"), ("tx_nr", "NR TX power", "dBm"),
+                           ("temp_c", "SoC temperature", "C"), ("adc1", "PMIC adc1 (raw)", ""), ("adc2", "PMIC adc2 (raw)", "")):
+        v = num(k)
+        if v:
+            print(f"  {label}: min {min(v):g} / median {sorted(v)[len(v)//2]:g} / max {max(v):g} {unit}")
+    if rows[-1].get("tx_lte") not in (None, ""):
+        print("  last samples of this boot (ts, LTE/NR, tx_lte/tx_nr, adc1/adc2, lte_rsrp):")
+        for r in rows[-4:]:
+            print(f"    {fmt(int(r['ts']))} B{r['lte_band']}/n{r['nr_band'] or '-'} tx={r['tx_lte']}/{r['tx_nr'] or '-'} adc={r['adc1']}/{r['adc2']} rsrp={r['lte_rsrp']}")
+    ev = os.path.join(b, "events.log")
+    if os.path.exists(ev):
+        for line in open(ev):
+            if "last_powerdown" in line:
+                print("  " + line.split("START ", 1)[-1].strip())
 
     sl = os.path.join(b, "syslog.log")
     if os.path.exists(sl):
