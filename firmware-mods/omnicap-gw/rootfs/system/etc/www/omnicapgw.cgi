@@ -39,17 +39,46 @@ urldecode() { printf '%b' "$(printf '%s' "$1" | sed 's/+/ /g; s/\\/%5C/g; s/%\([
 param() { urldecode "$(printf '%s' "$BODY" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1)"; }
 match() { printf '%s' "$1" | grep -Eq "$2"; }
 
+# lan_ports: every port of the LAN bridge, read from the device (nothing assumed), one per line:
+#   ifname <TAB> kind (wifi|cable|usb|other) <TAB> band <TAB> guest <TAB> enabled <TAB> ssid
+# Wi-Fi: wifi-iface sections of uci wireless attached to network lan (the first SSID of each radio is the
+# main one, the others are guest SSIDs). Wired: uci network.lan ifname + current bridge members that exist.
+lan_ports() {
+	wl=" "; devs=" "
+	for s in $(uci -q show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p'); do
+		[ "$(uci -q get wireless.$s.network)" = lan ] || continue
+		i="$(uci -q get wireless.$s.ifname)"; [ -n "$i" ] || continue
+		dev="$(uci -q get wireless.$s.device)"
+		g=false; case "$devs" in *" $dev "*) g=true ;; *) devs="$devs$dev " ;; esac
+		e=true; [ "$(uci -q get wireless.$s.disabled)" = 1 ] && e=false
+		printf '%s\twifi\t%s\t%s\t%s\t%s\n' "$i" "$(uci -q get wireless.$dev.band)" "$g" "$e" "$(uci -q get wireless.$s.ssid)"
+		wl="$wl$i "
+	done
+	for i in $(uci -q get network.lan.ifname) $(ls /sys/class/net/br-lan/brif 2>/dev/null); do
+		case "$wl" in *" $i "*) continue ;; esac
+		[ -e "/sys/class/net/$i" ] || continue
+		wl="$wl$i "
+		k=other; case "$i" in eth*) k=cable ;; usb*) k=usb ;; esac
+		printf '%s\t%s\t-\tfalse\ttrue\t-\n' "$i" "$k"
+	done
+}
+
 status_json() {
 	st="$(wget -q -T 3 -O - http://127.0.0.1:8009/admin/status 2>/dev/null)"
 	[ -n "$st" ] || st='{"running":false}'
 	sec=false; [ -n "$(get radius_secret)" ] && sec=true
 	tok=false; [ -n "$(get agent_token)" ] && tok=true
-	printf '{"result":"ok","enabled":%s,"portal_url":"%s","nas_identifier":"%s","radius_server":"%s","radius_auth_port":%s,"radius_acct_port":%s,"secret_set":%s,"https":%s,"login_host":"%s","https_port":%s,"cert_source":"%s","agent_url":"%s","token_set":%s,"walled_garden":"%s","bypass_mac":"%s","status":%s}' \
+	ifj="$(lan_ports | while IFS='	' read -r i k b g e ss; do
+		printf '{"if":"%s","kind":"%s","band":"%s","guest":%s,"enabled":%s,"ssid":"%s"},' \
+			"$(jstr "$i")" "$k" "$(jstr "$b")" "$g" "$e" "$(jstr "$ss")"
+	done)"
+	printf '{"result":"ok","enabled":%s,"portal_url":"%s","nas_identifier":"%s","radius_server":"%s","radius_auth_port":%s,"radius_acct_port":%s,"secret_set":%s,"https":%s,"login_host":"%s","https_port":%s,"cert_source":"%s","agent_url":"%s","token_set":%s,"walled_garden":"%s","bypass_mac":"%s","exclude_if":"%s","lan_ports":[%s],"status":%s}' \
 		"$(get enabled || echo 0)" "$(jstr "$(get portal_url)")" "$(jstr "$(get nas_identifier)")" \
 		"$(jstr "$(get radius_server)")" "$(get radius_auth_port || echo 1812)" "$(get radius_acct_port || echo 1813)" \
 		"$sec" "$(get https || echo 0)" "$(jstr "$(get login_host)")" "$(get https_port || echo 8443)" \
 		"$(jstr "$(get cert_source)")" "$(jstr "$(get agent_url)")" "$tok" \
-		"$(jstr "$(csv walled_garden)")" "$(jstr "$(csv bypass_mac)")" "$st"
+		"$(jstr "$(csv walled_garden)")" "$(jstr "$(csv bypass_mac)")" "$(jstr "$(csv exclude_if)")" \
+		"${ifj%,}" "$st"
 }
 
 RE_URL='^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~%/-]*)?$'
@@ -127,6 +156,7 @@ en="$(param enabled)"; url="$(param portal_url)"; nas="$(param nas_identifier)";
 ap="$(param radius_auth_port)"; cp="$(param radius_acct_port)"; sec="$(param radius_secret)"
 https="$(param https)"; lh="$(param login_host)"; hp="$(param https_port)"; src="$(param cert_source)"
 aurl="$(param agent_url)"; tok="$(param agent_token)"; wg="$(param walled_garden)"; byp="$(param bypass_mac)"
+excl="$(param exclude_if)"
 
 case "$en" in 0|1) ;; *) fail enabled ;; esac
 case "$https" in 0|1) ;; *) fail https ;; esac
@@ -154,6 +184,15 @@ fi
 [ -z "$aurl" ] || match "$aurl" "$RE_URL" || fail agent_url
 [ -z "$tok" ] || match "$tok" "$RE_TOKEN" || fail agent_token
 wgl=""; for x in $(printf '%s' "$wg" | tr ', ' '\n\n'); do match "$x" "$RE_WG" || fail walled_garden; wgl="$wgl $x"; done
+# exclude_if: comma list of LAN ports whose clients skip the portal; only ports this device really has,
+# and at least one port must stay captured (to capture none, disable the portal)
+ports="$(lan_ports | cut -f1)"
+exl=""; for x in $(printf '%s' "$excl" | tr ', ' '\n\n'); do
+	printf '%s\n' "$ports" | grep -qxF -- "$x" || fail exclude_if
+	case " $exl " in *" $x "*) ;; *) exl="$exl $x" ;; esac
+done
+left=0; for x in $ports; do case " $exl " in *" $x "*) ;; *) left=$((left+1)) ;; esac; done
+[ "$left" -ge 1 ] || fail exclude_if
 bpl=""; for x in $(printf '%s' "$byp" | tr ', ' '\n\n'); do match "$x" "$RE_MAC" || fail bypass_mac; bpl="$bpl $x"; done
 
 uci -q get $PKG.main >/dev/null || uci set $PKG.main=omnicapgw
@@ -172,8 +211,9 @@ uci set $PKG.main.agent_url="$aurl"
 [ -n "$tok" ] && uci set $PKG.main.agent_token="$tok"
 uci -q delete $PKG.main.walled_garden; for x in $wgl; do uci add_list $PKG.main.walled_garden="$x"; done
 uci -q delete $PKG.main.bypass_mac; for x in $bpl; do uci add_list $PKG.main.bypass_mac="$x"; done
+uci -q delete $PKG.main.exclude_if; for x in $exl; do uci add_list $PKG.main.exclude_if="$x"; done
 uci commit $PKG
-logger -t omnicap-gw "web: settings saved enabled=$en https=$https nas=$nas (from ${REMOTE_ADDR:-?})"
+logger -t omnicap-gw "web: settings saved enabled=$en https=$https nas=$nas exclude_if=${exl:- none} (from ${REMOTE_ADDR:-?})"
 
 if [ "$en" = 1 ]; then restart; else sh "$CTL" disable >/dev/null 2>&1; fi
 out "200 OK" "$(status_json)"

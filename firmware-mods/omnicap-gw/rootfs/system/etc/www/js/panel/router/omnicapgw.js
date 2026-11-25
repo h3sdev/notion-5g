@@ -40,6 +40,7 @@
 			if($('#ocgwHttps').prop('checked') && !/^[A-Za-z0-9.-]{1,253}$/.test(val('#ocgwLoginHost'))){ return "lt_OCGW_errHost"; }
 			if($('#ocgwHttps').prop('checked') && $('#ocgwCertSource').val() == "agent"
 				&& !/^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~%\/-]*)?$/.test(val('#ocgwAgentUrl'))){ return "lt_OCGW_errAgentUrl"; }
+			if(!$('.ocgwPort:checked').length){ return "lt_OCGW_errPorts"; }
 			var s = val('#ocgwSecret');
 			if(s !== "" && !/^[A-Za-z0-9!#$%()*+,.\/:;<=>?@^_{|}~-]{8,128}$/.test(s)){ return "lt_OCGW_errSecret"; }
 			return true;
@@ -62,7 +63,8 @@
 				+ "&agent_url=" + enc(val('#ocgwAgentUrl'))
 				+ "&agent_token=" + enc(val('#ocgwAgentToken'))
 				+ "&walled_garden=" + enc(val('#ocgwWalled'))
-				+ "&bypass_mac=" + enc(val('#ocgwBypass'));
+				+ "&bypass_mac=" + enc(val('#ocgwBypass'))
+				+ "&exclude_if=" + enc($('.ocgwPort').not(':checked').map(function(){ return this.value; }).get().join(","));
 			post(data, true);
 		}
 
@@ -99,7 +101,7 @@
 					var errKey = { portal_url: "lt_OCGW_errUrl", nas_identifier: "lt_OCGW_errNas", radius_server: "lt_OCGW_errServer",
 						radius_auth_port: "lt_OCGW_errPort", radius_acct_port: "lt_OCGW_errPort", https_port: "lt_OCGW_errPort",
 						radius_secret: "lt_OCGW_errSecret", login_host: "lt_OCGW_errHost", agent_url: "lt_OCGW_errAgentUrl",
-						agent_token: "lt_OCGW_errToken", walled_garden: "lt_OCGW_errWalled", bypass_mac: "lt_OCGW_errBypass",
+						agent_token: "lt_OCGW_errToken", walled_garden: "lt_OCGW_errWalled", bypass_mac: "lt_OCGW_errBypass", exclude_if: "lt_OCGW_errPorts",
 						cert: "lt_OCGW_errPem", key: "lt_OCGW_errPem" }[d && d.error];
 					var msg = ok ? T("lt_succ") : errKey ? T(errKey) : (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : ""));
 					showMsgBox(T("lt_OCGW_title"), msg);
@@ -116,7 +118,7 @@
 
 		function toggleFields(){
 			var on = $('#ocgwEnable').prop('checked');
-			$('#Content input[type=text], #Content input[type=password], #Content select, #ocgwHttps')
+			$('#Content input[type=text], #Content input[type=password], #Content select, #ocgwHttps, .ocgwPort')
 				.not('#ocgwEnable, #ocgwInstallUrl, #ocgwIdentity').prop('disabled', !on);
 			$('#ocgwLoginHost, #ocgwHttpsPort, #ocgwCertSource, #ocgwAgentUrl, #ocgwAgentToken')
 				.prop('disabled', !on || !$('#ocgwHttps').prop('checked'));
@@ -153,6 +155,33 @@
 			$('#ocgwClients').html(rows || "<tr><td colspan='7'>" + T("lt_OCGW_noClients") + "</td></tr>");
 		}
 
+		// One checkbox per LAN bridge port the device reports (main and guest SSIDs, cable, USB); checked =
+		// captured by the portal. The page only sends the unchecked ones (exclude_if).
+		function portLabel(p){
+			var name;
+			if(p.kind == "wifi"){
+				name = p.band == "2g" ? T("lt_OCGW_portWifi24") : p.band == "5g" ? T("lt_OCGW_portWifi5") : "Wi-Fi";
+				if(p.guest){ name += " · " + T("lt_OCGW_portGuest"); }
+				name += " · " + p.ssid;
+				if(!p.enabled){ name += " (" + T("lt_OCGW_portOff") + ")"; }
+			}
+			else if(p.kind == "cable"){ name = T("lt_OCGW_portLan"); }
+			else if(p.kind == "usb"){ name = T("lt_OCGW_portUsb"); }
+			else{ name = p["if"]; }
+			return name;
+		}
+
+		function renderPorts(d){
+			var ex = d.exclude_if ? d.exclude_if.split(",") : [];
+			var box = $('#ocgwPorts').empty();
+			$.each(d.lan_ports || [], function(i, p){
+				var cb = $('<input type="checkbox" class="ocgwPort">').val(p["if"]).prop('checked', ex.indexOf(p["if"]) < 0);
+				box.append($('<label style="display:block;margin:2px 0;color:inherit;font-weight:normal">').append(cb, " ",
+					$('<span>').text(portLabel(p)), " ", $('<span style="color:#999;font-size:11px">').text(p["if"])));
+			});
+			toggleFields();
+		}
+
 		function render(d, statusOnly){
 			renderStatus(d);
 			if(statusOnly){ return; }
@@ -171,6 +200,7 @@
 			$('#ocgwAgentToken').attr('placeholder', d.token_set ? T("lt_OCGW_saved") : "");
 			$('#ocgwWalled').val(d.walled_garden);
 			$('#ocgwBypass').val(d.bypass_mac);
+			renderPorts(d);
 			toggleSource();
 			toggleFields();
 		}

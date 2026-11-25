@@ -5,8 +5,12 @@ Screenshots in $OUT (default /tmp). Leaves the UI in Spanish.
 
   python3 firmware-mods/lib/test_ui_modules.py [--kick-mac 6c:1f:f7:6f:a3:b5]
 """
-import os, sys, re
+import os, sys, re, subprocess
 from playwright.sync_api import sync_playwright
+
+RSH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "rsh.sh")
+def rsh(cmd):
+    return subprocess.run([RSH, cmd], capture_output=True, text=True, timeout=60).stdout
 
 OUT = os.environ.get("OUT", "/tmp")
 ok_all = True
@@ -71,6 +75,25 @@ with sync_playwright() as p:
     check("portal: invalid URL rejected in the page", "La URL del portal no es válida." in pg.evaluate("() => document.body.innerText"))
     dismiss(pg); pg.fill("#ocgwPortalUrl", orig)
 
+    boxes = lambda: pg.evaluate("() => Array.prototype.map.call(document.querySelectorAll('.ocgwPort'), function(e){ return e.value + (e.checked ? '+' : '-'); }).join(',')")
+    check("portal: ports label", text(pg, "#lt_OCGW_portsLbl") == "Aplicar el portal en:")
+    b0 = boxes()
+    check("portal: ports read from the device, all captured", all(x in b0 for x in ["wlan0+", "wlan1+", "wlan0.1+", "wlan1.1+", "eth0.2+"]), b0)
+    ptxt = text(pg, "#ocgwPorts")
+    check("portal: guest network listed (off)", "red de invitados" in ptxt and "apagada" in ptxt, ptxt)
+    pg.evaluate("() => { var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = false; } }")
+    pg.click("#lt_btnApply"); pg.wait_for_timeout(1500)
+    check("portal: no port rejected in the page", "Marque al menos un medio" in pg.evaluate("() => document.body.innerText"))
+    dismiss(pg)
+    pg.evaluate("() => { var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = c[i].value != 'eth0.2'; } }")
+    pg.click("#lt_btnApply"); pg.wait_for_timeout(9000); dismiss(pg)
+    eb = rsh("ebtables -t nat -L OCGW_PORTS 2>/dev/null; uci -q get omnicapgw.main.exclude_if")
+    check("portal: cable excluded -> ebtables marks eth0.2 only", "-i eth0.2 " in eb and "wlan" not in eb, eb)
+    pg.evaluate("() => { var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = true; } }")
+    pg.click("#lt_btnApply"); pg.wait_for_timeout(9000); dismiss(pg)
+    eb = rsh("ebtables -t nat -L PREROUTING; uci -q get omnicapgw.main.exclude_if || echo NONE")
+    check("portal: all ports again -> no ebtables rules, nothing excluded", "OCGW" not in eb and "NONE" in eb, eb)
+
     if KICK:
         q = f"#ocgwClients input[data-mac='{KICK}']"
         n = int(pg.evaluate(f"() => String(document.querySelectorAll(\"{q}\").length)"))
@@ -84,6 +107,9 @@ with sync_playwright() as p:
     open_item(pg, "Configuraciones avanzadas", "VPN de gestión")
     check("vpn: title", text(pg, "#lt_TVPN_title") == "VPN de gestión (OpenVPN)", text(pg, "#lt_TVPN_title"))
     check("vpn: server loaded", pg.input_value("#tvpnRemote") == "190.145.155.2")
+    check("vpn: note does not name H3S", "H3S" not in text(pg, "#lt_TVPN_note"), text(pg, "#lt_TVPN_note"))
+    check("vpn: no-cipher option", text(pg, "#lt_TVPN_optNoCipher") == "Ninguno (sin cifrado)")
+    check("vpn: no-auth option", text(pg, "#lt_TVPN_optNoAuth") == "Ninguna")
     check("vpn: password not shown, marked saved", pg.input_value("#tvpnPass") == ""
           and pg.get_attribute("#tvpnPass", "placeholder") == "guardada")
     pg.wait_for_timeout(6000)

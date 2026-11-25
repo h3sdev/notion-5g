@@ -56,7 +56,10 @@ type Config struct {
 	RadiusSecret   string   `json:"radius_secret"`    // fleet secret
 	WalledGarden   []string `json:"walled_garden"`    // hostnames, IPs or CIDRs reachable without login
 	BypassMACs     []string `json:"bypass_macs"`      // never captured (e.g. the management PC)
-	HotspotName    string   `json:"hotspot_name"`     // Called-Station-Id, default "hotspot1"
+	// ExcludeIfaces: LAN bridge ports (exact interface names, "+" = prefix wildcard) whose clients are not
+	// captured, e.g. eth0.2 (cable) or wlan0.1 (guest SSID). Empty = capture every port.
+	ExcludeIfaces  []string `json:"exclude_ifaces"`
+	HotspotName    string   `json:"hotspot_name"` // Called-Station-Id, default "hotspot1"
 	DefaultInterim int      `json:"default_interim_s"`
 	StateFile      string   `json:"state_file"`
 	// Secure login (like RouterOS "login-by=https" with the omnicap certificate): the portal posts the
@@ -131,6 +134,13 @@ func loadUCI(pkg string) (*Config, error) {
 	c.PortalURL, c.NASIdentifier, c.RadiusServer, c.RadiusSecret = str("portal_url"), str("nas_identifier"), str("radius_server"), str("radius_secret")
 	c.RadiusAuthPort, c.RadiusAcctPort = num("radius_auth_port", 1812), num("radius_acct_port", 1813)
 	c.WalledGarden, c.BypassMACs = list("walled_garden"), list("bypass_mac")
+	for _, i := range list("exclude_if") {
+		if validIface(i) {
+			c.ExcludeIfaces = append(c.ExcludeIfaces, i)
+		} else {
+			log.Printf("exclude_if %q ignored: not an interface name", i)
+		}
+	}
 	c.HTTPS = str("https") == "1"
 	if h := str("login_host"); h != "" {
 		c.LoginHost = h
@@ -204,7 +214,72 @@ const (
 	setWG     = "ocgw_wg"
 	setBypass = "ocgw_bypass"
 	markMask  = 0x7f000000
+	// Port selection: br-lan bridges the Wi-Fi SSIDs (main and guest), the cable LAN port and USB tethering,
+	// and this kernel has no br_netfilter/physdev, so iptables cannot see the bridge port. ebtables marks
+	// frames that enter on an excluded port (uci list exclude_if, exact names read by the web UI from the
+	// device itself); the OCGW chains return early on that mark. Nothing excluded = no ebtables rules, and a
+	// port nobody excluded (e.g. a guest SSID enabled later) is always captured (fail closed).
+	chainPorts = "OCGW_PORTS"
+	exemptMark = 0x00800000
 )
+
+// validIface accepts a Linux interface name, optionally with the ebtables "+" prefix wildcard.
+func validIface(s string) bool {
+	n := strings.TrimSuffix(s, "+")
+	if n == "" || len(n) > 15 || n[0] == '-' {
+		return false
+	}
+	for _, r := range n {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// exemptIfaces returns the bridge ports left out of the portal (nil = capture every port).
+func (c *Config) exemptIfaces() []string { return c.ExcludeIfaces }
+
+var exemptMatch = []string{"-m", "mark", "--mark", fmt.Sprintf("0x%x/0x%x", exemptMark, exemptMark), "-j", "RETURN"}
+
+// setupPorts (re)creates the ebtables marking for the ports left out of the portal. Idempotent.
+func (g *Gateway) setupPorts() error {
+	ex := g.cfg.exemptIfaces()
+	if len(ex) == 0 {
+		g.teardownPorts()
+		return nil
+	}
+	shq("ebtables", "-t", "nat", "-N", chainPorts, "-P", "RETURN")
+	if _, err := sh("ebtables", "-t", "nat", "-F", chainPorts); err != nil {
+		return err
+	}
+	for _, i := range ex {
+		if _, err := sh("ebtables", "-t", "nat", "-A", chainPorts, "-i", i, "-j", "mark",
+			"--mark-or", fmt.Sprintf("0x%x", exemptMark), "--mark-target", "CONTINUE"); err != nil {
+			return err
+		}
+	}
+	if !g.portsJumpPresent() {
+		if _, err := sh("ebtables", "-t", "nat", "-I", "PREROUTING", "1", "-j", chainPorts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (g *Gateway) portsJumpPresent() bool {
+	out, _ := sh("ebtables", "-t", "nat", "-L", "PREROUTING")
+	return strings.Contains(out, "-j "+chainPorts)
+}
+
+func (g *Gateway) teardownPorts() {
+	for g.portsJumpPresent() {
+		if _, err := sh("ebtables", "-t", "nat", "-D", "PREROUTING", "-j", chainPorts); err != nil {
+			break
+		}
+	}
+	shq("ebtables", "-t", "nat", "-X", chainPorts)
+}
 
 // ---------------------------------------------------------------- firewall
 
@@ -213,7 +288,8 @@ func (g *Gateway) firewallPresent() bool {
 	nat, _ := sh("iptables", "-t", "nat", "-S", "PREROUTING")
 	mg, _ := sh("iptables", "-t", "mangle", "-S", "FORWARD")
 	return strings.Contains(out, "-j "+chainFwd) && strings.Contains(out, "-j "+chainAcct) &&
-		strings.Contains(nat, "-j "+chainNat) && strings.Contains(mg, "-j "+chainMark)
+		strings.Contains(nat, "-j "+chainNat) && strings.Contains(mg, "-j "+chainMark) &&
+		(len(g.cfg.exemptIfaces()) == 0 || g.portsJumpPresent())
 }
 
 // setupFirewall (re)creates every chain, set and jump. Idempotent.
@@ -232,6 +308,7 @@ func (g *Gateway) setupFirewall() error {
 	// filter: captive enforcement for traffic coming from the LAN
 	rules := [][]string{
 		{"-A", chainFwd, "-o", c.LanIf, "-j", "RETURN"},
+		append([]string{"-A", chainFwd}, exemptMatch...),
 		{"-A", chainFwd, "-m", "set", "--match-set", setBypass, "src", "-j", "RETURN"},
 		{"-A", chainFwd, "-m", "set", "--match-set", setAuth, "src", "-j", "RETURN"},
 		{"-A", chainFwd, "-m", "set", "--match-set", setWG, "dst", "-j", "RETURN"},
@@ -247,6 +324,7 @@ func (g *Gateway) setupFirewall() error {
 	}
 	// nat: HTTP of unauthenticated clients -> this daemon; DNS -> router
 	nrules := [][]string{
+		append([]string{"-A", chainNat}, exemptMatch...),
 		{"-A", chainNat, "-m", "set", "--match-set", setBypass, "src", "-j", "RETURN"},
 		{"-A", chainNat, "-m", "set", "--match-set", setAuth, "src", "-j", "RETURN"},
 		{"-A", chainNat, "-d", c.RouterIP, "-j", "RETURN"},
@@ -277,6 +355,9 @@ func (g *Gateway) setupFirewall() error {
 			}
 		}
 	}
+	if err := g.setupPorts(); err != nil {
+		return err
+	}
 	// re-add per-session state
 	for _, s := range g.sessions {
 		g.applySession(s)
@@ -298,6 +379,7 @@ func (g *Gateway) teardownFirewall() {
 		shq("iptables", "-t", t.table, "-F", t.chain)
 		shq("iptables", "-t", t.table, "-X", t.chain)
 	}
+	g.teardownPorts()
 	for _, s := range []string{setAuth, setWG, setBypass} {
 		shq("ipset", "destroy", s)
 	}

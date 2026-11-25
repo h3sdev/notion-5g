@@ -8,7 +8,7 @@ parameter files are included here, unchanged), because the three features change
 | Feature | Where in the web UI | What it does |
 |---|---|---|
 | Network parameter | Router → System Settings → Diagnostics, section "Parámetro de red" | configurable value applied to outbound mobile traffic (as before) |
-| Management VPN | Router → Advanced Settings → "VPN de gestión" (below "VPN") | OpenVPN client to the H3S management server |
+| Management VPN | Router → Advanced Settings → "VPN de gestión" (below "VPN") | OpenVPN client to a management server chosen by the operator (empty by default) |
 | Captive portal | Router → Advanced Settings → "Portal cautivo" (below "VPN") | Wi-Fi/LAN clients must log in on the H3S portal (RADIUS) before browsing |
 
 Provisioning of the captive portal is one step in the web UI: the technician pastes the install URL of the
@@ -38,6 +38,11 @@ The package also contains `tunlite.ko`, a small TUN driver H3S built for the **c
 (`5.4.288+ #1 SMP PREEMPT Wed Aug 19 11:26:06 UTC 2026`). It is used only if the kernel has no TUN driver and
 the running kernel is exactly that build; on any other kernel it is never loaded. If you enable `CONFIG_TUN`,
 you may leave `tunlite.ko` out.
+
+**Keep in the image (already present in the current firmware, do not remove):** `/usr/sbin/ebtables` and the
+modules `ebtables`, `ebtable_nat`, `ebt_mark`, `xt_mark` (OpenWrt `ebtables`, `kmod-ebtables`, `kmod-ipt-core`).
+The captive portal uses them to apply the portal only on the LAN ports chosen in the web UI (Wi-Fi SSIDs,
+guest SSIDs, cable, USB), because the kernel has no `br_netfilter`/`physdev`.
 
 ## Step 2 — copy `files/` into the image
 
