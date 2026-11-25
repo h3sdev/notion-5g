@@ -106,8 +106,8 @@ user="$(param username)"; pass="$(param password)"; ciph="$(param cipher)"; auth
 
 case "$en" in 0|1) ;; *) fail enabled ;; esac
 case "$proto" in tcp|udp) ;; *) fail proto ;; esac
-case "$ciph" in AES-256-CBC|AES-128-CBC|AES-256-GCM|AES-128-GCM|CHACHA20-POLY1305) ;; *) fail cipher ;; esac
-case "$auth" in SHA1|SHA256|SHA512) ;; *) fail auth ;; esac
+case "$ciph" in AES-256-CBC|AES-128-CBC|AES-256-GCM|AES-128-GCM|CHACHA20-POLY1305|none) ;; *) fail cipher ;; esac
+case "$auth" in SHA1|SHA256|SHA512|none) ;; *) fail auth ;; esac
 case "$nop" in 0|1) ;; *) fail route_nopull ;; esac
 match "$port" '^[0-9]{1,5}$' && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail port
 if [ "$en" = 1 ] || [ -n "$rem" ]; then match "$rem" "$RE_HOST" || fail remote; fi
