@@ -1,0 +1,4 @@
+2026-11-24 17:19:35 START interval=3s maxsec=5400
+2026-11-24 17:19:35 up=100.63 sys=2 data=14 lte=B28/172 nr= ip=10.168.63.51/24 rules=3/3 (prev: none) nr_rsrp= lte_rsrp=-102
+2026-11-24 17:20:23 up=148.08 sys=2 data=14 lte=B28/400 nr= ip=10.168.63.51/24 rules=3/3 (prev: sys=2 data=14 lte=B28/172 nr= ip=10.168.63.51/24 rules=3/3) nr_rsrp= lte_rsrp=-99
+2026-11-24 18:49:36 MAXSEC reached, stopping

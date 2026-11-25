@@ -1,0 +1,15 @@
+2026-11-24 17:10:59 START interval=3s maxsec=7200
+2026-11-24 17:11:00 up=4103.82 sys=2 data=14 lte=B28/400 nr= ip=191.76.45.31/24 rules=3/3 (prev: none) nr_rsrp= lte_rsrp=-99
+2026-11-24 17:14:01 up=4285.23 sys=2 data=14 lte=B28/172 nr= ip=191.76.45.31/24 rules=3/3 (prev: sys=2 data=14 lte=B28/400 nr= ip=191.76.45.31/24 rules=3/3) nr_rsrp= lte_rsrp=-88
+2026-11-24 17:14:11 up=4294.88 sys=5 data=24 lte=B28/172 nr=n0/0 ip=191.76.45.31/24 rules=3/3 (prev: sys=2 data=14 lte=B28/172 nr= ip=191.76.45.31/24 rules=3/3) nr_rsrp=0 lte_rsrp=-91
+2026-11-24 17:14:14 up=4298.09 sys=5 data=24 lte=B7/441 nr=n78/179 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B28/172 nr=n0/0 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-94 lte_rsrp=-97
+2026-11-24 17:15:47 up=4390.88 sys=5 data=24 lte=B7/441 nr=n78/66 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/441 nr=n78/179 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-78 lte_rsrp=-93
+2026-11-24 17:15:56 up=4400.52 sys=5 data=24 lte=B7/441 nr=n78/179 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/441 nr=n78/66 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-87 lte_rsrp=-99
+2026-11-24 17:16:03 up=4406.87 sys=5 data=24 lte=B7/441 nr=n78/66 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/441 nr=n78/179 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-82 lte_rsrp=-88
+2026-11-24 17:16:09 up=4413.21 sys=5 data=24 lte=B7/441 nr=n78/179 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/441 nr=n78/66 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-89 lte_rsrp=-102
+2026-11-24 17:16:12 up=4416.43 sys=5 data=24 lte=B7/21 nr=n78/179 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/441 nr=n78/179 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-89 lte_rsrp=-101
+2026-11-24 17:16:15 up=4419.65 sys=5 data=24 lte=B7/403 nr=n78/179 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/21 nr=n78/179 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-91 lte_rsrp=-104
+2026-11-24 17:17:21 up=4483.19 sys=2 data=14 lte=B7/403 nr=n78/179 ip=191.76.45.31/24 rules=3/3 (prev: sys=5 data=24 lte=B7/403 nr=n78/179 ip=191.76.45.31/24 rules=3/3) nr_rsrp=-97 lte_rsrp=-109
+2026-11-24 17:17:26 up=4488.41 sys=1 data=15 lte=B/ nr= ip=191.76.45.31/24 rules=3/3 (prev: sys=2 data=14 lte=B7/403 nr=n78/179 ip=191.76.45.31/24 rules=3/3) nr_rsrp= lte_rsrp=
+2026-11-24 17:17:36 up=4498.97 sys=1 data=3 lte=B/ nr= ip=191.76.45.31/24 rules=3/3 (prev: sys=1 data=15 lte=B/ nr= ip=191.76.45.31/24 rules=3/3) nr_rsrp= lte_rsrp=
+2026-11-24 17:17:39 up=4504.28 sys=5 data=24 lte=B7/403 nr= ip=191.76.45.31/24 rules=3/3 (prev: sys=1 data=3 lte=B/ nr= ip=191.76.45.31/24 rules=3/3) nr_rsrp= lte_rsrp=-127

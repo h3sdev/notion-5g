@@ -1,0 +1,1252 @@
+-rw-r--r--    1 root     root             0 Nov 24 17:18 /system/etc/logfile
+-rw-r--r--    1 root     root         73328 Nov 24 17:18 /system/etc/logfile.old
+start at 0x3c8000
+ASR1901 OBM with SWD >= 4.9.2.3
+OBM heap: 0x8000-->0x3c8000, 0x3f0800-->0x10000000
+Reserve memory 0x28800@0x3c8000
+-- Aug 17 2026 - 13:22:18 --
+pFuses->value[0]: 0x43820000
+pFuses->value[1]: 0x0
+pFuses->bits.SBE: 0
+Trusted OBM without ProductBuild
+MMU Enabled
+PMIC ID: 0xa
+pmic_log: 0x20222
+bootup reason = 0
+NOT pdown: reg1: 0x62
+Reset
+DVC_STATUS_HD:     0x8080a00
+DFC_STATUS_HD:     0x8004
+AP_PMU_STATUS_HD:  0x8030a1
+PMU_STATUS_HD:     0x450503
+CR7_PC_HD:         0x0
+CA7_PC_HD  (0-3):  0x44400000 0x00480100 0xe2d00320 0x40a02228
+CA7_CPSR_HD(0-3):  0x20110400 0x00001152 0x440a0490 0x40224000
+CA7_SPSR_HD(0-3):  0x82a42100 0x2c202840 0x002000e4 0x00541008
+SecurityInitialization
+CS1 MR8 1: 0x00000000
+CS1 MR8 2: 0x00000000
+CS0 MR8: 0x80000000
+mrr_temp_value: 0x00000000
+Unexpected density 0
+ddr_size: 0x00000000
+CS0 MR5: 0x80000505
+mrr_temp_value: 0x00000005
+DDR: Nanya
+OOPS: No right DDR PID found
+Bus clock: 13MHz QSPI_CLK_RES_CTRL: 0x5b
+QSPI_SMPR=0x0 t=76923ps tclqv=8ns delay=11000ps
+use_intr=1 en_tx_dma=1 use_xip=1
+SPI-NAND: F35UQB001G is found in table
+SPI-NAND type mfr_id: cd, dev_id: 6565
+Set rx_pins: 4, tx_pins: 4, Read_CMD:0x6b
+XIP enabled
+Fixed LUT bit-map: 0xffc
+block_size=0x20000 page_size=0x800 bitflip_threshold=4
+Bus clock: 52MHz QSPI_CLK_RES_CTRL: 0x15b
+QSPI_SMPR=0x0 t=19230ps tclqv=8ns delay=11000ps
+pFlashP->NumBlocks: 1024
+BBT order: positive
+ABBT order: positive
+ABBT max entry number: 504
+BBT: Empty
+ABBT: Empty
+Flash Init Done
+Find RSAN image success
+rsa_flashaddr_get ok
+InitFlag=0
+DisplayFuses
+Fuse Related Info Start--------------------------
+Fuse LifeCycle: 0
+Application Subsystem Configuration
+0x00000000
+0x00000000
+0x00000000
+Communication Subsystem Configuration
+0x00000000
+OEM Key Hash
+0x00000000 0x00000000 0x00000000 0x00000000 
+0x00000000 0x00000000 0x00000000 0x00000000 
+UUID
+0x08e14e44 0x0ea4b801 
+BootROM OP Mode: 0
+Trusted Boot not enabled
+Fuse Related Info End----------------------------
+InitFlag=1414090313
+OW24.10_asr1901_P52HL_rls1404_1.171.010P12_20260819_11_37_bld1092_SDK
+Non-Production mode
+FOTA return: 0x1
+DDR Mode: 0x1
+Number of DTIM: 2
+Configure PP Setting @ 0x280000
+InitFlag=1414090313
+OBM2OSL_CFG0 eehP: 0x00000000
+OBM2OSL_CFG1 IMSD: 0x00000001
+OBM2OSL_CFG2 PIPE: 0x00000000
+OBM2OSL_CFG3 UID0: 0x08e14e44
+OBM2OSL_CFG4 UID1: 0x0ea4b801
+OBM2OSL_CFG5 RDUP: 0x00000000
+OBM2OSL_CFG6 NOCP: 0x00000000
+OBM2OSL_CFG7 CPLO: 0x00000001
+OBM2OSL_CFG8 LOGB: 0xd1008000
+OBM2OSL_CFG9 APMF: 0x00000002
+Load Uboot from Flash
+end...
+Jump to OS-loader at 0x308000 (size 0x70f2c)
+
+
+U-Boot 2014.01-g950574da7 (Aug 19 2026 - 11:30:48)
+ASR KESTREL EVB P52L
+
+SoC:   ASR1901-A2
+I2C:   ready
+DRAM:  256 MiB
+Start=00308000, relocation Offset is: 014f7000
+board_id: 0
+Kernel is not loaded by obm, uboot load kernel!
+malloc buf: [007ff000: 01000000]
+9121 reg0x25 read failed
+PM826
+dro: 212, profile: 3, mvolt: 840
+pm826 online
+asraux adc init, auxadc fusedata: 017 80f, 12100900, 0001780F
+done!
+PMIC init
+!!!power down log in bankup regs
+P_UP LOG:0x22
+ONKEY_WKP  :0
+CHG_WKP    :1
+EXTON_WAKUP:0
+RSVD       :0
+RTC_ALM_WKP:0
+FLT_WKP    :1
+BAT_WKP    :0
+RSVD       :0
+-----------------
+P_Down LOG1:0x2
+OVER_TEMP  :0
+UV_VSYS1   :1
+SW_PWDWN   :0
+FL_ALARM   :0
+WD         :0
+LONG_ONKEY :0
+OV_VSYS    :0
+RTC_RESET  :0
+-----------------
+P_Down LOG2:0x2
+HYB_DONE   :0
+UV_VSYS2   :1
+HW_RESET   :0
+PGOOD_PDOWN:0
+LONKEY_RTC :0
+RSVD       :0
+-----------------
+smpl: 0
+otp6d:0x38
+otp68:0xfd
+otp67:0xaf
+vref:0x39
+vrefotp: 0x39,offset: -7
+sample offset: -2
+power_fixup before[0xa]
+power_fixup OK[0x3]
+SPI-FLASH:  QSPI_SMPR=0x0 t=76923 tclqv=8 delay=11000
+Bus clock: 13MHz QSPI_CLK_RES_CTRL: 0x5b
+use_intr=0 en_tx_dma=1 use_xip=1
+SPI-NAND: F35UQB001G is found.
+SPI-NAND type mfr_id: cd, dev_id: 6565
+Set rx_pins: 4, tx_pins: 4, Read_CMD:0x6b
+AHB data transfer size: 512
+XIP Read mode enabled
+Fixed LUT bit-map: 0xffc
+block_size=0x20000 page_size=0x800 bitflip_threshold=4
+Max capacity of BBM is 54 blocks!!
+[abbt] at page:0, order:positive, max:504
+The reloc table is empty now
+[bbt] at block:0 page:8, begin:8, order:positive
+The reloc table is empty now
+QSPI_SMPR=0x0 t=19230 tclqv=8 delay=11000
+Bus clock: 52MHz QSPI_CLK_RES_CTRL: 0x15b
+MMC:   mv_sdh: 0, mv_sdh: 1
+In:    serial
+Out:   serial
+Err:   serial
+Can't find PMIC:mrvl_charger
+detect_mrvl_charger: no mrvl charger!
+bootup reason: power off
+Charger ETA6005 init
+pm801 Board Fuel Gauge init
+Board BAT  801 init
+GPADC1: mvolt=1286mV
+eta6005_charger_bat_present: bias mvolt = 1286mV
+No bat found
+sim select[nano sim 1]
+set default usim to 1
+sim_str_set[12544]
+pmic log:[0x20222]
+Erasing SPI flash...Writing to SPI flash...done
+mem test: asr flag header: 464f5441
+asr flag ddrt_state: 0
+cp_load_table_init: cp load table init ok
+core->832mhz
+done
+adc_err_info: 0x0 0x0 0x0 0x0
+nsaid begin
+diagbf magic: 00000000, len: a0a08020, buff[0x02400000, 0x03000000]
+No CP Mode: 0.
+SPI-FLASH: 4320317 bytes @ 0x1da1000 Read: OK
+ZIMG verified, PASS, offset: 0x1da1000, size: 0x41ec3d
+No CP Mode: 0.
+cp_load_table_init: cp load table init ok
+SPI-FLASH: 13420784 bytes @ 0xbc1000 Read: OK
+SPI-FLASH: 3145728 bytes @ 0x321000 Read: OK
+SPI-FLASH: 390385 bytes @ 0x2a1000 Read: OK
+SPI-FLASH: 5242880 bytes @ 0x6a1000 Read: OK
+SPI-FLASH: 131072 bytes @ 0xa0000 Read: OK
+CRC check fail with flash address: 0xa0000
+SPI-FLASH: 131072 bytes @ 0xe0000 Read: OK
+CRC check fail with flash address: 0xe0000
+!!!!!!!!!!!!!! No valid mrd
+==>load ap mrd to 0xbcc3460, size:0x20000
+SPI-FLASH: 131072 bytes @ 0xc0000 Read: OK
+CRC check OK with flash address: 0xc0000
+SPI-FLASH: 131072 bytes @ 0x100000 Read: OK
+CRC check OK with flash address: 0x100000
+Primary/Backup mrd are both OK
+SPI-FLASH: 131072 bytes @ 0xc0000 Read: OK
+vbat: 4092mv
+cp_ctrl_param: 0xcc60a
+CPDiagDLNoFix: 0
+R0-reg0xc0000080: 0x3001  buf[0x3000 0x600000] perm: 0x55555554
+R1-reg0xc0000088: 0x600001  buf[0x600000 0x5f80000] perm: 0x40015554
+R2-reg0xc0000090: 0x9000001  buf[0x9000000 0x9a00000] perm: 0x40015554
+R3-reg0xc0000098: 0xc700001  buf[0xc700000 0xc900000] perm: 0x55545555
+R4-reg0xc00000a0: 0xc900001  buf[0xc900000 0xcc00000] perm: 0x55545554
+cppmu mode: 0xc1000002
+loading arbel image to address: 0x9a00000
+MPMU_SGADDRMAP: 0x109a0
+release cp...
+PMUM_APRR value is 0xc00081c3
+done!
+Kernel image @ 0x008000 [ 0x000000 - 0x414e38 ]
+
+Starting kernel ...
+
+<6>[    0.000000] c0 Booting Linux on physical CPU 0x0
+<5>[    0.000000] c0 Linux version 5.4.288+ (jenkins@sh-lin03) (arm-openwrt-linux-muslgnueabi-gcc (OpenWrt GCC 13.3.0 r0-ac162f84a7) 13.3.0, GNU ld (GNU Binutils) 2.42) #1 SMP PREEMPT Wed Aug 19 11:26:06 UTC 2026
+<6>[    0.000000] c0 CPU: ARMv7 Processor [410fc075] revision 5 (ARMv7), cr=50c5387d
+<6>[    0.000000] c0 CPU: div instructions available: patching division code
+<6>[    0.000000] c0 CPU: PIPT / VIPT nonaliasing data cache, VIPT aliasing instruction cache
+<6>[    0.000000] c0 OF: fdt: Machine model: ASR 1901(Kestrel) Board EVB
+<6>[    0.000000] c0 PROD = 0
+<6>[    0.000000] c0 Reserved BM memory: 0x3000000@0x6000000,600
+<6>[    0.000000] c0 Memory policy: Data cache writealloc
+<6>[    0.000000] c0 Reserved CP memory: 0x6600000@0x9a00000
+<6>[    0.000000] c0 Reserved mmplog memory : 0MB at 0x01f00000
+<6>[    0.000000] c0 RSV ADSP mem: 0x80000@0x5f80000
+<7>[    0.000000] c0 On node 0 totalpages: 65536
+<7>[    0.000000] c0   Normal zone: 512 pages used for memmap
+<7>[    0.000000] c0   Normal zone: 0 pages reserved
+<7>[    0.000000] c0   Normal zone: 65536 pages, LIFO batch:15
+<6>[    0.000000] c0 Reserving 0MB of memory at 0MB for crashkernel (System RAM: 256MB)
+<6>[    0.000000] c0 percpu: Embedded 28 pages/cpu s82648 r8192 d23848 u114688
+<7>[    0.000000] c0 pcpu-alloc: s82648 r8192 d23848 u114688 alloc=28*4096
+<7>[    0.000000] c0 pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+<6>[    0.000000] c0 Built 1 zonelists, mobility grouping on.  Total pages: 65024
+<5>[    0.000000] c0 Kernel command line: root=/dev/mtdblock13 rootfstype=squashfs init=/etc/preinit noinitrd console=ttyS1,115200 panic_debug crashkernel=4k@0x00003000 RDCA=0x00003400 rootsize=0x1200000 force_pm80x_fg mem=256M@0x0 ddr_mode=1 APMF=2 CPLOG=1 f_hwsulog PROD=0 IMSD=1 LOGB=d1008000 cpmem=102M@0x9a00000 nocpload=0x9a00000 bm=0x3000000@0x6000000,600 quiet
+<6>[    0.000000] c0 Dentry cache hash table entries: 32768 (order: 5, 131072 bytes, linear)
+<6>[    0.000000] c0 Inode-cache hash table entries: 16384 (order: 4, 65536 bytes, linear)
+<6>[    0.000000] c0 mem auto-init: stack:off, heap alloc:off, heap free:off
+<6>[    0.000000] c0 Memory: 97192K/262144K available (4806K kernel code, 326K rwdata, 1996K rodata, 280K init, 284K bss, 164952K reserved, 0K cma-reserved)
+<6>[    0.000000] c0 SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+<6>[    0.000000] c0 rcu: Preemptible hierarchical RCU implementation.
+<6>[    0.000000] c0 	Tasks RCU enabled.
+<6>[    0.000000] c0 rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+<6>[    0.000000] c0 NR_IRQS: 16, nr_irqs: 16, preallocated irqs: 16
+<6>[    0.000000] c0 GIC physical location is 0xd8001000
+<6>[    0.000000] c0 regs address io map done
+<3>[    0.000000] c0 asr_clocks_enable : can't find clk ripc_clk
+<6>[    0.000000] c0 uiprofile = 3
+<7>[    0.000000] c0 	*********************************
+<6>[    0.000000] c0 ULT1: 7AF9A8007A7250F4, ULT0: 08E14E440EA4B801
+<7>[    0.000000] c0 	*********************************
+<7>[    0.000000] c0 	ULT decoded below
+<7>[    0.000000] c0 		LOT_ID         = 0x00000000525c0084
+<7>[    0.000000] c0 		WAFER_ID       = 0x00e
+<7>[    0.000000] c0 		SVT_DRO        = 0x0d4
+<7>[    0.000000] c0 		XLOC           = 0x005
+<7>[    0.000000] c0 		YLOC           = 0x00e
+<7>[    0.000000] c0 		DEV_VER        = 0x000
+<7>[    0.000000] c0 		TINFO          = 0x111e9c94
+<7>[    0.000000] c0 		FOUNDRY        = 0
+<7>[    0.000000] c0 		ADC            = 0x017 0x80f
+<7>[    0.000000] c0 	*********************************
+<6>[    0.000000] c0 	SVT_DRO = 212
+<7>[    0.000000] c0 		Profile	= 3
+<7>[    0.000000] c0 	*********************************
+<6>[    0.000000] c0 pclk(src:sel,div)	l2clk(src,div)	pdclk(src,div)	baclk(src,div)	
+<6>[    0.000000] c0 periphclk(src,div)	l1_rtc:l2_rtc
+<6>[    0.000000] c0 312(312:1,0)	0([NULL],0)	156([pclk],1)	156([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0 416(416:2,0)	0([NULL],0)	208([pclk],1)	208([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0 624(624:0,0)	0([NULL],0)	312([pclk],1)	312([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0 832(832:3,0)	0([NULL],0)	416([pclk],1)	416([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0 983(983:4,0)	0([NULL],0)	491([pclk],1)	491([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0 1248(1248:5,0)	0([NULL],0)	624([pclk],1)	624([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0 1475(1475:6,0)	0([NULL],0)	737([pclk],1)	737([pclk],1)	0([NULL],0)	0x0:0x0
+<6>[    0.000000] c0  CPU boot up @832000000HZ
+<6>[    0.000000] c0  CPU boot up @832000000HZ
+<6>[    0.000000] c0 aclk(src:sel,div)::  208(416:1,1);  312(312:0,0); 
+<3>[    0.000000] c0 get_cur_axi_op axi clk tsrc:312 csel:0 parent:pll1_312
+<6>[    0.000000] c0  AXI boot up @312000000HZ
+<6>[    0.000000] c0  AXI boot up @312000000HZ
+<6>[    0.000000] c0 dclk(src:sel,div,tblindex)::  800(1600:0,1,0);  1000(2000:1,4,1);  1600(1600:0,0,2); 
+<6>[    0.000000] c0  DDR boot up @800000000HZ
+<6>[    0.000000] c0  DDR boot up @800000000HZ
+<4>[    0.000000] c0 Timer 0: fail to get crsr, use default 8
+<6>[    0.000000] c0 sched_clock: 32 bits at 32kHz, resolution 30517ns, wraps every 65535999984741ns
+<6>[    0.000000] c0 clocksource: clocksource-mmp: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 58327039986419 ns
+<4>[    0.000000] c0 Timer 1: fail to get crsr, use default 8
+<6>[    0.000671] c0 Console: colour dummy device 80x30
+<6>[    0.000701] c0 Calibrating delay loop... 1744.89 BogoMIPS (lpj=872448)
+<6>[    0.007324] c0 CPU: Testing write buffer coherency: ok
+<6>[    0.007385] c0 pid_max: default: 32768 minimum: 301
+<6>[    0.007507] c0 Mount-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+<6>[    0.007507] c0 Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+<3>[    0.008514] c0 missing device node for CPU 0
+<3>[    0.008544] c0 missing device node for CPU 1
+<3>[    0.008544] c0 missing device node for CPU 2
+<3>[    0.008575] c0 missing device node for CPU 3
+<6>[    0.008575] c0 CPU0: thread -1, cpu 0, socket 0, mpidr 80000000
+<6>[    0.009246] c0 Setting up static identity map for 0x8240 - 0x8294
+<4>[    0.009277] c0 Power ops has already been initialized
+<6>[    0.009277] c0 mmp power management initialized
+<6>[    0.009429] c0 rcu: Hierarchical SRCU implementation.
+<6>[    0.009979] c0 smp: Bringing up secondary CPUs ...
+<6>[    0.019195] c1 CPU1: thread -1, cpu 1, socket 0, mpidr 80000001
+<6>[    0.027832] c2 CPU2: thread -1, cpu 2, socket 0, mpidr 80000002
+<6>[    0.036407] c3 CPU3: thread -1, cpu 3, socket 0, mpidr 80000003
+<6>[    0.036560] c0 smp: Brought up 1 node, 4 CPUs
+<6>[    0.036590] c0 SMP: Total of 4 processors activated (7102.46 BogoMIPS).
+<6>[    0.036590] c0 CPU: All CPU(s) started in SVC mode.
+<6>[    0.046905] c0 VFP support v0.3: implementor 41 architecture 2 part 30 variant 7 rev 5
+<6>[    0.047515] c0 clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+<6>[    0.047515] c0 futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+<6>[    0.047729] c0 pinctrl core: initialized pinctrl subsystem
+<6>[    0.048095] c0 regulator-dummy: no parameters
+<6>[    0.049438] c0 bm_core_init: BM: 0x6000000@0x3000000, Region[0]: 0x2000000@0x6000000, Region[1]: 0x1000000@0x8000000
+<6>[    0.049438] c0 bm_core_init: Block: 0x2d50000@0x62a0000, Ring: 0x80c0@0x8ff0000, Per Block Size: 0x8000
+<6>[    0.049438] c0 bm_core_init: PSD: UL High Ring: 0x80000@0x6000000, UL Normal Ring: 0x80000@0x6080000, DL Ring: 0x4000@0x6100000
+<6>[    0.049468] c0 bm_core_init: TOE: UL High Ring: 0x80000@0x6104000, UL Normal Ring: 0x80000@0x6184000, DL Ring: 0x80000@0x6204000, Ref Ring: 0x18000@0x6284000
+<6>[    0.091369] c0 NET: Registered protocol family 16
+<6>[    0.092132] c0 DMA: preallocated 256 KiB pool for atomic coherent allocations
+<6>[    0.093688] c0 cpuidle: using governor menu
+<6>[    0.164825] c0 No ATAGs?
+<6>[    0.165527] c0 auxadc fusedata: 017 80f
+<6>[    0.165557] c0 asr-auxadc d4013400.auxadc: auxadc done
+<3>[    0.165710] c0 asr-usb3-phy c0230000.usb3phy: failed to get platform data
+<6>[    0.165740] c0 asr_usb3_phy_preinit
+<6>[    0.165832] c0 asr-usb3-phy c0230000.usb3phy: Initialized ASR USB 3.0 PHY
+<6>[    0.165985] c0 axi facbric monitor last save info:
+<6>[    0.165985] c0 FAB_TIMEOUT_ID=0x20206005
+<6>[    0.166015] c0 FAB_TIMEOUT_STATUS0=0xc0108200
+<6>[    0.166015] c0 FAB_TIMEOUT_STATUS1=0x600510a4
+<6>[    0.166015] c0 enable mmp axi facbric monitor, FAB_TIMEOUT_CTRL=0x72001000
+<6>[    0.166076] c0 obm/uboot boot log found: 6390 Bytes
+<6>[    0.166107] c0 mmp_log_buf_init: *mmp_log_mag:4d474f4c *mmp_log_pos:2f11 mmp_log_buf:d3885000 mmp_log_size:16376
+<4>[    0.166107] c0 last_kmsg_size: 16376
+<6>[    0.166229] c0 mmp_log_save_old: saved old log at 16376@d385a000
+<6>[    0.166290] c0 printk: console [mmp_log_buf-1] enabled
+<6>[    0.166290] c0 printk: console [mmp_log_buf-1] disabled
+<6>[    0.174957] c0 cryptd: max_cpu_qlen set to 1000
+<6>[    0.177398] c0 pinctrl-single d401e000.pinmux: 204 pins, size 816
+<6>[    0.177947] c0 MFP Extra Configuration initialized
+<3>[    0.182464] c0 pxa-gpio mmp-gpio: IRQ gpio0 not found
+<3>[    0.182495] c0 pxa-gpio mmp-gpio: IRQ gpio1 not found
+<7>[    0.183166] c0 Rail vcc_main_ap_active
+<7>[    0.183227] c0 clk[cpu] rate[1248000000] volt[1]
+<7>[    0.183227] c0 clk[cpu] rate[1475000000] volt[2]
+<7>[    0.183227] c0 clk[cpu] rate[1475000000] volt[3]
+<7>[    0.183258] c0 clk[cpu] rate[1475000000] volt[4]
+<7>[    0.183288] c0 Rail vcc_main_ap_active
+<7>[    0.183288] c0 clk[ddr] rate[800000000] volt[1]
+<7>[    0.183288] c0 clk[ddr] rate[1066000000] volt[2]
+<7>[    0.183319] c0 clk[ddr] rate[1600000000] volt[3]
+<7>[    0.183319] c0 clk[ddr] rate[2000000000] volt[4]
+<7>[    0.183349] c0 Rail vcc_main_ap_active
+<7>[    0.183349] c0 clk[axi] rate[208000000] volt[1]
+<7>[    0.183349] c0 clk[axi] rate[312000000] volt[2]
+<7>[    0.183380] c0 clk[axi] rate[312000000] volt[3]
+<7>[    0.183380] c0 clk[axi] rate[416000000] volt[4]
+<7>[    0.183380] c0 Rail vcc_main_ap_active
+<7>[    0.183410] c0 clk[SDH0] rate[1000000] volt[1]
+<7>[    0.183410] c0 clk[SDH0] rate[2000000] volt[2]
+<7>[    0.183441] c0 clk[SDH0] rate[3000000] volt[3]
+<7>[    0.183441] c0 clk[SDH0] rate[4000000] volt[4]
+<7>[    0.183441] c0 Rail vcc_main_ap_active
+<7>[    0.183471] c0 clk[SDH1] rate[1000000] volt[1]
+<7>[    0.183471] c0 clk[SDH1] rate[2000000] volt[2]
+<7>[    0.183502] c0 clk[SDH1] rate[3000000] volt[3]
+<7>[    0.183502] c0 clk[SDH1] rate[4000000] volt[4]
+<7>[    0.183532] c0 Rail vcc_main_ap_active
+<7>[    0.183532] c0 clk[ETH] rate[1000000] volt[1]
+<7>[    0.183532] c0 clk[ETH] rate[2000000] volt[2]
+<7>[    0.183563] c0 clk[ETH] rate[3000000] volt[3]
+<7>[    0.183563] c0 clk[ETH] rate[4000000] volt[4]
+<7>[    0.183593] c0 Rail vcc_main_ap_lpm
+<7>[    0.183593] c0 clk[ddr] rate[800000000] volt[1]
+<7>[    0.183624] c0 clk[ddr] rate[1066000000] volt[2]
+<7>[    0.183624] c0 clk[ddr] rate[1600000000] volt[3]
+<7>[    0.183624] c0 clk[ddr] rate[2000000000] volt[4]
+<7>[    0.183654] c0 Rail vcc_main_ap_lpm
+<7>[    0.183654] c0 clk[axi] rate[208000000] volt[1]
+<7>[    0.183654] c0 clk[axi] rate[312000000] volt[2]
+<7>[    0.183685] c0 clk[axi] rate[312000000] volt[3]
+<7>[    0.183685] c0 clk[axi] rate[416000000] volt[4]
+<7>[    0.183685] c0 Rail vcc_main_ap_lpm
+<7>[    0.183715] c0 clk[SDH0] rate[1000000] volt[1]
+<7>[    0.183715] c0 clk[SDH0] rate[2000000] volt[2]
+<7>[    0.183715] c0 clk[SDH0] rate[3000000] volt[3]
+<7>[    0.183776] c0 clk[SDH0] rate[4000000] volt[4]
+<7>[    0.183776] c0 Rail vcc_main_ap_lpm
+<7>[    0.183807] c0 clk[SDH1] rate[1000000] volt[1]
+<7>[    0.183807] c0 clk[SDH1] rate[2000000] volt[2]
+<7>[    0.183807] c0 clk[SDH1] rate[3000000] volt[3]
+<7>[    0.183837] c0 clk[SDH1] rate[4000000] volt[4]
+<7>[    0.183837] c0 Rail vcc_main_ap_lpm
+<7>[    0.183837] c0 clk[ETH] rate[1000000] volt[1]
+<7>[    0.183868] c0 clk[ETH] rate[2000000] volt[2]
+<7>[    0.183868] c0 clk[ETH] rate[3000000] volt[3]
+<7>[    0.183868] c0 clk[ETH] rate[4000000] volt[4]
+<7>[    0.183898] c0 Rail vcc_main_apsub_idle
+<7>[    0.183898] c0 clk[ddr] rate[800000000] volt[1]
+<7>[    0.183898] c0 clk[ddr] rate[1066000000] volt[2]
+<7>[    0.183929] c0 clk[ddr] rate[1600000000] volt[3]
+<7>[    0.183929] c0 clk[ddr] rate[2000000000] volt[4]
+<7>[    0.183929] c0 Rail vcc_main_apsub_idle
+<7>[    0.183959] c0 clk[SDH0] rate[1000000] volt[1]
+<7>[    0.183959] c0 clk[SDH0] rate[2000000] volt[2]
+<7>[    0.183990] c0 clk[SDH0] rate[3000000] volt[3]
+<7>[    0.183990] c0 clk[SDH0] rate[4000000] volt[4]
+<7>[    0.183990] c0 Rail vcc_main_apsub_idle
+<7>[    0.184020] c0 clk[SDH1] rate[1000000] volt[1]
+<7>[    0.184020] c0 clk[SDH1] rate[2000000] volt[2]
+<7>[    0.184020] c0 clk[SDH1] rate[3000000] volt[3]
+<7>[    0.184051] c0 clk[SDH1] rate[4000000] volt[4]
+<7>[    0.184051] c0 Rail vcc_main_apsub_idle
+<7>[    0.184051] c0 clk[ETH] rate[1000000] volt[1]
+<7>[    0.184082] c0 clk[ETH] rate[2000000] volt[2]
+<7>[    0.184082] c0 clk[ETH] rate[3000000] volt[3]
+<7>[    0.184082] c0 clk[ETH] rate[4000000] volt[4]
+<3>[    0.184234] c0 pinctrl-single d401e000.pinmux: Invalid number of rows: 0
+<3>[    0.184265] c0 pinctrl-single d401e000.pinmux: no pins entries for sd_ldo_en
+<4>[    0.184295] c0 reg-fixed-voltage: probe of sd-regulator failed with error -22
+<6>[    0.186279] c0 I2C: i2c-1: PXA I2C adapter
+<6>[    0.187316] c0 I2C: i2c-2: PXA I2C adapter
+<4>[    0.187530] c0 pxa2xx-i2c pxa2xx-i2c.3: could not get pinctrl
+<6>[    0.187591] c0 pxa2xx-i2c pxa2xx-i2c.3: hardware lock address: 0xfe0b0300
+<4>[    0.188018] c0 pmic id: 0xa
+<3>[    0.189636] c0 i2c: <pxa_i2c-i2c> slave_0x38 error: exhausted retries
+<3>[    0.189666] c0 i2c: msg_num: 0 msg_idx: -2000 msg_ptr: 0
+<3>[    0.189697] c0 i2c: IBMR: 00000003 IDBR: 00000070 ICR: 00786100 ISR: 00000000
+<7>[    0.189697] c0 i2c: log: 
+<4>[    0.189697] c0 [0048c000:00786100] 
+<4>[    0.189727] c0 
+<6>[    0.189849] c0  Failed: i2c-3: slave_38, R 1 byte by 2 msg R: 00: 00 
+<6>[    0.189849] 
+<3>[    0.189849] c0 88PM805 3-0038: Failed to read CHIP ID: -121
+<3>[    0.189880] c0 88PM805 3-0038: pm805_init fail!
+<4>[    0.189971] c0 88PM805: probe of 3-0038 failed with error -121
+<6>[    0.190917] c0 ASRPM802 3-0030: pmic id: 0xa
+<6>[    0.195495] c0 ASRPM802 3-0030: vref/sample offset: -35/-2
+<6>[    0.195495] c0 ASRPM802 3-0030: PM802 device_gpadc_init: Done
+<4>[    0.198181] c0 pm802-regulator pm802-regulator: DMA mask not set
+<6>[    0.199645] c0 BUCK1: 600 <--> 3950 mV at 1300 mV at 1600 mA 
+<6>[    0.201385] c0 BUCK2: 600 <--> 3950 mV at 1800 mV at 800 mA 
+<6>[    0.203094] c0 BUCK3: 600 <--> 3950 mV at 1200 mV at 800 mA 
+<6>[    0.204772] c0 BUCK4: 600 <--> 3950 mV at 1800 mV at 800 mA 
+<6>[    0.206451] c0 BUCK5: 600 <--> 3950 mV at 650 mV at 1200 mA 
+<6>[    0.208160] c0 LDO1: 1200 <--> 3300 mV at 2800 mV at 200 mA 
+<6>[    0.209838] c0 LDO2: 1700 <--> 3300 mV at 3100 mV at 200 mA 
+<6>[    0.211853] c0 LDO4: 1800 <--> 3300 mV at 2800 mV at 400 mA 
+<6>[    0.213531] c0 LDO5: 1200 <--> 3300 mV at 1800 mV at 200 mA 
+<6>[    0.215576] c0 LDO6: 1200 <--> 3300 mV at 2800 mV at 200 mA 
+<3>[    0.216522] c0 OF: /soc/apb@d4000000/i2c@d4018800/pm802@00/usb: could not find phandle
+<6>[    0.217254] c0 is_scs_mode: false
+<6>[    0.222930] c0 ASRPM802 3-0030: Powerup log 0x10: 0x22
+<7>[    0.222961] c0  -------------------------------
+<7>[    0.222961] c0 |     name(power up) |  status  |
+<7>[    0.222961] c0 |--------------------|----------|
+<7>[    0.222991] c0 |  ONKEY_WAKEUP      |    0     |
+<7>[    0.222991] c0 |  EXTON1_WAKEUP        |    1     |
+<7>[    0.222991] c0 |  EXTON2_WAKEUP      |    0     |
+<7>[    0.223022] c0 |  BAT_WAKEUP        |    0     |
+<7>[    0.223022] c0 |  RTC_ALARM_WAKEUP  |    0     |
+<7>[    0.223022] c0 |  FAULT_WAKEUP      |    1     |
+<7>[    0.223052] c0 |  UNDEFINED_WAKEUP  |    0     |
+<7>[    0.223052] c0  -------------------------------
+<6>[    0.223785] c0 ASRPM802 3-0030: PowerDW Log1 0xe5: 0x2
+<7>[    0.223785] c0  -------------------------------
+<7>[    0.223785] c0 | name(power down1)  |  status  |
+<7>[    0.223815] c0 |--------------------|----------|
+<7>[    0.223815] c0 |    OVER_TEMP       |    0     |
+<7>[    0.223815] c0 |    UV_VSYS1        |    1     |
+<7>[    0.223846] c0 |    SW_PDOWN        |    0     |
+<7>[    0.223846] c0 |    SYSEN_EVENT        |    0     |
+<7>[    0.223846] c0 |    WD              |    0     |
+<7>[    0.223876] c0 |    LONG_ONKEY      |    0     |
+<7>[    0.223876] c0 |    OV_VSYS         |    0     |
+<7>[    0.223876] c0 |    RTC_RESET       |    0     |
+<7>[    0.223876] c0  -------------------------------
+<6>[    0.224609] c0 ASRPM802 3-0030: PowerDW Log2 0xe6: 0x2
+<7>[    0.224639] c0  -------------------------------
+<7>[    0.224639] c0 |  name(power down2) |  status  |
+<7>[    0.224639] c0 |--------------------|----------|
+<7>[    0.224670] c0 |    HYB_DONE        |    0     |
+<7>[    0.224670] c0 |    UV_VSYS2        |    1     |
+<7>[    0.224670] c0 |    HW_RESET        |    0     |
+<7>[    0.224700] c0 |    PGOOD_PDOWN     |    0     |
+<7>[    0.224700] c0 |    LONKEY_RTC      |    0     |
+<7>[    0.224700] c0  -------------------------------
+<6>[    0.226165] c0 ASRPM826 3-0020: pm826 id: 0x42
+<4>[    0.226837] c0 88pm8xx-dvc 88pm8xx-dvc: DMA mask not set
+<6>[    0.227661] c0 88pm8xx-dvc 88pm8xx-dvc: DVC power hold enabled 80! DVC buck 1
+<6>[    0.228118] c0 ASRPM826 3-0020: Powerup status 0x1: 0x0
+<7>[    0.228149] c0  -------------------------------
+<7>[    0.228149] c0 |     name(status) |  status  |
+<7>[    0.228149] c0 |--------------------|----------|
+<7>[    0.228179] c0 |  UVLO        |    0     |
+<7>[    0.228179] c0 |  OVTEMP      |    0     |
+<7>[    0.228179] c0 |  OVP         |    0     |
+<7>[    0.228179] c0 |  HICUR_BK1   |    0     |
+<7>[    0.228210] c0 |  HICUR_BK2   |    0     |
+<7>[    0.228210] c0  -------------------------------
+<6>[    0.228424] c0 I2C: i2c-3: PXA I2C adapter
+<6>[    0.229339] c0 Advanced Linux Sound Architecture Driver Initialized.
+<6>[    0.230468] c0 clocksource: Switched to clocksource clocksource-mmp
+<6>[    0.235137] c0 thermal_sys: Registered thermal governor 'user_space'
+<6>[    0.235137] c0 thermal_sys: Registered thermal governor 'bi_direction'
+<6>[    0.235504] c0 ddr clk 4x mode enabled
+<6>[    0.235504] c0 devfreq-ddr devfreq-ddr: dmcu6 controller is detected!
+<6>[    0.235565] c0 intr_en_val: 0x5
+<6>[    0.235595] c0 devfreq-ddr devfreq-ddr: ddr burst length = 16
+<6>[    0.236694] c0 NET: Registered protocol family 2
+<6>[    0.236938] c0 IP idents hash table entries: 4096 (order: 3, 32768 bytes, linear)
+<6>[    0.237854] c0 tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 6144 bytes, linear)
+<6>[    0.237884] c0 TCP established hash table entries: 2048 (order: 1, 8192 bytes, linear)
+<6>[    0.237915] c0 TCP bind hash table entries: 2048 (order: 3, 40960 bytes, linear)
+<6>[    0.238006] c0 TCP: Hash tables configured (established 2048 bind 2048)
+<6>[    0.238098] c0 UDP hash table entries: 256 (order: 1, 12288 bytes, linear)
+<6>[    0.238128] c0 UDP-Lite hash table entries: 256 (order: 1, 12288 bytes, linear)
+<6>[    0.238372] c0 NET: Registered protocol family 1
+<6>[    0.241271] c0 workingset: timestamp_bits=30 max_order=15 bucket_order=0
+<6>[    0.246124] c0 squashfs: version 4.0 (2009/01/31) Phillip Lougher
+<6>[    0.246276] c0 fuse: init (API version 7.31)
+<6>[    0.246978] c0 NET: Registered protocol family 38
+<5>[    0.246978] c0 Key type asymmetric registered
+<5>[    0.247009] c0 Asymmetric key parser 'x509' registered
+<7>[    0.249328] c0 PMIC level 0: 800 mV, cur 800 mV
+<7>[    0.250091] c0 PMIC level 1: 820 mV, cur 820 mV
+<7>[    0.250854] c0 PMIC level 2: 840 mV, cur 840 mV
+<7>[    0.251647] c0 PMIC level 3: 860 mV, cur 860 mV
+<7>[    0.251647] c0 AP active 1, M2 1, D1P: 0
+<6>[    0.254791] c0 mmp-pdma d4000000.pdma: initialized 32 channels
+<6>[    0.255432] c0 pxa2xx-uart d4018000.uart: pxa dma_disable:0
+<6>[    0.255676] c0 d4018000.uart: ttyS1 at MMIO 0xd4018000 (irq = 45, base_baud = 921250) is a UART2
+<6>[    0.353546] c0 printk: console [ttyS1] enabled
+<6>[    0.354339] c0 pxa9xx AC-IPC initialized!
+<6>[    0.362854] c0 brd: module loaded
+<6>[    0.363281] c0 enter maxlinear_slic_probe. 
+<3>[    0.363342] c0 maxlinear-slic maxlinear-slic: maxlinear_slic_dt_init: of_get_named_gpio failed: -2
+<6>[    0.372436] c0 maxlinear_slic_dt_init: reset_n_gpio=40, edge_wakeup_gpio=56, vdd_3v3_gpio=-1, ASR1826 Old DKB.
+<6>[    0.372436] c0 maxlinear_slic_dt_init: g_reset_n_gpio=40, g_edge_wakeup_gpio=56, g_vdd_3v3_gpio=-1.
+<4>[    0.372467] c0 maxlinear-slic maxlinear-slic: maxlinear-slic supply vdd33 not found, using dummy regulator
+<3>[    0.372772] c0 fail to set regulator wib_3v3 supply 2 to 3.3v
+<6>[    0.379669] c0 maxlinear-slic maxlinear-slic: slic chip powered on
+<4>[    0.380889] c0 pcie-rfkill pcie-rfkill: edge-wakeup-gpio undefined
+<7>[    0.381011] c0 pcie8x_rfkill_probe_dt: the regulator for wib_3v3 not found
+<6>[    0.490753] c0 rtl8192fr set_power on start
+<6>[    0.490753] c0 rtl8192fr set_power on end
+<6>[    0.490753] c0 pcie_dev set_power off start
+<6>[    0.490783] c0 pcie8x_pwr_ctrl: on=0
+<6>[    0.490783] c0 aic8800d80p_pwr_ctrl: on=0
+<6>[    0.512756] c0 aic8800d80p_pwr_ctrl: aic8800d80p pwr_ctrl off
+<6>[    1.061309] c0 pcie_dev set_power off end
+<6>[    1.171020] c0 pcie_dev set_power on start
+<6>[    1.171051] c0 pcie8x_pwr_ctrl: on=1
+<6>[    1.171051] c0 aic8800d80p_pwr_ctrl: on=1
+<6>[    1.236907] c0 aic8800d80p_pwr_ctrl: aic8800d80p pwr_ctrl on
+<6>[    1.236938] c0 pcie_dev set_power on end
+<4>[    1.237640] c0 SET:sim[8]-gpio-num:41
+<4>[    1.237731] c0 SET:sim[12]-gpio-num:45
+<4>[    1.237762] c0 SET:sim[13]-gpio-num:46
+<4>[    1.237854] c0 GET:sim[0]-gpio-num:0
+<4>[    1.237854] c0 GET:sim[1]-gpio-num:0
+<4>[    1.237884] c0 GET:sim[2]-gpio-num:0
+<4>[    1.237915] c0 GET:sim[3]-gpio-num:0
+<4>[    1.237945] c0 GET:sim[4]-gpio-num:0
+<4>[    1.237945] c0 GET:sim[5]-gpio-num:0
+<4>[    1.237976] c0 GET:sim[6]-gpio-num:0
+<4>[    1.238006] c0 GET:sim[7]-gpio-num:0
+<4>[    1.238037] c0 GET:sim[8]-gpio-num:86
+<4>[    1.238067] c0 GET:sim[9]-gpio-num:0
+<4>[    1.238098] c0 GET:sim[10]-gpio-num:0
+<4>[    1.238128] c0 GET:sim[11]-gpio-num:0
+<4>[    1.238159] c0 GET:sim[12]-gpio-num:83
+<4>[    1.238189] c0 GET:sim[13]-gpio-num:84
+<4>[    1.238220] c0 GET:sim[14]-gpio-num:0
+<4>[    1.238250] c0 GET:sim[15]-gpio-num:0
+<4>[    1.238250] c0 sim_init sucess
+<6>[    1.238739] c0 [5616 codec-dai probe: begin] alc5616_probe/L4123.
+<6>[    1.238769] c0 alc5616_config_init, platform is Kestrel.
+<6>[    1.238769] c0 alc5616_config_init/L3999, gpio_tds_dio10 = 0, gpio_vcxo_out = 0
+<6>[    1.238800] c0 alc5616_config_init/L4018, gpio_1V8=0, gpio_3V3=-2.
+<6>[    1.238800] c0 audio_set_codec_vdd: codec now:0, to be:1
+<6>[    1.238830] c0 audio_set_codec_vdd: the regulator for vdd_1v8 not found.
+<6>[    1.238861] c0 audio_set_codec_vdd: the regulator for vdd_3v3 not found.
+<3>[    1.240142] c0 i2c: <pxa_i2c-i2c> slave_0x1b error: exhausted retries
+<3>[    1.246704] c0 i2c: msg_num: 0 msg_idx: -2000 msg_ptr: 0
+<3>[    1.252075] c0 i2c: IBMR: 00000003 IDBR: 00000036 ICR: 00786100 ISR: 00000000
+<7>[    1.259307] c0 i2c: log: 
+<4>[    1.259307] c0 [0048c000:00786100] 
+<4>[    1.259307] c0 
+<6>[    1.259460] c0  Failed: i2c-1: slave_1b, W 1 byte by 1 msg W: fe: 
+<6>[    1.259460] 
+<6>[    1.259460] c0 alc5616_reg_read: alc5616 read failed.
+<6>[    1.259460] c0 alc5616_read: alc5616_reg read failed.
+<6>[    1.259490] c0 codec_alc5616_init:L492: alc5616_init_ok=0, l_connect_alc5616 =0.
+<6>[    1.259490] c0 Please check codec alc5616 OK or not.
+<6>[    1.259613] c0 pm813pa_init/L325.
+<6>[    1.259643] c0 pm813pa_cdev_init/L280, Major = 248, Minor = 0
+<6>[    1.259796] c0 adspInit/2098.
+<6>[    1.259979] c0 adsp_plat_probe/1956 irq=0x36.
+<6>[    1.260009] c0 squ :[d101c000-d1020000]-->[d391c000-d3920000]
+<6>[    1.260009] dtcm:[d6000000-d6040000]-->[d3940000-d3980000]
+<6>[    1.260009] itcm:[d6200000-d6210000]-->[d3990000-d39a0000]
+<6>[    1.260009] shm :[d6a00000-d6a04000]-->[d3924000-d3928000]
+<6>[    1.260009] c0 adsp_plat_probe/2064 Done.
+<6>[    1.260131] c0 adsp_cdev_init/1859, Major = 247, Minor = 0
+<6>[    1.260253] c0 adsp_debugfs_init/1597: platform is 1901S
+<6>[    1.260650] c0 adsp_ipc_init_phase1/605: ret=0
+<6>[    1.260650] c0 reg[0xfe015090] = 0x4
+<6>[    1.260650] c0 reg[0xfe015090] = 0x3
+<6>[    1.260681] c0 adsp_ipc_init_phase1/619 Done.
+<6>[    1.260681] c0 enable_pmu_audio_clk/906: Done.
+<6>[    1.260681] c0 adspInit/2110 Done.
+<5>[    1.262939] c0 asr-qspi d420b000.spi: asr_qspi_probe:memmap base:0x80000000, memmap size:0x8000000
+<5>[    1.262969] c0 asr-qspi d420b000.spi: use sram as tx buf, virt=0xd3870000 phy=0xd1010000
+<5>[    1.263061] c0 asr-qspi d420b000.spi: host_irq:38
+<3>[    1.263092] c0 asr-qspi d420b000.spi: IRQ index 1 not found
+<5>[    1.268768] c0 asr-qspi d420b000.spi: rx dma not enable
+<5>[    1.268829] c0 asr-qspi d420b000.spi: tx dma enable, channel:0
+<5>[    1.268829] c0 asr-qspi d420b000.spi: asr_qspi_probe: rx_buf_size:128, tx_buf_size:256
+<5>[    1.268859] c0 asr-qspi d420b000.spi: asr_qspi_probe: ahb_buf_size:512, ahb_read:1
+<6>[    1.268859] c0 asr-qspi d420b000.spi: config mfp for cs:[0]
+<5>[    1.268920] c0 asr-qspi d420b000.spi: bus clock 13000000Hz, PMUap reg[0xd4282860]:0x0000015b
+<6>[    1.268951] c0 asr-qspi d420b000.spi: AHB buf size: 512
+<5>[    1.268951] c0 asr-qspi d420b000.spi: qspi host init done.
+<4>[    1.269714] c0 ---------forsee_spinand_detect ok---------
+<5>[    1.269744] c0 asr-qspi d420b000.spi: tclqv=15ns tset=2ns thold=3ns
+<6>[    1.269744] c0 asr-qspi d420b000.spi: QSPI_SMPR=0x0 t=19230
+<6>[    1.269775] c0 asr-qspi d420b000.spi: QSPI_FLSHCR=0x202, delay=18000
+<5>[    1.269775] c0 asr-qspi d420b000.spi: bus clock 52000000Hz, PMUap reg[0xd4282860]:0x0000015b
+<6>[    1.269805] c0 spi-nand spi0.0: FORESEE SPI NAND was found.
+<6>[    1.269805] c0 spi-nand spi0.0: 128 MiB, block size: 128 KiB, page size: 2048, OOB size: 64
+<5>[    1.269897] c0 spi0.0: bitflip_threshold=1
+<6>[    1.279571] c0 Max capacity of BBM is 54 blocks!!
+<6>[    1.290588] c0 [abbt] at page:0, order:positive, max=504
+<6>[    1.290618] c0 The reloc table is empty now
+<6>[    1.290618] c0 [bbt] at block:0 page:8, begin:8, order:positive
+<6>[    1.290618] c0 The reloc table is empty now
+<5>[    1.295013] c0 19 fixed-partitions partitions found on MTD device spi0.0
+<5>[    1.295013] c0 Creating 20 MTD partitions on "spi0.0":
+<5>[    1.295043] c0 0x000000000000-0x0000000a0000 : "bootloader"
+<5>[    1.295959] c0 0x0000000a0000-0x0000000c0000 : "cp_reliabledata"
+<5>[    1.296722] c0 0x0000000c0000-0x0000000e0000 : "ap_reliabledata"
+<5>[    1.297454] c0 0x0000000e0000-0x000000100000 : "cp_reliabledata_backup"
+<5>[    1.298248] c0 0x000000100000-0x000000120000 : "ap_reliabledata_backup"
+<5>[    1.299041] c0 0x000000120000-0x000000140000 : "mep-ota"
+<5>[    1.299774] c0 0x000000140000-0x000000160000 : "mep-ota_backup"
+<5>[    1.300567] c0 0x000000160000-0x000000260000 : "asr_flag"
+<5>[    1.301300] c0 0x000000260000-0x0000002a0000 : "dtim"
+<5>[    1.302093] c0 0x0000002a0000-0x000001ce0000 : "cpimage"
+<5>[    1.302947] c0 0x000001ce0000-0x000001da0000 : "u-boot"
+<5>[    1.303710] c0 0x000001da0000-0x0000022a0000 : "kernel"
+<5>[    1.304443] c0 0x0000022a0000-0x0000022c0000 : "rootfs-sdtim"
+<5>[    1.305236] c0 0x0000022c0000-0x0000054c0000 : "rootfs"
+<5>[    1.305969] c0 1 squashfs-split partitions found on MTD device rootfs
+<5>[    1.305999] c0 0x0000034c0000-0x0000054c0000 : "rootfs_data"
+<5>[    1.306793] c0 0x0000054c0000-0x0000054e0000 : "oemdata-sdtim"
+<5>[    1.307525] c0 0x0000054e0000-0x000005ac0000 : "oem_data"
+<5>[    1.308319] c0 0x000005ac0000-0x000005ae0000 : "bootargs"
+<5>[    1.309082] c0 0x000005ae0000-0x000005c00000 : "RSA"
+<5>[    1.309844] c0 0x000005c00000-0x000007940000 : "OTA"
+<5>[    1.310699] c0 0x000007940000-0x000008000000 : "MRVL_BBM"
+<4>[    1.313568] c0 ==========in yt92xxrb_probe==========
+<4>[    1.313598] c0 ==========yt92xxrb_probe:EPROBE_DEFER==========
+<6>[    1.315521] c0 asr-xgmac d4270000.ethernet: IRQ eth_lpi not found
+<4>[    1.315704] c0 asr-xgmac d4270000.ethernet: Cannot get CSR clock
+<4>[    1.315734] c0 asr-xgmac d4270000.ethernet: PTP uses main clock
+<6>[    1.315734] c0 asr-xgmac d4270000.ethernet: no reset control found
+<6>[    2.226593] c0 asr-xgmac d4270000.ethernet: ===> gpio init finished
+<6>[    2.226776] c0 ==> APMU_XGMAC_RGMII_RX_DLINE: 0x80000100 rgmii_rx_delay_code=1
+<6>[    2.226806] c0 ==> APMU_XGMAC_RGMII_TX_DLINE: 0x80000100 rgmii_tx_delay_code=1
+<6>[    2.226806] c0 ==> APMU_XGMAC_CLK_RST_CTRL: 0x7
+<6>[    2.227020] c0 asr-xgmac d4270000.ethernet: User ID: 0x76, Synopsys ID: 0x31
+<6>[    2.227050] c0 asr-xgmac d4270000.ethernet: 	XGMAC2
+<6>[    2.227081] c0 asr-xgmac d4270000.ethernet: DMA HW capability register supported
+<6>[    2.227081] c0 asr-xgmac d4270000.ethernet: RX Checksum Offload Engine supported
+<6>[    2.227081] c0 asr-xgmac d4270000.ethernet: COE Type 1
+<6>[    2.227111] c0 asr-xgmac d4270000.ethernet: TX Checksum insertion supported
+<6>[    2.227111] c0 asr-xgmac d4270000.ethernet: Wake-Up On Lan supported
+<6>[    2.227172] c0 asr-xgmac d4270000.ethernet: TSO supported
+<6>[    2.227172] c0 asr-xgmac d4270000.ethernet: Enable RX Mitigation via HW Watchdog Timer
+<6>[    2.227233] c0 asr-xgmac d4270000.ethernet: device MAC address e6:83:df:05:68:c3
+<6>[    2.227233] c0 asr-xgmac d4270000.ethernet: TSO feature enabled
+<6>[    2.227264] c0 asr-xgmac d4270000.ethernet: Using 32 bits DMA width
+<3>[    2.228271] c0 mdio_bus stmmac-0: MDIO device at address 3 is missing.
+<3>[    2.235473] c0 mdio_bus stmmac-0: MDIO device at address 7 is missing.
+<3>[    2.242248] c0 asr-xgmac d4270000.ethernet: Get mdio_node found:mdio-bus
+<4>[    2.249755] c0 ------------asr_dwmac_probe success------------
+<3>[    2.250274] c0 tmrcnt: 0
+<4>[    2.254119] c0 dwc3 dr_mode: 2
+<6>[    2.254119] c0 USB3 PHY init start...
+<6>[    2.254180] c0 USB3 PHY init done...
+<6>[    2.275604] c0 USB3 PHY set_suspend: 0...
+<6>[    2.275634] c0 software_get_typec_dir typec_type[0]
+<6>[    2.275634] c0 sw set typec dir: 0
+<6>[    2.275665] c0 RTERM Test for ASR1901 a0+
+<6>[    2.275665] c0 skip lane0 rterm calibration: 0x0
+<6>[    2.275665] c0 USB3 PHY set_suspend done
+<6>[    2.277221] c0 register hwsulog callback
+<6>[    2.277252] c0 dwc3 c0200000.dwc31: phys_mem_end: 0x10000000
+<6>[    2.277252] c0 dwc3 c0200000.dwc31: dwc3 probe successful
+<3>[    2.277618] c0 asr-dwc3 d4200000.axi:usb3-1: IRQ index 1 not found
+<6>[    2.283905] c0 asr-dwc3 d4200000.axi:usb3-1: no sulog irq
+<6>[    2.284027] c0 asr-dwc3 d4200000.axi:usb3-1: dwc3_asr_probe done
+<4>[    2.284484] c0 NO lonkey timeout!
+<4>[    2.284484] c0 No GPIO number for long onkey!
+<4>[    2.284484] c0 No hw reset type for gpio + long onkey!
+<4>[    2.284545] c0 NO long onkey type!
+<6>[    2.285614] c0 input: 88pm80x_on as /devices/platform/soc/d4000000.apb/pxa2xx-i2c.3/i2c-3/3-0030/88pm80x-onkey/input/input0
+<6>[    2.286468] c0 onkey timeout: 0xb0
+<6>[    2.290802] c0 88pm80x-rtc 88pm80x-rtc: 126-10-24-->22: 17: 57
+<6>[    2.295379] c0 88pm80x-rtc 88pm80x-rtc: registered as rtc0
+<6>[    2.296813] c0 88pm80x-rtc 88pm80x-rtc: setting system clock to 2026-11-24T22:17:57 UTC (1795558677)
+<6>[    2.299377] c0 sa1100-rtc sa1100-rtc: registered as rtc1
+<6>[    2.299560] c0 i2c /dev entries driver
+<4>[    2.300659] c0 MPMU_CRSR: 0x201
+<6>[    2.300659] c0 thermal status fine
+<7>[    2.300720] c0 *************THERMAL RANG & POLICY*********************
+<7>[    2.300750] c0 *************THERMAL POLICY POWER_SAVING_MODE********
+<7>[    2.300750] c0 * Thermal Stage:0(up:Temp <85000C; down:Temp<82000C)
+<7>[    2.300750] c0         (vl_show)vl:2;
+<7>[    2.300781] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+<7>[    2.300781] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+<7>[    2.300811] c0 * Thermal Stage:1(up:85000<Temp<90000C; down:82000<Temp<87000C)
+<7>[    2.300811] c0         (vl_show)vl:2;
+<7>[    2.300811] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+<7>[    2.300842] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+<7>[    2.300842] c0 * Thermal Stage:2(up:90000<Temp<95000C; down:87000<Temp<92000C)
+<7>[    2.300842] c0         (vl_show)vl:2;
+<7>[    2.300872] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+<7>[    2.300872] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+<7>[    2.300872] c0 * Thermal Stage:3(up:95000<Temp<99000C; down:92000<Temp<96000C)
+<7>[    2.300903] c0         (vl_show)vl:2;
+<7>[    2.300903] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+<7>[    2.300903] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+<7>[    2.300933] c0 * Thermal Stage:4(up:99000<Temp<103000C; down:96000<Temp<100000C)
+<7>[    2.300933] c0         (vl_show)vl:2;
+<7>[    2.300964] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+<7>[    2.300964] c0         (vl_master)ddr:state_0(freq:1600000000hz)
+<7>[    2.300964] c0 * Thermal Stage:5(up:103000<Temp<107000C; down:100000<Temp<104000C)
+<7>[    2.300994] c0         (vl_show)vl:1;
+<7>[    2.300994] c0         (vl_slave)cpu:state_0(freq:1475000000hz)
+<7>[    2.300994] c0         (vl_master)ddr:state_1(freq:1000000000hz)
+<7>[    2.301025] c0 * Thermal Stage:6(up:107000<Temp<111000C; down:104000<Temp<108000C)
+<7>[    2.301025] c0         (vl_show)vl:0;
+<7>[    2.301025] c0         (vl_slave)cpu:state_1(freq:1248000000hz)
+<7>[    2.301055] c0         (vl_master)ddr:state_2(freq:800000000hz)
+<7>[    2.301055] c0 * Thermal Stage:7(up:Temp>111000C; down:Temp>108000C)
+<7>[    2.301055] c0         (vl_show)vl:0;
+<7>[    2.301086] c0         (vl_slave)cpu:state_1(freq:1248000000hz)
+<7>[    2.301086] c0         (vl_master)ddr:state_2(freq:800000000hz)
+<4>[    2.301757] c0 tsen not enabled on read
+<6>[    2.301910] c0 asr1901 thermal probed
+<6>[    2.302673] c0 sdhci: Secure Digital Host Controller Interface driver
+<6>[    2.302703] c0 sdhci: Copyright(c) Pierre Ossman
+<3>[    2.303314] c0 sdhci-asr d4280000.sdh: could not get slow pinstate
+<6>[    2.344329] c0 mmc0: SDHCI controller on d4280000.sdh [d4280000.sdh] using ADMA
+<3>[    2.345031] c0 sdhci-asr d4280800.sdh: could not get slow pinstate
+<6>[    2.377960] c0 mmc1: SDHCI controller on d4280800.sdh [d4280800.sdh] using ADMA
+<6>[    2.378173] c0 sdhci-pltfm: SDHCI platform and OF driver helper
+<6>[    2.379669] c0 logger: created 64K log 'log_main'
+<6>[    2.379760] c0 logger: created 4K log 'log_events'
+<6>[    2.379943] c0 logger: created 512K log 'log_radio'
+<6>[    2.380035] c0 logger: created 4K log 'log_system'
+<6>[    2.380035] c0 exFAT: Version 1.3.0
+<4>[    2.380859] c0 cp_load_probe: failed to read remap-smc-funcid
+<6>[    2.384277] c0 [embms]: ENTER embms_control_init
+<3>[    2.384307] c0 CHRDEV "embms" major requested (1253) is greater than the maximum (511)
+<6>[    2.392395] c0 [embms]eMBMS registering character device error!
+<3>[    2.392547] c0 seh ffffffff.seh: ripc_init: no ripc_wakeup iomem defined
+<6>[    2.399627] c0 seh ffffffff.seh: cp_watchdog_probe: watchdog type 2
+<6>[    2.399688] c0 seh ffffffff.seh: cp_watchdog_probe: init watchdog success
+<6>[    2.400512] c0 Pseudo CI TTY driver v1.0
+<6>[    2.401123] c0 dg buf in cp
+<3>[    2.401153] c0 Direct_rb Create dir /proc/DiagDev_Debug
+<6>[    2.408691] c0 Direct_rb Create /proc/DiagDev_Debug/Debug_Switch
+<6>[    2.408721] c0 Direct_rb Create /proc/DiagDev_Debug/utcomm
+<6>[    2.408721] c0 Direct_rb Create /proc/DiagDev_Debug/diagbuf_len
+<6>[    2.414489] c0 pcm master=1, audiostub_inited=0
+<6>[    2.414978] c1 audio_rcv_task start...
+<6>[    2.415039] c0 Enter VoIP_init
+<6>[    2.415130] c0 enter VoIP_proc_init. 
+<6>[    2.415466] c0 ccidatastub is created
+<6>[    2.415771] c0 cctdatadev is created
+<6>[    2.416015] c0 cidatatty0 is created
+<6>[    2.417175] c0 [5616 platform probe: begin] asoc_ssp_probe/L233.
+<6>[    2.417205] c0 [5616 platform probe: end] asoc_ssp_probe/L260.
+<6>[    2.418701] c0 NET: Registered protocol family 10
+<6>[    2.421600] c0 Segment Routing with IPv6
+<6>[    2.421783] c0 NET: Registered protocol family 17
+<6>[    2.421844] c0 8021q: 802.1Q VLAN Support v1.8
+<5>[    2.421905] c0 Key type dns_resolver registered
+<6>[    2.458129] c0 kst-pcie d4c00000.pcie: host bridge /soc/axi@d4200000/pcie@d4c00000 ranges:
+<6>[    2.458190] c0 kst-pcie d4c00000.pcie:   err 0xe0020000..0xe0020fff -> 0xe0020000
+<6>[    2.458251] c0 kst-pcie d4c00000.pcie:    IO 0xe0010000..0xe001ffff -> 0x00000000
+<6>[    2.458282] c0 kst-pcie d4c00000.pcie:   MEM 0xe8200000..0xec1fffff -> 0xe8200000
+<6>[    2.461791] c0 ASR1901 PCIe Host 1x link negotiated (gen 1)
+<6>[    2.461975] c0 kst-pcie d4c00000.pcie: PCI host bridge to bus 0000:00
+<6>[    2.462005] c0 pci_bus 0000:00: root bus resource [bus 00-ff]
+<6>[    2.462036] c0 pci_bus 0000:00: root bus resource [??? 0xe0020000-0xe0020fff flags 0x0]
+<6>[    2.462036] c0 pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+<6>[    2.462066] c0 pci_bus 0000:00: root bus resource [mem 0xe8200000-0xec1fffff]
+<6>[    2.462097] c0 pci 0000:00:00.0: [1e5d:3003] type 01 class 0x060400
+<6>[    2.462127] c0 pci 0000:00:00.0: reg 0x10: [mem 0x00000000-0x000fffff]
+<6>[    2.462158] c0 pci 0000:00:00.0: reg 0x14: [mem 0x00000000-0x000fffff]
+<6>[    2.462219] c0 pci 0000:00:00.0: supports D1
+<6>[    2.462249] c0 pci 0000:00:00.0: PME# supported from D0 D1 D3hot
+<6>[    2.464874] c0 PCI: bus0: Fast back to back transfers disabled
+<6>[    2.465118] c0 pci 0000:01:00.0: [a69c:8d90] type 00 class 0x028000
+<6>[    2.465240] c0 pci 0000:01:00.0: reg 0x10: [mem 0x00000000-0x0000ffff]
+<6>[    2.465881] c0 pci 0000:01:00.0: supports D1 D2
+<6>[    2.465911] c0 pci 0000:01:00.0: PME# supported from D0 D1 D2 D3hot D3cold
+<6>[    2.468536] c0 PCI: bus1: Fast back to back transfers disabled
+<6>[    2.468597] c0 pci 0000:00:00.0: BAR 0: assigned [mem 0xe8200000-0xe82fffff]
+<6>[    2.468627] c0 pci 0000:00:00.0: BAR 1: assigned [mem 0xe8300000-0xe83fffff]
+<6>[    2.468627] c0 pci 0000:00:00.0: BAR 8: assigned [mem 0xe8400000-0xe84fffff]
+<6>[    2.468658] c0 pci 0000:01:00.0: BAR 0: assigned [mem 0xe8400000-0xe840ffff]
+<6>[    2.468688] c0 pci 0000:00:00.0: PCI bridge to [bus 01-ff]
+<6>[    2.468719] c0 pci 0000:00:00.0:   bridge window [mem 0xe8400000-0xe84fffff]
+<6>[    2.471282] c0 pcieport 0000:00:00.0: PME: Signaling with IRQ 196
+<6>[    2.472930] c0 asr_geu d4292800.geu: Fuse is initialized
+<6>[    2.474151] c0 asr_bcm d4290000.bcm: CIPHER engine is initialized
+<6>[    2.475006] c0 asr_bcm d4290000.bcm: SHA engine is initialized
+<6>[    2.475677] c0 asr_rng d4293800.rng: H/W RNG is initialized
+<5>[    2.475952] c2 random: crng init done
+<6>[    2.476257] c0 ThumbEE CPU extension supported.
+<5>[    2.476287] c0 Registering SWP/SWPB emulation handler
+<6>[    2.477447] c0 TIMESTAMP 32kHz: timer-common = 73831 = 0x00013d1d - 0x00001cb6
+<3>[    2.488464] c0 pinctrl-single d401e000.pinmux: Invalid number of rows: 0
+<3>[    2.501678] c0 pinctrl-single d401e000.pinmux: no pins entries for sd_ldo_en
+<4>[    2.508880] c0 reg-fixed-voltage: probe of sd-regulator failed with error -22
+<4>[    2.509704] c0 asr-rfkill asr-rfkill: pd-gpio undefined
+<4>[    2.509735] c0 asr-rfkill asr-rfkill: chipen-gpio undefined
+<4>[    2.509765] c0 asr-rfkill asr-rfkill: 3v3-ldo-gpio undefined
+<4>[    2.509765] c0 asr-rfkill asr-rfkill: 1v8-ldo-gpio undefined
+<4>[    2.509796] c0 asr-rfkill asr-rfkill: asr_rfkill_probe_dt: regulator wib_3v3 not found
+<4>[    2.509826] c0 asr-rfkill asr-rfkill: asr_rfkill_probe_dt: regulator wib_1v8 not found
+<4>[    2.509857] c0 asr-rfkill asr-rfkill: asr_rfkill_probe_dt: regulator wib_sdio_1v8 not found
+<6>[    2.509887] c0 asr_pwr_ctrl(mmc1): on=1
+<4>[    2.530944] c0 ==========in yt92xxrb_probe==========
+<4>[    2.531005] c0 cal_profile_yt9215rb_init: phy_id=0x0
+<4>[    4.375640] c0 ------yt9215RB_modules_init-------
+<4>[    4.629486] c0 ==========yt92xxrb_probe:get chipInfo:92153==========
+<6>[    4.629486] c0 in [yt92xxrb_switch_init]
+<6>[    4.629516] c0 out [yt92xxrb_switch_init]
+<4>[    4.629547] c0 ==========yt92xxrb init success==========
+<6>[    4.630096] c2 dwc3 c0200000.dwc31: dwc3 already pulled up
+<6>[    4.630126] c2 +preempt disable
+<6>[    4.630126] c2 -preempt enable
+<6>[    4.631164] c2 acm_alloc_instance: gserial_alloc_line port_num: 0
+<6>[    4.631256] c2 acm_alloc_instance: gserial_alloc_line port_num: 1
+<6>[    4.631408] c2 disable echo for dwc3 hwsulog
+<6>[    4.631744] c2 initialize 1 instances
+<6>[    4.631805] c2 Initialized 1 ports
+<6>[    4.632232] c2 android_usb gadget: Mass Storage Function, version: 2009/09/11
+<6>[    4.632232] c2 android_usb gadget: Number of LUNs=1
+<6>[    4.632232] c2  lun0: LUN: removable read only CD-ROM file: (no medium)
+<6>[    4.632354] c2 android_usb gadget: android_usb ready
+<3>[    4.632629] c2 dwc3 c0200000.dwc31: set dwc3 irq thread on cpu-1 by default
+<6>[    4.639739] c2 USB3 PHY set_suspend: 0...
+<6>[    4.639770] c2 software_get_typec_dir typec_type[0]
+<6>[    4.639770] c2 sw set typec dir: 0
+<6>[    4.639770] c2 RTERM Test for ASR1901 a0+
+<6>[    4.639801] c2 skip lane0 rterm calibration: 0x0
+<6>[    4.639801] c2 USB3 PHY set_suspend done
+<6>[    4.639862] c2 dwc3 c0200000.dwc31: st ep cfg done
+<6>[    4.639892] c2 dwc3 c0200000.dwc31: ep0 enable done
+<6>[    4.639923] c2 dwc3 c0200000.dwc31: ep1 enable done
+<6>[    4.639923] c2 dwc->ep0state: 0
+<6>[    4.639984] c0 dwc3 c0200000.dwc31: vbus is off.
+<6>[    4.639984] c0 dwc3 c0200000.dwc31: asr_usb_vbus_session: softconnect 0, vbus_active 0, pre_chrgr: 0
+<6>[    4.640014] c0 USB3 PHY set_suspend: 0...
+<6>[    4.640014] c0 software_get_typec_dir typec_type[0]
+<6>[    4.640014] c0 sw set typec dir: 0
+<6>[    4.640045] c0 RTERM Test for ASR1901 a0+
+<6>[    4.640045] c0 skip lane0 rterm calibration: 0x0
+<6>[    4.640045] c0 USB3 PHY set_suspend done
+<6>[    4.640075] c0 USB3 PHY set_suspend: 1...
+<6>[    4.640075] c0 USB3 PHY set_suspend done
+<6>[    4.640106] c0 dwc3 c0200000.dwc31: final charger type: NULL_CHARGER
+<6>[    4.640136] c0 dwc3 c0200000.dwc31: rls pm lock
+<6>[    4.640747] c2 input: gpio-keys as /devices/platform/gpio-keys/input/input1
+<4>[    4.641296] c2 88pm80x-wdt 88pm80x-wdt: DMA mask not set
+<6>[    4.642333] c2 create boot log 6390@0xd3881008
+<6>[    4.642547] c2 ALSA device list:
+<6>[    4.642578] c2   No soundcards found.
+<6>[    4.646179] c2 VFS: Mounted root (squashfs filesystem) readonly on device 31:13.
+<6>[    4.646667] c2 Freeing unused kernel memory: 280K
+<4>[    4.646697] c2 This architecture does not have kernel memory protection.
+<6>[    4.646697] c2 Run /etc/preinit as init process
+<14>[    5.286376] c3 init: Console is alive
+<14>[    6.566741] c2 kmodloader: loading kernel modules from /etc/modules-boot.d/*
+<6>[    6.602294] c2 Button Hotplug driver version 0.4.1
+<4>[    6.646759] c3 asr_wifi_mod_init
+<4>[    6.646850] c3 asr_sdio_register_drv: sdio driver register ret is 0
+<14>[    6.647491] c3 kmodloader: done loading kernel modules from /etc/modules-boot.d/*
+<14>[    6.657379] c3 init: - preinit -
+<5>[    7.042510] c2 ubi0: attaching mtd14
+<5>[    7.215026] c2 ubi0: scanning is finished
+<5>[    7.222137] c2 ubi0: attached mtd14 (name "rootfs_data", size 32 MiB)
+<5>[    7.222137] c2 ubi0: PEB size: 131072 bytes (128 KiB), LEB size: 126976 bytes
+<5>[    7.222167] c2 ubi0: min./max. I/O unit sizes: 2048/2048, sub-page size 2048
+<5>[    7.222167] c2 ubi0: VID header offset: 2048 (aligned 2048), data offset: 4096
+<5>[    7.222198] c2 ubi0: good PEBs: 256, bad PEBs: 0, corrupted PEBs: 0
+<5>[    7.222198] c2 ubi0: user volume: 3, internal volumes: 1, max. volumes count: 128
+<5>[    7.222229] c2 ubi0: max/mean erase counter: 21/11, WL threshold: 4096, image sequence number: 360837253
+<5>[    7.222229] c2 ubi0: available PEBs: 0, total reserved PEBs: 256, PEBs reserved for bad PEB handling: 20
+<5>[    7.222320] c1 ubi0: background thread "ubi_bgt0d" started, PID 197
+<5>[    7.289855] c0 UBIFS (ubi0:0): Mounting in unauthenticated mode
+<5>[    7.290130] c2 UBIFS (ubi0:0): background thread "ubifs_bgt0_0" started, PID 210
+<5>[    7.311492] c0 UBIFS (ubi0:0): recovery needed
+<5>[    7.359191] c0 UBIFS (ubi0:0): recovery completed
+<5>[    7.359344] c0 UBIFS (ubi0:0): UBIFS: mounted UBI device 0, volume 0, name "data"
+<5>[    7.359374] c0 UBIFS (ubi0:0): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+<5>[    7.359405] c0 UBIFS (ubi0:0): FS size: 18538496 bytes (17 MiB, 146 LEBs), journal size 1015809 bytes (0 MiB, 7 LEBs)
+<5>[    7.359405] c0 UBIFS (ubi0:0): reserved for root: 875618 bytes (855 KiB)
+<5>[    7.359436] c0 UBIFS (ubi0:0): media format: w5/r0 (latest is w5/r0), UUID A72FE5F3-CE9B-4D6B-8FFE-AB82FCF9E12A, small LPT model
+<5>[    7.374755] c1 UBIFS (ubi0:1): Mounting in unauthenticated mode
+<5>[    7.374938] c0 UBIFS (ubi0:1): background thread "ubifs_bgt0_1" started, PID 214
+<5>[    7.400360] c1 UBIFS (ubi0:1): recovery needed
+<5>[    7.610961] c1 UBIFS (ubi0:1): recovery completed
+<5>[    7.611145] c1 UBIFS (ubi0:1): UBIFS: mounted UBI device 0, volume 1, name "etc"
+<5>[    7.611175] c1 UBIFS (ubi0:1): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+<5>[    7.611206] c1 UBIFS (ubi0:1): FS size: 4063232 bytes (3 MiB, 32 LEBs), journal size 1015809 bytes (0 MiB, 6 LEBs)
+<5>[    7.611206] c1 UBIFS (ubi0:1): reserved for root: 191915 bytes (187 KiB)
+<5>[    7.611236] c1 UBIFS (ubi0:1): media format: w5/r0 (latest is w5/r0), UUID 4B821F4C-6C86-4B49-B2C2-FA24E2EA0F14, small LPT model
+<5>[    7.617095] c2 UBIFS (ubi0:2): Mounting in unauthenticated mode
+<5>[    7.617309] c0 UBIFS (ubi0:2): background thread "ubifs_bgt0_2" started, PID 216
+<5>[    7.642761] c2 UBIFS (ubi0:2): recovery needed
+<5>[    7.758605] c2 UBIFS (ubi0:2): recovery completed
+<5>[    7.758728] c2 UBIFS (ubi0:2): UBIFS: mounted UBI device 0, volume 2, name "nvm"
+<5>[    7.758728] c2 UBIFS (ubi0:2): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+<5>[    7.758758] c2 UBIFS (ubi0:2): FS size: 3047424 bytes (2 MiB, 24 LEBs), journal size 1015809 bytes (0 MiB, 6 LEBs)
+<5>[    7.758758] c2 UBIFS (ubi0:2): reserved for root: 143937 bytes (140 KiB)
+<5>[    7.758789] c2 UBIFS (ubi0:2): media format: w5/r0 (latest is w5/r0), UUID FC179C33-06FE-42BC-8D2E-234C5E148E20, small LPT model
+<5>[    7.812286] c1 ubi1: attaching mtd16
+<5>[    7.836181] c1 ubi1: scanning is finished
+<4>[    7.841064] c1 ubi1 warning: ubi_eba_init: cannot reserve enough PEBs for bad PEB handling, reserved 0, need 20
+<5>[    7.841735] c1 ubi1: attached mtd16 (name "oem_data", size 5 MiB)
+<5>[    7.841766] c1 ubi1: PEB size: 131072 bytes (128 KiB), LEB size: 126976 bytes
+<5>[    7.841766] c1 ubi1: min./max. I/O unit sizes: 2048/2048, sub-page size 2048
+<5>[    7.841796] c1 ubi1: VID header offset: 2048 (aligned 2048), data offset: 4096
+<5>[    7.841796] c1 ubi1: good PEBs: 47, bad PEBs: 0, corrupted PEBs: 0
+<5>[    7.841796] c1 ubi1: user volume: 1, internal volumes: 1, max. volumes count: 128
+<5>[    7.841827] c1 ubi1: max/mean erase counter: 1/0, WL threshold: 4096, image sequence number: 1808945013
+<5>[    7.841827] c1 ubi1: available PEBs: 0, total reserved PEBs: 47, PEBs reserved for bad PEB handling: 0
+<5>[    7.841918] c3 ubi1: background thread "ubi_bgt1d" started, PID 226
+<5>[    8.067352] c1 UBIFS (ubi1:0): static UBI volume - read-only mode
+<5>[    8.067962] c1 UBIFS (ubi1:0): Mounting in unauthenticated mode
+<5>[    8.132019] c1 UBIFS (ubi1:0): UBIFS: mounted UBI device 1, volume 0, name "oem_data", R/O mode
+<5>[    8.132049] c1 UBIFS (ubi1:0): LEB size: 126976 bytes (124 KiB), min./max. I/O unit sizes: 2048 bytes/2048 bytes
+<5>[    8.132049] c1 UBIFS (ubi1:0): FS size: 4190208 bytes (3 MiB, 33 LEBs), journal size 1142785 bytes (1 MiB, 8 LEBs)
+<5>[    8.132080] c1 UBIFS (ubi1:0): reserved for root: 0 bytes (0 KiB)
+<5>[    8.132080] c1 UBIFS (ubi1:0): media format: w4/r0 (latest is w5/r0), UUID BB8FF7CA-4AA5-4070-BC82-AEB27071042A, small LPT model
+<12>[    8.134063] c2 urandom-seed: Seed file not found (/etc/urandom.seed)
+<12>[    9.316314] c2 telinit /etc/default.prop
+<4>[    9.803497] c2 asr_geu d4292800.geu: fuse is not burned
+<7>[    9.803619] c2 cp vma open 0xb6e79000 -> 0x9a00000 (0x707) cp_load(548)
+<7>[    9.803649] c2 cp vma close 0xb6e79000 -> 0x9a00000 cp_load(548)
+<6>[    9.811370] c2 cp_ioctl: arbel physical address 0x09a00000, size 13420784
+<6>[    9.811370] cp_ioctl: reliable bin physical address 0x0bb00000, size 524288
+<6>[    9.811798] c2 ring buffer cp-portq:
+<6>[    9.811798] 	skctl_pa: 0x0bcf3460, skctl_va: 0xdbaf6460
+<6>[    9.811798] 	tx_pa: 0x0bcd3c60, tx_va: 0xcbcd3c60
+<6>[    9.811798] 	tx_total_size: 0x0000f800, tx_skbuf_size: 0x00000800
+<6>[    9.811798] 	tx_skbuf_num: 0x0000001f, tx_skbuf_low_wm: 0x00000008
+<6>[    9.811798] 	rx_pa: 0x0bce3460, rx_va: 0xcbce3460
+<6>[    9.811798] 	rx_total_size: 0x00010000, rx_skbuf_size: 0x00000800
+<6>[    9.811798] 	rx_skbuf_num: 0x00000020, rx_skbuf_low_wm: 0x00000008
+<6>[    9.812591] c2 cp_init: shm channel init success
+<6>[    9.812622] c2 msocket connection sync with CP O.K.!
+<6>[    9.812622] c2 acipc_ready_cb enter.
+<6>[    9.812652] c2 init_work:io->port:6 opened
+<6>[    9.812774] c2 ring buffer cp-psd:
+<6>[    9.812774] 	skctl_pa: 0x0bcd3460, skctl_va: 0xdbafa460
+<6>[    9.812774] c2 tx ring 0:
+<6>[    9.812774] 	tx_pa: 0x06000000, tx_va: 0xdce91000
+<6>[    9.812774] 	tx_total_size: 0x00080000, tx_skbuf_size: 0x00000004
+<6>[    9.812774] 	tx_skbuf_num: 0x00020000
+<6>[    9.812805] c2 tx ring 1:
+<6>[    9.812805] 	tx_pa: 0x06080000, tx_va: 0xdcf12000
+<6>[    9.812805] 	tx_total_size: 0x00080000, tx_skbuf_size: 0x00000004
+<6>[    9.812805] 	tx_skbuf_num: 0x00020000
+<6>[    9.812805] c2 rx_pa: 0x06100000, rx_va: 0xdbbf2000
+<6>[    9.812805] 	rx_total_size: 0x00004000, rx_skbuf_size: 0x00000004
+<6>[    9.812805] 	rx_skbuf_num: 0x00001000
+<0>[    9.812957] c2 diag buf in cp: 0x0bc31c60, 0x00080000
+<6>[    9.818115] c2 ring buffer cp-diag:
+<6>[    9.818115] 	skctl_pa: 0x0bcc1c60, skctl_va: 0xdbafcc60
+<6>[    9.818115] 	tx_pa: 0x0bc22460, tx_va: 0xcbc22460
+<6>[    9.818115] 	tx_total_size: 0x0000f800, tx_skbuf_size: 0x00000800
+<6>[    9.818115] 	tx_skbuf_num: 0x0000001f, tx_skbuf_low_wm: 0x00000008
+<6>[    9.818115] 	rx_pa: 0x0bc31c60, rx_va: 0xcbc31c60
+<6>[    9.818115] 	rx_total_size: 0x00080000, rx_skbuf_size: 0x00000800
+<6>[    9.818115] 	rx_skbuf_num: 0x00000100, rx_skbuf_low_wm: 0x00000040
+<6>[    9.818237] c2 __toe_probe: first boot: 1
+<6>[    9.821258] c2 toe_tuple_buffer_alloc rx_v4_tuple  vir_addr:0xdbbf9000 phy_addr:0x4d68000
+<6>[    9.821319] c2 toe_tuple_buffer_alloc tx_v4_tuple  vir_addr:0xdcf93000 phy_addr:0x4d70000
+<6>[    9.821380] c2 toe_tuple_buffer_alloc rx v4_col_tuple  vir_addr:0xdcf9a000 phy_addr:0x4da8000
+<6>[    9.821411] c2 toe_tuple_buffer_alloc tx v4_col_tuple  vir_addr:0xdcf9d000 phy_addr:0x4daa000
+<6>[    9.821472] c2 toe_tuple_buffer_alloc rx v6_tuple  vir_addr:0xdcfa0000 phy_addr:0x4db0000
+<6>[    9.821594] c2 toe_tuple_buffer_alloc tx v6_tuple  vir_addr:0xdcfac000 phy_addr:0x4dc0000
+<6>[    9.821685] c2 toe_tuple_buffer_alloc rx v6_col_tuple  vir_addr:0xdcfb8000 phy_addr:0x4dac000
+<6>[    9.821746] c2 toe_tuple_buffer_alloc tx v6_col_tuple  vir_addr:0xdcfbc000 phy_addr:0x4df8000
+<6>[    9.824157] c2 __toe_probe ok.
+<6>[    9.824188] c2 acipc_toe_init: Toe init
+<6>[    9.826568] c2 acipc_toe_init: got ack: Toe init ack, timeout: 48, retry: 2
+<7>[    9.826599] c2 received netdev (eth0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<7>[    9.826599] c2 received netdev (embms0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<3>[    9.826629] c2 toe_netdev_pkt_type: not supported netdevice: embms0
+<7>[    9.833007] c2 received netdev (ccinet0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833007] c2 received netdev (ccinet1) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833038] c2 received netdev (ccinet2) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833038] c2 received netdev (ccinet3) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833068] c2 received netdev (ccinet4) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833068] c2 received netdev (ccinet5) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833068] c2 received netdev (ccinet6) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<7>[    9.833099] c2 received netdev (ccinet7) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<6>[    9.833221] c2 MSOCK: network mode:877079367
+<6>[    9.833312] c2 buf={1}, cp_enable=1
+<6>[    9.833374] c2 Check loading Arbel image:
+<6>[    9.833374] 00f020e304f01fe5fc4d4c0a2081c00bdc20810a01000000b425810ab025810a
+<6>[    9.833374] Check loading ReliableData image:
+<6>[    9.833374] fecafeca43097bec191000003c540600160000002500feca5c000001534e2e62
+<6>[    9.833374] c2 reset_ripc_lock: reset ripc lock
+<6>[    9.833404] c2 cp is already in active state!
+<3>[    9.897369] c2 android_usb: already disabled
+<6>[    9.908264] c2 enabled functions: rndis,acm,marvell_diag,marvell_debug
+<6>[    9.909362] c2 ### Default OS is WIN7/WINXP, win7
+<6>[    9.909362] 
+<6>[    9.909393] c2 win7: rndis,acm,marvell_diag,marvell_debug
+<6>[    9.909393]  rndis,acm,marvell_diag,marvell_debug
+<6>[    9.909393] 
+<3>[    9.910125] c2 USB_Debug Enter android_enable:1
+<6>[    9.914764] c2 rndis_function_bind_config MAC: 00:00:00:00:00:00
+<4>[    9.914794] c2 android_usb gadget: using random self ethernet address
+<4>[    9.914825] c2 android_usb gadget: using random host ethernet address
+<7>[    9.915618] c2 received netdev (usbnet0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<6>[    9.915679] c2 usbnet0: MAC e2:22:cb:99:f6:cf
+<6>[    9.915710] c2 usbnet0: HOST MAC 76:8e:79:d3:32:c6
+<6>[    9.915954] c2 android_usb gadget: acm ttyGS0: super speed IN/ep3in OUT/ep2out NOTIFY/ep4in
+<6>[    9.915985] c2 dwc3 c0200000.dwc31: dwc3_gadget_pullup: softconnect 1, vbus_active 0, pre_chrgr: 0
+<6>[    9.916687] c2 starting usbnet_rx_fill_thread: cpu=2 pid=563
+<6>[    9.957489] c0 MSOCK: binding port 2, success.
+<6>[    9.957550] c0 MSOCK: port 2 is opened by process id:550 ("nvmproxy")
+<12>[    9.959289] c2 NVMProxy start handshake
+<12>[    9.962280] c1 NVMProxy start gainCalibration server! 
+<12>[   10.059692] c2 NVMProxy handshake done!!!!
+<12>[   10.388153] c1 sysfixtime use rtc=/dev/rtc0
+<12>[   10.421112] c1 timezone set to GMT+5
+<6>[   10.442749] c1 MSOCK: binding port 1, success.
+<6>[   10.442779] c1 MSOCK: port 1 is opened by process id:552 ("atcmdsrv")
+<6>[   10.442810] c1 ccidatastub (opened 1)
+<6>[   10.611968] c0 handshake_task: pcm_fsync_rate = 0, pcm_master = TRUE, bitclk = 4, modem_audio_controller is 0, audioctl-slic=disabled in dts.
+<6>[   10.611999] c0 handshake_task start...
+<6>[   10.612213] c1 audio_data_handler,pcm=1, wb=0, ver=18
+<6>[   11.220550] c2 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+<6>[   11.220581] c2 audiostub_close/537: minor=0 mode=0 audiostub_inited=1
+<6>[   11.297210] c2 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+<6>[   11.297241] c2 ioctl : AUDIOSTUB_GET_STATUS. pcm_fsync_rate = 0, pcm_master = TRUE. 
+<6>[   11.297271] c2 audiostub_close/537: minor=0 mode=0 audiostub_inited=1
+<6>[   11.301177] c3 prepare ve for adsp
+<6>[   11.301208] c3 2d23|3a53
+<6>[   11.302062] c3 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+<12>[   11.386962] c2 skip ssid change
+<6>[   11.635650] c0 handshake_task quit
+<6>[   11.635955] c2 boot_adsp_task/1208: platform is 1901S
+<6>[   11.635955] c1 audio_data_handler: pcm_fsync_rate = 0, pcm_master = TRUE. 
+<6>[   11.635955] c2 ap_boot_adsp/1010: 0xc5f80000
+<6>[   11.638031] c2 ap_boot_adsp/1025: load /lib/firmware/adsp_s.bin
+<6>[   11.890960] c0 cidatatty0: port:6, init: 1!
+<6>[   11.956787] c2 load adsp bin size: 0x780d0
+<6>[   11.961822] c2 adsp check ddr: pass
+<6>[   11.961853] c2 wait for audio power state (on) ...
+<6>[   11.961853] c2 pwr_on_hw/934: power on audio (hw mode) ok
+<6>[   11.962036] c2 pwr_on_hw/949: release audio bx2 core
+<6>[   11.962036] c2 pwr_on_hw/952 Done.
+<4>[   11.962371] c0 adsp_ipc_init_phase2/628 g_audio_ipc_handle.ring_ctl 0xd3925000
+<6>[   11.962432] c0 adsp_ipc_init_phase2/647 Done.
+<6>[   11.962432] c0 ADSP Version: CRANE_BX2_V001.EVSOFF.015_Jun  9 2026 11
+<12>[   12.049041] c1 matched CI Version:
+<12>[   12.049072] c1 cc:0xeff0, ss:0xeff0, mm:0xeff0, pb:0xeff0, sim:0xeff0, msg:0xeff0, ps:0xeff0, dat:0xeff0, dev:0xeff0
+<6>[   12.052001] c1 ccidatastub_ioctl,cmd=0x4004f601
+<6>[   12.052032] c1 ccidatastub_ioctl,dataSvgHandle=0x10000008
+<12>[   12.054687] c1 Telephony seems OK
+<6>[   14.305633] c3 ytswitch port[
+<6>[   14.307922] c3 0 
+<6>[   14.310211] c3 1 
+<6>[   14.312530] c3 2 
+<6>[   14.314849] c3 3 
+<6>[   14.314849] c3 ] MAC table flushed (link kept up)
+<12>[   14.675079] c3 netifd open kmsg done
+<14>[   14.759155] c1 kmodloader: loading kernel modules from /etc/modules.d/*
+<6>[   14.792266] c2 jitterentropy: Initialization failed with host not compliant with requirements: 2
+<6>[   14.821380] c2 zram: Added device: zram0
+<6>[   14.827667] c3 NET: Registered protocol family 8
+<6>[   14.827667] c3 NET: Registered protocol family 20
+<6>[   14.832031] c3 NET: Registered protocol family 15
+<6>[   14.837066] c3 Initializing XFRM netlink socket
+<7>[   14.856231] c3 received netdev (ip6tnl0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<3>[   14.856262] c3 toe_netdev_pkt_type: not supported netdevice: ip6tnl0
+<6>[   14.864837] c3 ipip: IPv4 and MPLS over IPv4 tunneling driver
+<7>[   14.865631] c3 received netdev (tunl0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<3>[   14.865631] c3 toe_netdev_pkt_type: not supported netdevice: tunl0
+<6>[   14.888000] c3 l2tp_core: L2TP core driver, V2.0
+<6>[   14.890106] c3 l2tp_netlink: L2TP netlink interface
+<6>[   14.893615] c3 gre: GRE over IPv4 demultiplexor driver
+<6>[   14.895874] c3 ip_gre: GRE over IPv4 tunneling driver
+<7>[   14.897094] c3 received netdev (gre0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<3>[   14.897125] c3 toe_netdev_pkt_type: not supported netdevice: gre0
+<7>[   14.905059] c3 received netdev (gretap0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<3>[   14.905090] c3 toe_netdev_pkt_type: not supported netdevice: gretap0
+<7>[   14.912506] c3 received netdev (erspan0) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<3>[   14.912567] c3 toe_netdev_pkt_type: not supported netdevice: erspan0
+<6>[   14.921722] c3 ip6_gre: GRE over IPv6 tunneling driver
+<7>[   14.923400] c3 received netdev (ip6gre0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<3>[   14.923431] c3 toe_netdev_pkt_type: not supported netdevice: ip6gre0
+<6>[   14.933776] c3 PPP generic driver version 2.4.2
+<4>[   15.030609] c3 fw_flsupg 0 
+<4>[   15.030639] c3 fw_flggen2 0 
+<4>[   15.030639] c3 fw_flggen1 0 
+<6>[   15.978393] c2 ieee80211 phy0: HT supp 1, VHT supp 1, HE supp 1
+<7>[   15.988616] c2 received netdev (wlan1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<7>[   15.989959] c2 received netdev (wlan0-vxd) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<6>[   16.100280] c0 GACT probability on
+<6>[   16.102844] c0 Mirror/redirect action on
+<6>[   16.118865] c0 u32 classifier
+<6>[   16.118927] c0     input device check on
+<6>[   16.118927] c0     Actions configured
+<6>[   16.135314] c0 Simple TC action Loaded
+<7>[   16.157501] c0 received netdev (teql0) register, event 5, state: 0x2, flags: 0x80, invalid: 1
+<3>[   16.157592] c0 toe_netdev_pkt_type: not supported netdevice: teql0
+<6>[   16.253479] c1 PPP MPPE Compression module registered
+<6>[   16.256713] c1 NET: Registered protocol family 24
+<6>[   16.260284] c1 PPTP driver version 0.8.5
+<6>[   16.337005] c1 xt_time: kernel timezone is -0500
+<6>[   16.354187] c1 l2tp_ppp: PPPoL2TP kernel driver, V2.0
+<6>[   16.364685] c1 jitterentropy: Initialization failed with host not compliant with requirements: 2
+<11>[   16.389831] c1 kmodloader: 1 module could not be probed
+<11>[   16.395416] c1 kmodloader: - jitterentropy_rng - 0
+<6>[   16.423400] c0 netif_rx_fastpath_register hook=0c38ef18
+<6>[   16.423492] c0 fp_cm gennetlink register success!!!
+<4>[   16.862701] c3 fp_cm_genl_set_pid, get cm pid: 1584
+<7>[   16.931915] c0 toe_port_switchdev_event dev: br-lan, event: 3, fdb: [12:f2:bc:a8:73:5a, 1, 0, 1, 0]
+<7>[   16.932098] c0 received netdev (br-lan) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<12>[   16.941833] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:0,dev.act:1,bm:usbnet0,act:0
+<6>[   16.944793] c0 br-lan: port 1(usbnet0) entered blocking state
+<6>[   16.944854] c0 br-lan: port 1(usbnet0) entered disabled state
+<6>[   16.945190] c0 device usbnet0 entered promiscuous mode
+<7>[   16.945343] c0 toe_port_switchdev_event dev: usbnet0, event: 3, fdb: [e2:22:cb:99:f6:cf, 0, 0, 1, 0]
+<7>[   16.945404] c0 toe_port_switchdev_event dev: usbnet0, event: 3, fdb: [e2:22:cb:99:f6:cf, 1, 0, 1, 0]
+<7>[   16.945434] c0 toe_port_switchdev_event dev: br-lan, event: 4, fdb: [12:f2:bc:a8:73:5a, 1, 0, 1, 0]
+<12>[   17.079895] c0 NETIFD:ADD bm_claimed:0,bm_prsent:0,n_prsent:1,dev.act:1,bm:eth0.2,act:0
+<6>[   17.099700] c1 zram0: detected capacity change from 0 to 24117248
+<6>[   17.104766] c0 asr-xgmac d4270000.ethernet eth0: No Safety Features support found
+<4>[   17.104797] c0 asr-xgmac d4270000.ethernet eth0: PTP not supported by HW
+<6>[   17.104827] c0 asr-xgmac d4270000.ethernet eth0: configuring for fixed/rgmii link mode
+<6>[   17.104858] c0 ==> APMU_XGMAC_RGMII_RX_DLINE: 0x80000100 rgmii_rx_delay_code=1
+<6>[   17.104858] c0 ==> APMU_XGMAC_RGMII_TX_DLINE: 0x80000100 rgmii_tx_delay_code=1
+<6>[   17.104888] c0 ==> APMU_XGMAC_CLK_RST_CTRL: 0x7
+<6>[   17.104949] c0 ==> APMU_XGMAC_RGMII_RX_DLINE: 0x80000100 rgmii_rx_delay_code=1
+<6>[   17.104949] c0 ==> APMU_XGMAC_RGMII_TX_DLINE: 0x80000100 rgmii_tx_delay_code=1
+<6>[   17.104949] c0 ==> APMU_XGMAC_CLK_RST_CTRL: 0x7
+<6>[   17.105041] c0 asr-xgmac d4270000.ethernet eth0: --Link is Up - 1Gbps/Full - flow control rx/tx
+<7>[   17.108795] c0 received netdev (eth0.2) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<3>[   17.108825] c0 add eth0 vid 2 to toe.
+<6>[   17.115325] c0 br-lan: port 2(eth0.2) entered blocking state
+<6>[   17.115356] c0 br-lan: port 2(eth0.2) entered disabled state
+<6>[   17.115753] c0 device eth0.2 entered promiscuous mode
+<6>[   17.115753] c0 device eth0 entered promiscuous mode
+<7>[   17.116027] c0 toe_port_switchdev_event dev: eth0.2, event: 3, fdb: [e6:83:df:05:68:c3, 0, 0, 1, 0]
+<7>[   17.116088] c0 toe_port_switchdev_event dev: eth0.2, event: 3, fdb: [e6:83:df:05:68:c3, 1, 0, 1, 0]
+<6>[   17.116119] c0 br-lan: port 2(eth0.2) entered blocking state
+<6>[   17.116149] c0 br-lan: port 2(eth0.2) entered forwarding state
+<6>[   17.116485] c0 IPv6: ADDRCONF(NETDEV_CHANGE): br-lan: link becomes ready
+<7>[   17.116638] c0 device (br-lan) not found
+<12>[   17.118927] c0 device_claim: active: 2
+<7>[   17.119903] c0 received netdev (eth0.1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<3>[   17.119934] c0 add eth0 vid 1 to toe.
+<6>[   17.125640] c3 Adding 23548k swap on /dev/zram0.  Priority:100 extents:1 across:23548k SSDsc
+<12>[   17.158325] c1 eth=asr_emac, action = LINKUP, port=0
+<12>[   17.302978] c0 drv_mac80211_setup enter, device='AP1_5G' 
+<12>[   17.330688] c0 drv_mac80211_setup enter, device='AP0_24G' 
+<12>[   17.341033] c0 Could not find PHY for device 'AP0_24G'
+<12>[   17.384338] c1 eth=ytswitch, action = SWT_CONNECT, port=0
+<7>[   17.424682] c2 toe_port_switchdev_event dev: eth0.2, event: 3, fdb: [6c:1f:f7:6f:a3:b5, 0, 0, 0, 0]
+<12>[   17.507873] c3 drv_mac80211_teardown enter, device='AP0_24G' 
+<12>[   17.509124] c3 Bug: PHY is undefined for device 'AP0_24G'
+<6>[   17.785675] c0 aic8800D80_fdrv 0000:01:00.0 wlan0-vxd: Remove Interface
+<7>[   17.795593] c0 received netdev (wlan0-vxd) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+<7>[   17.795654] c0 received netdev (wlan0-vxd) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+<7>[   17.796386] c0 All entries related to wlan0-vxd deleted
+<7>[   17.796691] c0 device (wlan0-vxd) found and deleted
+<3>[   17.810607] c0 mfp device:destroy_fpdev:304: device (wlan0-vxd) destroyed
+<6>[   18.076385] c3 aic8800D80_fdrv 0000:01:00.0 wlan1: Remove Interface
+<7>[   18.086639] c3 received netdev (wlan1) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+<7>[   18.086761] c3 received netdev (wlan1) unregister, event 6, state: 0x2, flags: 0x1002, invalid: 1
+<7>[   18.087585] c3 All entries related to wlan1 deleted
+<7>[   18.087829] c3 device (wlan1) found and deleted
+<3>[   18.103607] c0 mfp device:destroy_fpdev:304: device (wlan1) destroyed
+<12>[   19.496002] c3 mac80211_hostapd_setup_base enter phy0 
+<12>[   19.605743] c3 mac80211_prepare_iw_htmode enter 
+<12>[   19.615692] c3 mac80211_prepare_vif enter 
+<12>[   19.632476] c3 mac80211_hostapd_setup_bss enter, phy=phy0, ifname=wlan1 
+<0>[   19.841369] c0 shm_recv: len: 2084 port: 1
+<6>[   20.147979] c0 yt92xxrb port 0 link up
+<12>[   20.173492] c0 eth=ytswitch, action = LINKUP, port=0
+<12>[   20.666076] c3 mac80211_prepare_vif NEWAPLIST: wlan1  
+<12>[   20.666137] c3 mac80211_prepare_vif hostapd_ctrl:  
+<12>[   20.675994] c3 drv_mac80211_setup NEWAPLIST: wlan1 ,phy:phy0,OLDAPLIST:
+<12>[   20.676208] c3 mac80211_vap_cleanup hostapd   start
+<12>[   20.676269] c3 mac80211_vap_cleanup hostapd   end
+<12>[   20.676391] c3 drv_mac80211_setup NEW_MD5: 0956a6b065a8340a02a54f4cb54289e7  /var/run/hostapd-phy0.conf,phy:phy0,OLD_MD5:0956a6b065a8340a02a54f4cb54289e7  /var/run/hostapd-phy0.conf
+<12>[   20.676666] c3 mac80211_iw_interface_add enter 
+<7>[   20.682800] c1 received netdev (wlan1) register, event 5, state: 0x2, flags: 0x1002, invalid: 1
+<12>[   20.684295] c3 drv_mac80211_setup hostapd_ctrl: /var/run/hostapd/wlan1,primary_ap: wlan1
+<12>[   25.644958] c0 exit_code = 0, port=0
+<6>[   25.787017] c3 ytswitch port[
+<6>[   25.789337] c3 0 
+<6>[   25.791625] c3 1 
+<6>[   25.793914] c3 2 
+<6>[   25.796173] c3 3 
+<6>[   25.796173] c3 ] MAC table flushed (link kept up)
+<0>[   29.288848] c0 shm_recv: len: 2384 port: 1
+<6>[   29.289031] c3 ccidatastub_ioctl,cmd=0x4004f602
+<6>[   29.293029] c3 CCIDATASTUB_DATAHANDLE: cid =0, type =1
+<6>[   29.363739] c3 ccidatastub_ioctl,cmd=0x4004f602
+<6>[   29.363739] c3 CCIDATASTUB_DATAHANDLE: cid =0, type =1
+<6>[   30.164123] c0 add_cp_ip  idx:0  ip:0xaa83f33
+<12>[   31.164093] c3 wan0 ipaddr: 10.168.63.51
+<12>[   31.164184] c3 wan0 ip6addr: 

@@ -1,0 +1,197 @@
+Tue Nov 24 16:59:05 2026 daemon.notice netifd: Interface 'wan' is setting up now
+Tue Nov 24 16:59:05 2026 user.warn kernel: [ 3389.244140] c1 device_claim: active: 2
+Tue Nov 24 16:59:05 2026 user.warn kernel: [ 3389.246520] c2 ubus call network.interface.wan up
+Tue Nov 24 16:59:05 2026 daemon.notice netifd: wan (27036): udhcpc: started, v1.36.1
+Tue Nov 24 16:59:05 2026 daemon.warn odhcpd[5587]: No default route present, overriding ra_lifetime to 0!
+Tue Nov 24 16:59:05 2026 daemon.notice netifd: wan (27036): udhcpc: broadcasting discover
+Tue Nov 24 16:59:08 2026 daemon.notice netifd: wan (27036): udhcpc: broadcasting discover
+Tue Nov 24 16:59:11 2026 daemon.notice netifd: wan (27036): udhcpc: broadcasting discover
+Tue Nov 24 16:59:18 2026 kern.info kernel: [ 3402.207183] c1 yt92xxrb port 0 link up
+Tue Nov 24 16:59:18 2026 user.warn kernel: [ 3402.230895] c1 eth=ytswitch, action = LINKUP, port=0
+Tue Nov 24 16:59:24 2026 user.warn kernel: [ 3407.879486] c1 exit_code = 0, port=0
+Tue Nov 24 16:59:24 2026 kern.info kernel: [ 3407.971435] c0 ytswitch port[
+Tue Nov 24 16:59:24 2026 kern.info kernel: [ 3407.973693] c0 0
+Tue Nov 24 16:59:24 2026 kern.info kernel: [ 3407.976043] c0 1
+Tue Nov 24 16:59:24 2026 kern.info kernel: [ 3407.978240] c0 2
+Tue Nov 24 16:59:24 2026 kern.info kernel: [ 3407.980407] c0 3
+Tue Nov 24 16:59:24 2026 kern.info kernel: [ 3407.980438] c0 ] MAC table flushed (link kept up)
+Tue Nov 24 16:59:27 2026 kern.warn kernel: [ 3411.763031] c0 TCPIP_DEBUG: sta_32 tx DHCP packet, DHCP DISCOVER, dest port 67, Client MAC 0x6c1ff76fa3b5, Client IP 0.0.0.0, request IP
+Tue Nov 24 16:59:27 2026 kern.warn kernel: [ 3411.763122] c0
+Tue Nov 24 16:59:27 2026 kern.warn kernel: [ 3411.763122] dhcp1 dhcph->op=1
+Tue Nov 24 16:59:27 2026 kern.warn kernel: [ 3411.776397] c0 TCPIP_DEBUG: sta_32 tx DHCP packet, DHCP REQUEST, dest port 67, Client MAC 0x6c1ff76fa3b5, Client IP 0.0.0.0, request IP 192.168.1.181
+Tue Nov 24 16:59:27 2026 kern.warn kernel: [ 3411.776458] c0
+Tue Nov 24 16:59:27 2026 kern.warn kernel: [ 3411.776458] dhcp1 dhcph->op=1
+Tue Nov 24 16:59:56 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 16:59:56 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:00 2026 cron.err crond[5831]: USER root pid 27519 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:00:00 2026 user.warn kernel: [ 3444.778106] c3 regular check nr_band is 28
+Tue Nov 24 17:00:00 2026 user.warn kernel: [ 3444.797943] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:00:00 2026 user.warn kernel: [ 3444.811553] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:00:06 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:06 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:08 2026 user.notice netparam: web: remove (enabled=0 value=64 ipv6=1 inbound=1) (from 192.168.1.181)
+Tue Nov 24 17:00:08 2026 user.notice netparam: disabled (netparam.main.enabled=0)
+Tue Nov 24 17:00:17 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:17 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:21 2026 user.notice netparam: web: restore (enabled=1 value=64 ipv6=1 inbound=1) (from 192.168.1.181)
+Tue Nov 24 17:00:22 2026 user.notice netparam: value=64 applied on ccinet+ (ipv6=1 inbound=1)
+Tue Nov 24 17:00:27 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:27 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:37 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:37 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:47 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:47 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:57 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:00:57 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:01:00 2026 cron.err crond[5831]: USER root pid 28173 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:01:00 2026 user.warn kernel: [ 3504.778900] c0 regular check nr_band is 28
+Tue Nov 24 17:01:00 2026 user.warn kernel: [ 3504.797790] c0 regular check wlan0 channel is 6
+Tue Nov 24 17:01:00 2026 user.warn kernel: [ 3504.809967] c0 regular check wlan1 channel is 149
+Tue Nov 24 17:01:07 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:01:07 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:01:17 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:01:17 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:02:00 2026 cron.err crond[5831]: USER root pid 28479 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:02:00 2026 user.warn kernel: [ 3564.784545] c0 regular check nr_band is 28
+Tue Nov 24 17:02:00 2026 user.warn kernel: [ 3564.803070] c0 regular check wlan0 channel is 6
+Tue Nov 24 17:02:00 2026 user.warn kernel: [ 3564.815155] c0 regular check wlan1 channel is 149
+Tue Nov 24 17:02:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:02:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:03:00 2026 cron.err crond[5831]: USER root pid 28767 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:03:00 2026 user.warn kernel: [ 3624.787048] c3 regular check nr_band is 28
+Tue Nov 24 17:03:00 2026 user.warn kernel: [ 3624.807342] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:03:00 2026 user.warn kernel: [ 3624.819488] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:03:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:03:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:03:51 2026 kern.info kernel: [ 3675.150665] c0 Timestamp is: 11-24 17:03:51.291566905 UTC
+Tue Nov 24 17:04:00 2026 cron.err crond[5831]: USER root pid 29041 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:04:00 2026 user.warn kernel: [ 3684.787933] c1 regular check nr_band is 28
+Tue Nov 24 17:04:00 2026 user.warn kernel: [ 3684.806518] c1 regular check wlan0 channel is 6
+Tue Nov 24 17:04:00 2026 user.warn kernel: [ 3684.818359] c1 regular check wlan1 channel is 149
+Tue Nov 24 17:04:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:04:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:05:00 2026 cron.err crond[5831]: USER root pid 29321 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:05:00 2026 user.warn kernel: [ 3744.791412] c3 regular check nr_band is 28
+Tue Nov 24 17:05:00 2026 user.warn kernel: [ 3744.808685] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:05:00 2026 user.warn kernel: [ 3744.820922] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:05:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:05:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:06:00 2026 cron.err crond[5831]: USER root pid 29594 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:06:00 2026 user.warn kernel: [ 3804.796325] c3 regular check nr_band is 28
+Tue Nov 24 17:06:00 2026 user.warn kernel: [ 3804.815246] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:06:00 2026 user.warn kernel: [ 3804.826995] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:06:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:06:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:06:13 2026 kern.err kernel: [ 3817.400817] c0 mfp learner:fp_get_route_ipv4:363: Route = RTN_BROADCAST
+Tue Nov 24 17:06:19 2026 daemon.warn odhcpd[5587]: No default route present, overriding ra_lifetime to 0!
+Tue Nov 24 17:06:51 2026 authpriv.info dropbear[29843]: Child connection from 192.168.1.181:46468
+Tue Nov 24 17:06:51 2026 authpriv.notice dropbear[29843]: Password auth succeeded for 'root' from 192.168.1.181:46468
+Tue Nov 24 17:06:51 2026 authpriv.info dropbear[29843]: Exit (root) from <192.168.1.181:46468>: Disconnect received
+Tue Nov 24 17:07:00 2026 cron.err crond[5831]: USER root pid 29920 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:07:00 2026 user.warn kernel: [ 3864.797607] c3 regular check nr_band is 28
+Tue Nov 24 17:07:00 2026 user.warn kernel: [ 3864.816864] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:07:00 2026 user.warn kernel: [ 3864.829132] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:07:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:08 2026 authpriv.info dropbear[30020]: Child connection from 192.168.1.181:46678
+Tue Nov 24 17:07:08 2026 authpriv.notice dropbear[30020]: Password auth succeeded for 'root' from 192.168.1.181:46678
+Tue Nov 24 17:07:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:08 2026 authpriv.info dropbear[30020]: Exit (root) from <192.168.1.181:46678>: Disconnect received
+Tue Nov 24 17:07:37 2026 authpriv.info dropbear[30152]: Child connection from 192.168.1.181:47818
+Tue Nov 24 17:07:37 2026 authpriv.notice dropbear[30152]: Password auth succeeded for 'root' from 192.168.1.181:47818
+Tue Nov 24 17:07:37 2026 authpriv.info dropbear[30152]: Exit (root) from <192.168.1.181:47818>: Disconnect received
+Tue Nov 24 17:07:37 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:37 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:39 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:39 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:41 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:41 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:43 2026 authpriv.info dropbear[30447]: Child connection from 192.168.1.181:44980
+Tue Nov 24 17:07:43 2026 authpriv.notice dropbear[30447]: Password auth succeeded for 'root' from 192.168.1.181:44980
+Tue Nov 24 17:07:43 2026 authpriv.info dropbear[30447]: Exit (root) from <192.168.1.181:44980>: Disconnect received
+Tue Nov 24 17:07:44 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:44 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:46 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:46 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:48 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:07:48 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:00 2026 cron.err crond[5831]: USER root pid 30780 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:08:00 2026 user.warn kernel: [ 3924.798553] c3 regular check nr_band is 28
+Tue Nov 24 17:08:00 2026 user.warn kernel: [ 3924.818145] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:08:00 2026 user.warn kernel: [ 3924.830963] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:08:03 2026 authpriv.info dropbear[30817]: Child connection from 192.168.1.181:48614
+Tue Nov 24 17:08:03 2026 authpriv.notice dropbear[30817]: Password auth succeeded for 'root' from 192.168.1.181:48614
+Tue Nov 24 17:08:03 2026 authpriv.info dropbear[30817]: Exit (root) from <192.168.1.181:48614>: Disconnect received
+Tue Nov 24 17:08:03 2026 authpriv.info dropbear[30822]: Child connection from 192.168.1.181:48618
+Tue Nov 24 17:08:03 2026 authpriv.notice dropbear[30822]: Password auth succeeded for 'root' from 192.168.1.181:48618
+Tue Nov 24 17:08:03 2026 authpriv.info dropbear[30822]: Exit (root) from <192.168.1.181:48618>: Disconnect received
+Tue Nov 24 17:08:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:12 2026 authpriv.info dropbear[30890]: Child connection from 192.168.1.181:45018
+Tue Nov 24 17:08:12 2026 authpriv.notice dropbear[30890]: Password auth succeeded for 'root' from 192.168.1.181:45018
+Tue Nov 24 17:08:12 2026 authpriv.info dropbear[30890]: Exit (root) from <192.168.1.181:45018>: Disconnect received
+Tue Nov 24 17:08:12 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:12 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:14 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:14 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:16 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:16 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:24 2026 authpriv.info dropbear[31234]: Child connection from 192.168.1.181:48096
+Tue Nov 24 17:08:24 2026 authpriv.notice dropbear[31234]: Password auth succeeded for 'root' from 192.168.1.181:48096
+Tue Nov 24 17:08:24 2026 authpriv.info dropbear[31234]: Exit (root) from <192.168.1.181:48096>: Disconnect received
+Tue Nov 24 17:08:52 2026 authpriv.info dropbear[31329]: Child connection from 192.168.1.181:48146
+Tue Nov 24 17:08:52 2026 authpriv.notice dropbear[31329]: Password auth succeeded for 'root' from 192.168.1.181:48146
+Tue Nov 24 17:08:52 2026 authpriv.info dropbear[31329]: Exit (root) from <192.168.1.181:48146>: Disconnect received
+Tue Nov 24 17:08:53 2026 authpriv.info dropbear[31360]: Child connection from 192.168.1.181:48162
+Tue Nov 24 17:08:53 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:53 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:53 2026 authpriv.notice dropbear[31360]: Password auth succeeded for 'root' from 192.168.1.181:48162
+Tue Nov 24 17:08:53 2026 authpriv.info dropbear[31360]: Exit (root) from <192.168.1.181:48162>: Disconnect received
+Tue Nov 24 17:08:53 2026 authpriv.info dropbear[31428]: Child connection from 192.168.1.181:48164
+Tue Nov 24 17:08:53 2026 authpriv.notice dropbear[31428]: Password auth succeeded for 'root' from 192.168.1.181:48164
+Tue Nov 24 17:08:53 2026 authpriv.info dropbear[31428]: Exit (root) from <192.168.1.181:48164>: Disconnect received
+Tue Nov 24 17:08:56 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:56 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:59 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:08:59 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:00 2026 cron.err crond[5831]: USER root pid 31629 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:09:00 2026 user.warn kernel: [ 3984.803405] c3 regular check nr_band is 28
+Tue Nov 24 17:09:00 2026 user.warn kernel: [ 3984.821685] c3 regular check wlan0 channel is 6
+Tue Nov 24 17:09:00 2026 user.warn kernel: [ 3984.833679] c3 regular check wlan1 channel is 149
+Tue Nov 24 17:09:02 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:02 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:05 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:05 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:08 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:09 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:09 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:12 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:12 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:15 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:15 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:18 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:18 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:21 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:21 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:09:23 2026 authpriv.info dropbear[32381]: Child connection from 192.168.1.181:47184
+Tue Nov 24 17:09:23 2026 authpriv.notice dropbear[32381]: Password auth succeeded for 'root' from 192.168.1.181:47184
+Tue Nov 24 17:09:23 2026 authpriv.info dropbear[32381]: Exit (root) from <192.168.1.181:47184>: Disconnect received
+Tue Nov 24 17:09:23 2026 authpriv.info dropbear[32383]: Child connection from 192.168.1.181:47192
+Tue Nov 24 17:09:23 2026 authpriv.notice dropbear[32383]: Password auth succeeded for 'root' from 192.168.1.181:47192
+Tue Nov 24 17:09:23 2026 authpriv.info dropbear[32383]: Exit (root) from <192.168.1.181:47192>: Disconnect received
+Tue Nov 24 17:09:30 2026 authpriv.info dropbear[32416]: Child connection from 192.168.1.181:44984
+Tue Nov 24 17:09:30 2026 authpriv.notice dropbear[32416]: Password auth succeeded for 'root' from 192.168.1.181:44984
+Tue Nov 24 17:09:30 2026 authpriv.info dropbear[32416]: Exit (root) from <192.168.1.181:44984>: Disconnect received
+Tue Nov 24 17:09:37 2026 authpriv.info dropbear[32447]: Child connection from 192.168.1.181:48572
+Tue Nov 24 17:09:38 2026 authpriv.notice dropbear[32447]: Password auth succeeded for 'root' from 192.168.1.181:48572
+Tue Nov 24 17:09:38 2026 authpriv.info dropbear[32447]: Exit (root) from <192.168.1.181:48572>: Disconnect received
+Tue Nov 24 17:10:00 2026 cron.err crond[5831]: USER root pid 32522 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:10:00 2026 user.warn kernel: [ 4044.806243] c1 regular check nr_band is 28
+Tue Nov 24 17:10:00 2026 user.warn kernel: [ 4044.823486] c1 regular check wlan0 channel is 6
+Tue Nov 24 17:10:00 2026 user.warn kernel: [ 4044.836975] c1 regular check wlan1 channel is 149
+Tue Nov 24 17:10:13 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:10:13 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:10:59 2026 authpriv.info dropbear[325]: Child connection from 192.168.1.181:46542
+Tue Nov 24 17:10:59 2026 authpriv.notice dropbear[325]: Password auth succeeded for 'root' from 192.168.1.181:46542

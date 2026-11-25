@@ -1,0 +1,168 @@
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: ACS: Survey for freq 5320 is missing channel time
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: ACS: Survey for freq 5320 is missing RX and busy time (at least one is required)
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: wlan1: ACS-COMPLETED freq=5765 channel=153
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: wlan1: interface state ACS->HT_SCAN
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.540313] c2 asr_rx_msg_wifi_scan_finish: scan_info request 0xc35e1e40 aborted 0
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: wlan0: ACS-COMPLETED freq=2412 channel=1
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: wlan0: interface state ACS->HT_SCAN
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548095] c3 asr_cfg80211_scan: no0 chan(band:0 center_freq:2412 flags:0x1a0 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548095] c3 asr_cfg80211_scan: no1 chan(band:0 center_freq:2417 flags:0x1a0 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548126] c3 asr_cfg80211_scan: no2 chan(band:0 center_freq:2422 flags:0x1a0 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548126] c3 asr_cfg80211_scan: no3 chan(band:0 center_freq:2427 flags:0x1a0 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548156] c3 asr_cfg80211_scan: no4 chan(band:0 center_freq:2432 flags:0x180 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548156] c3 asr_cfg80211_scan: no5 chan(band:0 center_freq:2437 flags:0x180 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548187] c3 asr_cfg80211_scan: no6 chan(band:0 center_freq:2442 flags:0x180 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548187] c3 asr_cfg80211_scan: no7 chan(band:0 center_freq:2447 flags:0x180 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548217] c3 asr_cfg80211_scan: no8 chan(band:0 center_freq:2452 flags:0x180 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548217] c3 asr_cfg80211_scan: no9 chan(band:0 center_freq:2457 flags:0x190 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548248] c3 asr_cfg80211_scan: no10 chan(band:0 center_freq:2462 flags:0x190 max_power:20 max_regulatory_power:20)
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   49.548248] c3 asr_cfg80211_scan: vif(0) n_ssids 0 n_channels 11 ie_len 0
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: Switch own primary and secondary channel to get secondary channel with no Beacons from other BSSes
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: WPS: Converting push_button to virtual_push_button for WPS 2.0 compliance
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   50.189666] c2 asr_rx_msg_wifi_scan_finish: scan_info request 0xc35e1f00 aborted 0
+Tue Nov 24 17:18:44 2026 kern.info kernel: [   50.277008] c3 aic8800D80_fdrv 0000:01:00.0 wlan1: AP started: ch=0, bcmc_idx=32 channel=5745 bw=3
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: wlan1: interface state HT_SCAN->ENABLED
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: wlan1: AP-ENABLED
+Tue Nov 24 17:18:44 2026 daemon.notice hostapd: 20/40 MHz operation not permitted on channel pri=1 sec=5 based on overlapping BSSes
+Tue Nov 24 17:18:44 2026 kern.warn kernel: [   50.287872] c3 asr_cfg80211_del_station sta_ctrl: vif 0 params 0xc3235ce8 mac NULL subtype 12 reason_code 2
+Tue Nov 24 17:18:45 2026 user.warn kernel: [   50.329345] c2 ###############################################nx_set_interface_macc enter
+Tue Nov 24 17:18:45 2026 user.warn kernel: [   50.340148] c2 ######wifi_2g_mac=60:83:E2:60:81:E9
+Tue Nov 24 17:18:45 2026 user.warn kernel: [   50.352844] c2 ######wifi_2g_mac do not need to be updated
+Tue Nov 24 17:18:45 2026 user.warn kernel: [   50.356750] c2 ######wifi_5g_mac=E4:7D:EB:E9:30:96
+Tue Nov 24 17:18:45 2026 user.warn kernel: [   50.363555] c2 ######wifi_5g_mac do not need to be updated
+Tue Nov 24 17:18:45 2026 user.warn kernel: [   50.363708] c2 ###############################################nx_set_interface_mac out
+Tue Nov 24 17:18:45 2026 daemon.notice hostapd: WPS: Converting push_button to virtual_push_button for WPS 2.0 compliance
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.399932] c3 asr_cfg80211_start_ap: ssid(len:12 H3SWiFi_81E9) bw 0 2SS chan(band:0 freq:2412-2412-0 max_power:20 20) int(100 2) sta_num 0 free_sta_id 0 bcn_len 387 tim_oft 63 hidden 0
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.399963] c3 asr_cfg80211_start_ap: crypto wpa_versions 2 n_ciphers_pairwise 1, ctrl_port:0-0-0x8e88 cipher_group 0x4 wps_ie_len 122
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.418334] c2 asr_rx_msg_wifi_switch_channel enter , vif0, 0
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.418334] c2 asr_rx_msg_wifi_switch_channel: chan_index: 0,vif_index:0,tx_disable:0
+Tue Nov 24 17:18:45 2026 kern.info kernel: [   50.425781] c2 br-lan: port 3(wlan0) entered blocking state
+Tue Nov 24 17:18:45 2026 kern.info kernel: [   50.425781] c2 br-lan: port 3(wlan0) entered forwarding state
+Tue Nov 24 17:18:45 2026 daemon.notice netifd: Network device 'wlan0' link is up
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.427001] c3 asr_cfg80211_mgmt_tx: sta_32_8 fctrl 0xc0(WLAN_FC_STYPE_DEAUTH) skb 0xc4f66e00 need ack: 1, len 26, da:0xffffffffffff sa:0x6083e26081e9
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.429687] c3 asr_cfg80211_add_key: vif(0) key_index 1 pairwise 0 cipher 0xfac04 key_len 16 input mac_addr(0x0)  tx_msg_pld->mac ff:ff:ff:ff:ff:ff
+Tue Nov 24 17:18:45 2026 daemon.notice procd: /etc/rc.d/S42ims.init: Start Ims
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.457305] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 0, txop 0x2f, cwmin 0x3, cwmax 0x7, aifs 0x1)
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.457702] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 1, txop 0x5e, cwmin 0x7, cwmax 0xf, aifs 0x1)
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.458038] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 2, txop 0x0, cwmin 0xf, cwmax 0x3f, aifs 0x3)
+Tue Nov 24 17:18:45 2026 kern.warn kernel: [   50.458526] c3 asr_cfg80211_set_txq_params: send msg success vif 0 params (ac 3, txop 0x0, cwmin 0xf, cwmax 0x3ff, aifs 0x7)
+Tue Nov 24 17:18:45 2026 daemon.notice hostapd: wlan0: interface state HT_SCAN->ENABLED
+Tue Nov 24 17:18:45 2026 daemon.notice hostapd: wlan0: AP-ENABLED
+Tue Nov 24 17:18:45 2026 daemon.notice procd: /etc/rc.d/S42services.init: Start Marvell Service Applications
+Tue Nov 24 17:18:45 2026 kern.info kernel: [   50.659393] c2 MSOCK: binding port 9, success.
+Tue Nov 24 17:18:45 2026 kern.info kernel: [   50.659423] c2 MSOCK: port 9 is opened by process id:5662 ("imsd")
+Tue Nov 24 17:18:45 2026 kern.info kernel: [   50.726776] c2 S42services.ini (5664): drop_caches: 3
+Tue Nov 24 17:18:45 2026 user.err : moduleStatusCode:0x00020007
+Tue Nov 24 17:18:45 2026 user.err : moduleStatusCode:0x00020000
+Tue Nov 24 17:18:45 2026 user.err : moduleStatusCode:0x00020000
+Tue Nov 24 17:18:45 2026 user.err : moduleStatusCode:0x00020006
+Tue Nov 24 17:18:45 2026 user.err : moduleStatusCode:0x00020006
+Tue Nov 24 17:18:46 2026 daemon.warn odhcpd[5601]: No default route present, overriding ra_lifetime to 0!
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.402801] c1 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.402832] c1 ioctl : AUDIOSTUB_GET_STATUS. pcm_fsync_rate = 0, pcm_master = TRUE.
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.402862] c1 audiostub_close/537: minor=0 mode=0 audiostub_inited=1
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.402893] c1 audiostub_open/411: minor=0 mode=0 audiostub_inited=1
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.402923] c1 ioctl : AUDIOSTUB_PCMCTL.
+Tue Nov 24 17:18:46 2026 user.warn kernel: [   51.499114] c0 DEVICE_LAN_SWITCH: switch
+Tue Nov 24 17:18:46 2026 user.warn kernel: [   51.499237] c0 DEVICE_PRODUCT_TYPE: CPE
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.610534] c1 maxlinear-slic maxlinear-slic: slic chip reset_n set to low
+Tue Nov 24 17:18:46 2026 kern.info kernel: [   51.633361] c2 maxlinear-slic maxlinear-slic: slic chip reset_n set to high
+Tue Nov 24 17:18:46 2026 cron.err crond[5825]: crond (busybox 1.36.1) started, log level 5
+Tue Nov 24 17:18:46 2026 daemon.notice procd: /etc/rc.d/S50lighttpd: chgrp: unknown group www-data
+Tue Nov 24 17:18:46 2026 kern.warn kernel: [   52.225158] c0 asr_dbgfs_wifi_version_read version: asr5811_1.028.000: jianzhang Jan 13 202
+Tue Nov 24 17:18:46 2026 kern.warn kernel: [   52.225189] c0 asr_dbgfs_wifi_version_read version: asr5811_1.028.000: jia
+Tue Nov 24 17:18:46 2026 daemon.info dnsmasq[2406]: exiting on receipt of SIGTERM
+Tue Nov 24 17:18:47 2026 daemon.notice procd: /etc/rc.d/S50sdcard_mount: uci: Entry not found
+Tue Nov 24 17:18:48 2026 daemon.notice procd: /etc/rc.d/S50sdcard_mount: uci: Entry not found
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: started, version 2.91 cachesize 256
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: DNS service limited to local subnets
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: UBus support enabled: connected to system bus
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for test
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for onion
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for localhost
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for local
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for invalid
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for bind
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for lan
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: reading /tmp/resolv.conf.d/resolv.conf.auto
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using nameserver 190.157.8.46#53
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for test
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for onion
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for localhost
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for local
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for invalid
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for bind
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: using only locally-known addresses for lan
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: read /etc/hosts - 12 names
+Tue Nov 24 17:18:48 2026 daemon.err dnsmasq[6376]: failed to load names from /etc/dns_blacklist: No such file or directory
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq[6376]: read /tmp/hosts/dhcp.cfg01411c - 1 names
+Tue Nov 24 17:18:48 2026 daemon.info dnsmasq-dhcp[6376]: read /etc/ethers - 0 addresses
+Tue Nov 24 17:18:49 2026 user.warn kernel: [   54.271697] c0 g_qos_enable=1 g_limit_mode=ip
+Tue Nov 24 17:18:49 2026 user.warn kernel: [   54.271789] c0 modified on 2026.05.11
+Tue Nov 24 17:18:49 2026 user.warn kernel: [   54.273223] c0 qos_enable is 1, start config!
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00030003
+Tue Nov 24 17:18:49 2026 kern.info kernel: [   55.008483] c0 ccidatastub_ioctl,cmd=0x4004f602
+Tue Nov 24 17:18:49 2026 kern.info kernel: [   55.008544] c0 CCIDATASTUB_DATAHANDLE: cid =7, type =1
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00020003
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00020007
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00020000
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00020000
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00020006
+Tue Nov 24 17:18:49 2026 user.err : moduleStatusCode:0x00020006
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: {
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: 	"response": {
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: 		"setting_response": "OK"
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: 	}
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: }
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: {
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: 	"response": {
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: 		"setting_response": "OK"
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: 	}
+Tue Nov 24 17:18:49 2026 daemon.notice procd: /etc/rc.d/S97cp_init: }
+Tue Nov 24 17:18:49 2026 kern.info kernel: [   55.241973] c2 88pm80x-wdt 88pm80x-wdt: wdt_ctrl_store: wdt active timer 30 sec, slp timer: 120s
+Tue Nov 24 17:18:50 2026 user.warn kernel: [   55.264160] c2 simnum = 1
+Tue Nov 24 17:18:50 2026 daemon.info procd: - init complete -
+Tue Nov 24 17:18:50 2026 daemon.err urandom_seed[6687]: touch: /etc/urandom.seed.tmp: Read-only file system
+Tue Nov 24 17:18:50 2026 daemon.err urandom_seed[6687]: An error occured
+Tue Nov 24 17:18:50 2026 user.err : moduleStatusCode:0x00020009
+Tue Nov 24 17:18:51 2026 user.err : moduleStatusCode:0x00020007
+Tue Nov 24 17:18:51 2026 user.err : moduleStatusCode:0x00020000
+Tue Nov 24 17:18:51 2026 user.err : moduleStatusCode:0x00020000
+Tue Nov 24 17:18:51 2026 user.err : moduleStatusCode:0x00020006
+Tue Nov 24 17:18:51 2026 user.err : moduleStatusCode:0x00020006
+Tue Nov 24 17:18:57 2026 kern.info kernel: [   62.408020] c0 Timestamp is: 11-24 17:18:57.194804569 UTC
+Tue Nov 24 17:18:57 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:18:57 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:00 2026 cron.err crond[5825]: USER root pid 6744 cmd /etc/log/nr_channel_monitor.sh
+Tue Nov 24 17:19:00 2026 user.warn kernel: [   65.893463] c1 regular check nr_band is 28
+Tue Nov 24 17:19:00 2026 user.warn kernel: [   65.921386] c1 regular check wlan0 channel is 1
+Tue Nov 24 17:19:00 2026 user.warn kernel: [   65.934906] c1 regular check wlan1 channel is 149
+Tue Nov 24 17:19:02 2026 daemon.warn odhcpd[5601]: No default route present, overriding ra_lifetime to 0!
+Tue Nov 24 17:19:02 2026 kern.info kernel: [   67.907989] c2 KERNEL-TEXT-CRC: 0x38b2
+Tue Nov 24 17:19:04 2026 daemon.info dnsmasq[6376]: read /etc/hosts - 12 names
+Tue Nov 24 17:19:04 2026 daemon.err dnsmasq[6376]: failed to load names from /etc/dns_blacklist: No such file or directory
+Tue Nov 24 17:19:04 2026 daemon.info dnsmasq[6376]: read /tmp/hosts/dhcp.cfg01411c - 1 names
+Tue Nov 24 17:19:04 2026 daemon.info dnsmasq[6376]: read /tmp/hosts/odhcpd - 0 names
+Tue Nov 24 17:19:04 2026 daemon.info dnsmasq-dhcp[6376]: read /etc/ethers - 0 addresses
+Tue Nov 24 17:19:07 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:07 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:10 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:10 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:13 2026 user.warn kernel: [   78.972869] c1 check nr/lte & wifi coexistence when CP reporting 1 10 10 7930 7380
+Tue Nov 24 17:19:13 2026 user.warn kernel: [   78.973114] c1 lte dl_bw=10, ul_bw=10, dl_freq=793, ul_freq=738
+Tue Nov 24 17:19:13 2026 user.warn kernel: [   78.983367] c1 CP triggered check wlan0 channel is 1
+Tue Nov 24 17:19:13 2026 user.warn kernel: [   78.993286] c1 CP triggered check wlan1 channel is 149
+Tue Nov 24 17:19:13 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:13 2026 user.err : moduleStatusCode:0x00020002
+Tue Nov 24 17:19:18 2026 daemon.warn odhcpd[5601]: No default route present, overriding ra_lifetime to 0!
+Tue Nov 24 17:19:29 2026 authpriv.info dropbear[6989]: Child connection from 192.168.1.181:48254
+Tue Nov 24 17:19:29 2026 authpriv.notice dropbear[6989]: Password auth succeeded for 'root' from 192.168.1.181:48254
+Tue Nov 24 17:19:29 2026 authpriv.info dropbear[6989]: Exit (root) from <192.168.1.181:48254>: Disconnect received
+Tue Nov 24 17:19:33 2026 authpriv.info dropbear[7009]: Child connection from 192.168.1.181:44864
+Tue Nov 24 17:19:34 2026 authpriv.notice dropbear[7009]: Password auth succeeded for 'root' from 192.168.1.181:44864
+Tue Nov 24 17:19:34 2026 authpriv.info dropbear[7009]: Exit (root) from <192.168.1.181:44864>: Disconnect received
+Tue Nov 24 17:19:34 2026 authpriv.info dropbear[7011]: Child connection from 192.168.1.181:44880
+Tue Nov 24 17:19:34 2026 authpriv.notice dropbear[7011]: Password auth succeeded for 'root' from 192.168.1.181:44880
+Tue Nov 24 17:19:34 2026 authpriv.info dropbear[7011]: Exit (root) from <192.168.1.181:44880>: Disconnect received
+Tue Nov 24 17:19:35 2026 authpriv.info dropbear[7013]: Child connection from 192.168.1.181:44894
+Tue Nov 24 17:19:35 2026 authpriv.notice dropbear[7013]: Password auth succeeded for 'root' from 192.168.1.181:44894
