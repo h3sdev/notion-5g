@@ -11,8 +11,11 @@
 #   ocgw.sh status   one-line status
 # CGI (lighttpd) and cron run with a reduced PATH: uci, iptables, tc, insmod live in /sbin and /usr/sbin
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-D=/data/omnicap-gw
+D=/data/omnicap-gw         # writable: certificate for the secure login (from omnicap or the web UI)
 LOG=/tmp/omnicap-gw.log
+# Binary: in the firmware image or, on a unit installed in the field, in $D.
+BIN=/usr/sbin/omnicap-gw; [ -x "$BIN" ] || BIN=$D/omnicap-gw
+mkdir -p "$D" && chmod 700 "$D"
 TAG=omnicap-gw
 
 pid() { pidof omnicap-gw; }
@@ -20,7 +23,7 @@ enabled() { [ "$(uci -q get omnicapgw.main.enabled)" = 1 ]; }
 
 start() {
 	[ -n "$(pid)" ] && return 0
-	(cd "$D" && ./omnicap-gw -uci omnicapgw >> "$LOG" 2>&1 </dev/null &)
+	(cd "$D" && "$BIN" -uci omnicapgw >> "$LOG" 2>&1 </dev/null &)
 	logger -t $TAG "started"
 }
 
@@ -43,7 +46,7 @@ start) start ;;
 stop) stop ;;
 disable)
 	stop
-	"$D/omnicap-gw" -uci omnicapgw -cleanup 2>/dev/null || "$D/omnicap-gw" -config /dev/null -cleanup 2>/dev/null
+	"$BIN" -uci omnicapgw -cleanup 2>/dev/null
 	rm -f /tmp/hosts/omnicap-gw; killall -HUP dnsmasq 2>/dev/null
 	logger -t $TAG "disabled, rules removed"
 	;;

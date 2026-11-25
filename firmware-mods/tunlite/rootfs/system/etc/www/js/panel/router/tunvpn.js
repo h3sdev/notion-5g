@@ -50,7 +50,9 @@
 				$('#tvpnPass').val("");
 				if(ok){ $('#tvpnCaPem').val(""); }
 				if(notify){
-					showMsgBox(T("lt_TVPN_title"), ok ? T("lt_succ") : (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : "")));
+					var msg = ok ? T("lt_succ") : (d && d.error == "ca_missing") ? T("lt_TVPN_errCaMissing")
+						: (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : ""));
+					showMsgBox(T("lt_TVPN_title"), msg);
 				}
 			});
 		}

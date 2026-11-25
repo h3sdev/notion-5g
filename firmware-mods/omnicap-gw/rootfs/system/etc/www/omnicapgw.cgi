@@ -12,7 +12,7 @@
 # token) are write-only: an empty field keeps the stored value.
 
 D=/data/omnicap-gw
-CTL=$D/ocgw.sh
+CTL=/usr/sbin/ocgw.sh; [ -x "$CTL" ] || CTL=$D/ocgw.sh
 PKG=omnicapgw
 
 out() {
@@ -84,6 +84,7 @@ cert)
 	c="$(param cert_pem)"; k="$(param key_pem)"
 	printf '%s' "$c" | grep -q -- '-----BEGIN CERTIFICATE-----' || fail cert
 	printf '%s' "$k" | grep -q -- '-----BEGIN .*PRIVATE KEY-----' || fail key
+	mkdir -p "$D" && chmod 700 "$D"
 	printf '%s\n' "$c" > "$D/login.crt.tmp" && printf '%s\n' "$k" > "$D/login.key.tmp" && chmod 600 "$D/login.key.tmp" \
 		&& mv "$D/login.key.tmp" "$D/login.key" && mv "$D/login.crt.tmp" "$D/login.crt" || fail write
 	uci set $PKG.main.cert_source=manual; uci commit $PKG
@@ -115,7 +116,8 @@ fi
 port_ok "$ap" || fail radius_auth_port
 port_ok "$cp" || fail radius_acct_port
 [ -z "$sec" ] || match "$sec" "$RE_SECRET" || fail radius_secret
-match "$lh" "$RE_HOST" || fail login_host
+if [ "$https" = 1 ]; then match "$lh" "$RE_HOST" || fail login_host; fi
+[ -z "$lh" ] || match "$lh" "$RE_HOST" || fail login_host
 port_ok "$hp" || fail https_port
 case "$hp" in 80|443|22|53|8002|8009) fail https_port ;; esac
 if [ "$src" = agent ]; then

@@ -1,0 +1,2 @@
+*/1 * * * * /etc/log/nr_channel_monitor.sh
+0 0 * * * ubus call statistics day_change

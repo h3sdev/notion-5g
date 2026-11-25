@@ -1,0 +1,34 @@
+# Requirements: H3S firmware features (what H3S checks on the delivered firmware)
+
+Network parameter: requirements R0–R12 of the earlier netparam package, unchanged.
+
+## Factory state
+
+- F1. `uci show tunvpn` and `uci show omnicapgw` show the files of this package: both disabled, no server, user,
+  password, URL, NAS identifier, RADIUS server, secret, login name, omnicap URL or token.
+- F2. `/data/tunvpn/` and `/data/omnicap-gw/` have no certificate, password or generated configuration.
+- F3. No firewall rule, ipset or tc class of the captive portal exists (`iptables -S | grep OCGW` is empty): the
+  network is open as in the current firmware.
+- F4. `/dev/net/tun` can be created: `/proc/misc` lists `tun` after `tunvpn.sh check`/start, using the kernel TUN
+  driver (`CONFIG_TUN`).
+
+## Web UI
+
+- U1. Router → Advanced Settings shows "VPN de gestión" and "Portal cautivo" right below "VPN", in Spanish, English
+  and Chinese; the other menu entries and pages are unchanged.
+- U2. Both pages work only with a logged-in web session (the CGIs answer 401 without it and 403 to a POST
+  without `X-Requested-With`) and validate every value; passwords, secrets and tokens are never shown.
+- U3. Management VPN: the CA certificate is installed from the page; the VPN cannot be enabled without it; after
+  entering server, port, protocol, user and password it connects and shows its IP, the traffic and the log.
+- U4. Captive portal: after entering the portal URL, NAS identifier, RADIUS server/secret and the secure login
+  (name, port, certificate downloaded from omnicap or pasted), the page shows "Funcionando", the login URL
+  (`https://<name>:<port>/login`), the certificate and the connected clients, and can disconnect a client.
+
+## Behavior
+
+- B1. Provisioned values survive reboot; both services are running within 2 minutes of power-on.
+- B2. The VPN reconnects by itself after the mobile link drops or changes (4G/5G).
+- B3. A Wi-Fi/LAN client is redirected to the portal, logs in (credential sent over HTTPS), browses with the
+  time and speed limits of its package, and is reported to RADIUS (start, interim, stop).
+- B4. Firewall reloads/restarts do not open the network: the portal restores its rules within 10 seconds.
+- B5. Disabling a feature in the web UI stops it and removes all of its rules.

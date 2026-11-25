@@ -11,7 +11,7 @@
 # blank keeps the stored value.
 
 D=/data/tunvpn
-CTL=$D/tunvpn.sh
+CTL=/usr/sbin/tunvpn.sh; [ -x "$CTL" ] || CTL=$D/tunvpn.sh
 PKG=tunvpn
 LOG=/tmp/tunvpn.log
 
@@ -34,7 +34,7 @@ match() { printf '%s' "$1" | grep -Eq "$2"; }
 
 status_json() {
 	pid=""; [ -f /var/run/tunvpn.pid ] && kill -0 "$(cat /var/run/tunvpn.pid)" 2>/dev/null && pid=$(cat /var/run/tunvpn.pid)
-	mod=false; grep -q '^tunlite ' /proc/modules && mod=true
+	mod=false; grep -q ' tun$' /proc/misc && mod=true
 	ip4="$(ip -4 -o addr show dev tun0 2>/dev/null | awk '{print $4}')"
 	conn=false
 	if [ -n "$pid" ] && [ -f "$LOG" ]; then
@@ -87,6 +87,7 @@ ca)
 	c="$(param ca_pem)"
 	printf '%s' "$c" | grep -q -- '-----BEGIN CERTIFICATE-----' || fail ca
 	printf '%s' "$c" | grep -q -- 'PRIVATE KEY' && fail ca
+	mkdir -p "$D" && chmod 700 "$D"
 	printf '%s\n' "$c" > "$D/ca.crt.tmp" && mv "$D/ca.crt.tmp" "$D/ca.crt" || fail write
 	logger -t tunvpn "web: CA certificate replaced (from ${REMOTE_ADDR:-?})"
 	sh "$CTL" restart >/dev/null 2>&1
@@ -107,6 +108,7 @@ case "$auth" in SHA1|SHA256|SHA512) ;; *) fail auth ;; esac
 case "$nop" in 0|1) ;; *) fail route_nopull ;; esac
 match "$port" '^[0-9]{1,5}$' && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail port
 if [ "$en" = 1 ] || [ -n "$rem" ]; then match "$rem" "$RE_HOST" || fail remote; fi
+[ "$en" = 1 ] && [ ! -s "$D/ca.crt" ] && fail ca_missing
 [ -z "$user" ] || match "$user" "$RE_USER" || fail username
 [ -z "$pass" ] || match "$pass" "$RE_PASS" || fail password
 if [ -n "$user" ] && [ -z "$pass" ] && [ -z "$(get password)" ]; then fail password; fi

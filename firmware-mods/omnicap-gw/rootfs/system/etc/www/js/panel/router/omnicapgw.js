@@ -36,6 +36,9 @@
 			for(var i = 0; i < ports.length; i++){
 				if(!/^[0-9]{1,5}$/.test(ports[i]) || +ports[i] < 1 || +ports[i] > 65535){ return "lt_OCGW_errPort"; }
 			}
+			if($('#ocgwHttps').prop('checked') && !/^[A-Za-z0-9.-]{1,253}$/.test(val('#ocgwLoginHost'))){ return "lt_OCGW_errHost"; }
+			if($('#ocgwHttps').prop('checked') && $('#ocgwCertSource').val() == "agent"
+				&& !/^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~%\/-]*)?$/.test(val('#ocgwAgentUrl'))){ return "lt_OCGW_errAgentUrl"; }
 			var s = val('#ocgwSecret');
 			if(s !== "" && !/^[A-Za-z0-9!#$%()*+,.\/:;<=>?@^_{|}~-]{8,128}$/.test(s)){ return "lt_OCGW_errSecret"; }
 			return true;
@@ -75,7 +78,12 @@
 				$('#ocgwSecret, #ocgwAgentToken').val("");
 				if(ok){ $('#ocgwCertPem, #ocgwKeyPem').val(""); }
 				if(notify){
-					var msg = ok ? T("lt_succ") : (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : ""));
+					var errKey = { portal_url: "lt_OCGW_errUrl", nas_identifier: "lt_OCGW_errNas", radius_server: "lt_OCGW_errServer",
+						radius_auth_port: "lt_OCGW_errPort", radius_acct_port: "lt_OCGW_errPort", https_port: "lt_OCGW_errPort",
+						radius_secret: "lt_OCGW_errSecret", login_host: "lt_OCGW_errHost", agent_url: "lt_OCGW_errAgentUrl",
+						agent_token: "lt_OCGW_errToken", walled_garden: "lt_OCGW_errWalled", bypass_mac: "lt_OCGW_errBypass",
+						cert: "lt_OCGW_errPem", key: "lt_OCGW_errPem" }[d && d.error];
+					var msg = ok ? T("lt_succ") : errKey ? T(errKey) : (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : ""));
 					showMsgBox(T("lt_OCGW_title"), msg);
 				}
 			});

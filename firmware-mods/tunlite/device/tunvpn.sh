@@ -13,8 +13,13 @@
 #   tunvpn.sh render   only regenerate client.conf / auth.txt
 # CGI (lighttpd) and cron run with a reduced PATH: uci, iptables, tc, insmod live in /sbin and /usr/sbin
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-D=/data/tunvpn
+D=/data/tunvpn            # writable: generated client.conf, auth.txt, ca.crt (uploaded in the web UI)
 PIDF=/var/run/tunvpn.pid
+# Binaries: in the firmware image (/usr/sbin, /lib/modules) or, on a unit installed in the field, in $D.
+OVPN=/usr/sbin/openvpn; [ -x "$OVPN" ] || OVPN=$D/openvpn
+# The only kernel build tunlite.ko was made for (see BUILD.md); any other kernel needs CONFIG_TUN.
+TUNLITE_KERNEL='5.4.288+ (jenkins@sh-lin03) .* #1 SMP PREEMPT Wed Aug 19 11:26:06 UTC 2026' 
+mkdir -p "$D" && chmod 700 "$D"
 TAG=tunvpn
 
 cfg() { uci -q get "tunvpn.main.$1"; }
@@ -58,10 +63,24 @@ render() {
 	fi
 }
 
+# TUN device: the kernel's own tun (CONFIG_TUN, built in or tun.ko) if the firmware has it, otherwise tunlite.ko.
 load_module() {
-	grep -q '^tunlite ' /proc/modules && return 0
-	insmod "$D/tunlite.ko" || { logger -t $TAG "insmod tunlite.ko failed"; return 1; }
-	logger -t $TAG "tunlite loaded"
+	grep -q ' tun$' /proc/misc && return 0
+	K=/lib/modules/$(uname -r)
+	if [ -f "$K/tun.ko" ]; then
+		insmod "$K/tun.ko" && { logger -t $TAG "tun loaded"; return 0; }
+	fi
+	# tunlite.ko mirrors the structure layout of ONE kernel build: never load it on another one.
+	if ! grep -q "$TUNLITE_KERNEL" /proc/version; then
+		logger -t $TAG "no TUN support: kernel without CONFIG_TUN (tunlite.ko is only for the $TUNLITE_KERNEL build)"
+		return 1
+	fi
+	for m in "$K/tunlite.ko" "$D/tunlite.ko"; do
+		[ -f "$m" ] || continue
+		insmod "$m" && { logger -t $TAG "tunlite loaded ($m)"; return 0; }
+	done
+	logger -t $TAG "no TUN support: kernel without CONFIG_TUN and no tunlite.ko"
+	return 1
 }
 
 start() {
@@ -69,8 +88,9 @@ start() {
 	[ -c /dev/net/tun ] || { mkdir -p /dev/net; mknod /dev/net/tun c 10 200; }
 	running && return 0
 	[ -n "$(cfg remote)" ] || { logger -t $TAG "no server configured"; return 1; }
+	[ -s "$D/ca.crt" ] || { logger -t $TAG "no CA certificate installed"; return 1; }
 	render
-	"$D/openvpn" --config "$D/client.conf" --cd "$D" --daemon tunvpn --writepid "$PIDF" \
+	"$OVPN" --config "$D/client.conf" --cd "$D" --daemon tunvpn --writepid "$PIDF" \
 		--log-append /tmp/tunvpn.log || { logger -t $TAG "openvpn failed to start"; return 1; }
 	logger -t $TAG "openvpn started"
 }
@@ -92,7 +112,7 @@ start) start ;;
 stop) stop ;;
 render) render ;;
 status)
-	m=no; grep -q '^tunlite ' /proc/modules && m=yes
+	m=no; grep -q ' tun$' /proc/misc && m=yes
 	p=no; running && p="yes(pid $(cat "$PIDF"))"
 	a=$(ip -4 -o addr show dev tun0 2>/dev/null | awk '{print $4}')
 	echo "enabled=$(enabled && echo yes || echo no) module=$m openvpn=$p tun0=${a:-none}"

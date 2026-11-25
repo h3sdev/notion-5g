@@ -36,8 +36,6 @@ webui_put "$HERE/device/tunvpn.sh" $D/tunvpn.sh 755
 webui_put "$R/www/tunvpn.cgi" $WWW/tunvpn.cgi 755
 webui_put "$R/www/html/router/tunvpn.html" $WWW/html/router/tunvpn.html 644
 webui_put "$R/www/js/panel/router/tunvpn.js" $WWW/js/panel/router/tunvpn.js 644
-[ -s "$D/ca.crt" ] 2>/dev/null || true
-"$RSH" "[ -s $D/ca.crt ] || cat > $D/ca.crt" < "$HERE/device/ca.crt"
 
 # config: keep an existing uci tunvpn; otherwise migrate the hand-written first version, else defaults
 "$RSH" 'sh -s' < <(cat <<MIGRATE
