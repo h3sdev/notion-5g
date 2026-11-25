@@ -5,7 +5,7 @@ Screenshots in $OUT (default /tmp). Leaves the UI in Spanish.
 
   python3 firmware-mods/lib/test_ui_modules.py [--kick-mac 6c:1f:f7:6f:a3:b5]
 """
-import os, sys, re, subprocess
+import os, sys, re, subprocess, json
 from playwright.sync_api import sync_playwright
 
 RSH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts", "rsh.sh")
@@ -78,21 +78,25 @@ with sync_playwright() as p:
     boxes = lambda: pg.evaluate("() => Array.prototype.map.call(document.querySelectorAll('.ocgwPort'), function(e){ return e.value + (e.checked ? '+' : '-'); }).join(',')")
     check("portal: ports label", text(pg, "#lt_OCGW_portsLbl") == "Aplicar el portal en:")
     b0 = boxes()
-    check("portal: ports read from the device, all captured", all(x in b0 for x in ["wlan0+", "wlan1+", "wlan0.1+", "wlan1.1+", "eth0.2+"]), b0)
+    check("portal: ports read from the device", all(x in b0 for x in ["wlan0+", "wlan1+", "wlan0.1", "wlan1.1", "eth0.2"]), b0)
     ptxt = text(pg, "#ocgwPorts")
     check("portal: guest network listed (off)", "red de invitados" in ptxt and "apagada" in ptxt, ptxt)
     pg.evaluate("() => { var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = false; } }")
     pg.click("#lt_btnApply"); pg.wait_for_timeout(1500)
     check("portal: no port rejected in the page", "Marque al menos un medio" in pg.evaluate("() => document.body.innerText"))
     dismiss(pg)
-    pg.evaluate("() => { var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = c[i].value != 'eth0.2'; } }")
+    # never capture the admin cable here: the portal closes SSH/web UI to captured ports (OCGW_IN), and this
+    # test talks to the router through that cable. Toggle only the 5 GHz guest SSID (off) and restore.
+    orig = {x[:-1]: x[-1] == "+" for x in b0.split(",") if x}
+    oj = json.dumps(orig)  # passed inline: the vendor page breaks Playwright's argument serialization
+    pg.evaluate("() => { var o = " + oj + "; var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = c[i].value == 'wlan1.1' ? false : o[c[i].value]; } }")
     pg.click("#lt_btnApply"); pg.wait_for_timeout(9000); dismiss(pg)
     eb = rsh("ebtables -t nat -L OCGW_PORTS 2>/dev/null; uci -q get omnicapgw.main.exclude_if")
-    check("portal: cable excluded -> ebtables marks eth0.2 only", "-i eth0.2 " in eb and "wlan" not in eb, eb)
-    pg.evaluate("() => { var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = true; } }")
+    check("portal: guest SSID excluded -> ebtables marks it", "-i wlan1.1 " in eb, eb)
+    pg.evaluate("() => { var o = " + oj + "; var c = document.querySelectorAll('.ocgwPort'); for (var i = 0; i < c.length; i++) { c[i].checked = o[c[i].value]; } }")
     pg.click("#lt_btnApply"); pg.wait_for_timeout(9000); dismiss(pg)
-    eb = rsh("ebtables -t nat -L PREROUTING; uci -q get omnicapgw.main.exclude_if || echo NONE")
-    check("portal: all ports again -> no ebtables rules, nothing excluded", "OCGW" not in eb and "NONE" in eb, eb)
+    eb = rsh("ebtables -t nat -L OCGW_PORTS 2>/dev/null")
+    check("portal: original ports restored", "wlan1.1" not in eb and (("-i eth0.2 " in eb) == (not orig.get("eth0.2", True))), eb)
 
     if KICK:
         q = f"#ocgwClients input[data-mac='{KICK}']"

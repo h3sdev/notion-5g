@@ -56,10 +56,16 @@ check("GET never returns the RADIUS secret", "radius_secret" not in d, list(d))
 check("GET never returns the agent token", "agent_token" not in d, list(d))
 for field, bad in [("portal_url", "javascript:alert(1)"), ("nas_identifier", "a b;rm"), ("radius_server", "x;reboot"),
                    ("radius_auth_port", "70000"), ("https_port", "443"), ("radius_secret", "short"),
-                   ("walled_garden", "a.com,$(id)"), ("bypass_mac", "11:22"), ("cert_source", "x"), ("enabled", "2")]:
+                   ("walled_garden", "a.com,$(id)"), ("bypass_mac", "11:22"), ("cert_source", "x"), ("enabled", "2"),
+                   ("nas_identifier", "NAS1\nx"),  # a newline must not pass (grep matched any one line)
+                   ("agent_url", "http://cautivo.h3s-iot.com"),  # the agent carries secrets: https only
+                   ("exclude_if", "eth9;reboot")]:
     body = dict(BASE, **{field: bad})
     st, r = call("POST", body, sid)
     check(f"rejects bad {field}", st == 400 and isinstance(r, dict) and r.get("error") == field, f"{st} {r}")
+st, r = call("POST", {"action": "register", "install_url": "http://cautivo.h3s-iot.com/agent/v1/install/" + "a" * 32,
+                      "identity": "X1"}, sid)
+check("rejects plain-http install URL", st == 400 and r.get("error") == "install_url", f"{st} {r}")
 st, r = call("POST", {"action": "kick", "mac": "11;reboot"}, sid)
 check("rejects bad kick mac", st == 400, st)
 st, r = call("POST", {"action": "cert", "cert_pem": "nope", "key_pem": "nope"}, sid)

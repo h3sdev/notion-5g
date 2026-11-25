@@ -17,8 +17,14 @@ shared fleet secret). One Go binary (3.7 MB, ~4 MB RSS, no net/http), no kernel 
 | walled garden | `ocgw_wg` ipset (hosts resolved every 5 min; dnsmasq here has no ipset support) |
 
 Firewall: own chains `OCGW_FWD`/`OCGW_ACCT` (filter), `OCGW_NAT` (nat: HTTP -> 8002, DNS -> router),
-`OCGW_MARK` (mangle), ipsets `ocgw_auth` (hash:mac), `ocgw_wg`, `ocgw_bypass`. Unauthenticated TCP gets a
-reset, the rest is rejected. Traffic to the router itself (SSH, web UI, DNS) and LAN-to-LAN is never touched.
+`OCGW_MARK` (mangle), `OCGW_IN` (filter INPUT, IPv4 and IPv6), ipsets `ocgw_auth` (hash:ip,mac: access is
+bound to the IP the client logged in with, so counters and tc always cover it; a new DHCP address is
+re-bound on the next captured request), `ocgw_wg` (rebuilt on every refresh), `ocgw_bypass`. Unauthenticated
+TCP gets a reset, the rest is rejected. Hotspot clients reach the router itself only for DNS, DHCP(v6), ping
+and the portal ports (8002 and the HTTPS login): the web UI, SSH and the vendor services are closed to them.
+The admin uses a port excluded from the portal (e.g. the cable), a bypass MAC, or the management VPN.
+LAN-to-LAN is never touched. Access-Accept/Reject must carry a valid Message-Authenticator (Blast-RADIUS);
+uci `require_reply_ma '0'` relaxes it only for a RADIUS server that does not send one.
 If fw3 flushes the tables (`firewall restart`), the daemon puts everything back within 10 s; sessions are kept
 in `/tmp/omnicap-gw.state` (survive a daemon restart, not a reboot: after a reboot the user registers again
 and omnicap hands back the same credential with the remaining time).

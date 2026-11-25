@@ -33,11 +33,22 @@ if [ -z "$sid" ] || ! grep -q 'log_status=login' "/tmp/cgisess_$sid" 2>/dev/null
 fi
 
 get() { uci -q get "$PKG.main.$1"; }
-jstr() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r'; }
+jstr() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\000-\037'; }
 csv() { uci -q get "$PKG.main.$1" | tr ' ' ','; }
 urldecode() { printf '%b' "$(printf '%s' "$1" | sed 's/+/ /g; s/\\/%5C/g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g')"; }
 param() { urldecode "$(printf '%s' "$BODY" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1)"; }
-match() { printf '%s' "$1" | grep -Eq "$2"; }
+NL='
+'
+match() { case "$1" in *"$NL"*) return 1 ;; esac; printf '%s' "$1" | grep -Eq "$2"; }
+# secure_url: the agent API carries the fleet secret, the agent token and the TLS key -> https only;
+# plain http only for a lab server on a private address (same rule as the daemon)
+secure_url() {
+	case "$1" in
+	https://*) return 0 ;;
+	http://*) printf '%s' "$1" | grep -Eq '^http://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.)[0-9.]+(:[0-9]{1,5})?/' ;;
+	*) return 1 ;;
+	esac
+}
 
 # lan_ports: every port of the LAN bridge, read from the device (nothing assumed), one per line:
 #   ifname <TAB> kind (wifi|cable|usb|other) <TAB> band <TAB> guest <TAB> enabled <TAB> ssid
@@ -51,12 +62,13 @@ lan_ports() {
 		dev="$(uci -q get wireless.$s.device)"
 		g=false; case "$devs" in *" $dev "*) g=true ;; *) devs="$devs$dev " ;; esac
 		e=true; [ "$(uci -q get wireless.$s.disabled)" = 1 ] && e=false
-		printf '%s\twifi\t%s\t%s\t%s\t%s\n' "$i" "$(uci -q get wireless.$dev.band)" "$g" "$e" "$(uci -q get wireless.$s.ssid)"
+		printf '%s\twifi\t%s\t%s\t%s\t%s\n' "$i" "$(uci -q get wireless.$dev.band)" "$g" "$e" "$(uci -q get wireless.$s.ssid | tr '\t' ' ')"
 		wl="$wl$i "
 	done
-	for i in $(uci -q get network.lan.ifname) $(ls /sys/class/net/br-lan/brif 2>/dev/null); do
+	ex=" $(uci -q get $PKG.main.exclude_if) "
+	for i in $(uci -q get network.lan.ifname) $(ls /sys/class/net/br-lan/brif 2>/dev/null) $ex; do
 		case "$wl" in *" $i "*) continue ;; esac
-		[ -e "/sys/class/net/$i" ] || continue
+		[ -e "/sys/class/net/$i" ] || case "$ex" in *" $i "*) ;; *) continue ;; esac
 		wl="$wl$i "
 		k=other; case "$i" in eth*) k=cable ;; usb*) k=usb ;; esac
 		printf '%s\t%s\t-\tfalse\ttrue\t-\n' "$i" "$k"
@@ -115,7 +127,7 @@ kick)
 	;;
 register)
 	iu="$(param install_url)"; id="$(param identity)"
-	match "$iu" "$RE_INSTALL" || fail install_url
+	match "$iu" "$RE_INSTALL" && secure_url "$iu" || fail install_url
 	match "$id" "$RE_IDENT" || fail identity
 	r="$("$BIN" -uci $PKG -install "$iu" -identity "$id" 2>/dev/null | tail -n1)"
 	case "$r" in
@@ -133,7 +145,7 @@ register)
 	esac
 	;;
 fetchcert)
-	r="$(wget -q -T 40 -O - http://127.0.0.1:8009/admin/fetchcert 2>/dev/null)"
+	wget -q -T 40 -O /dev/null http://127.0.0.1:8009/admin/fetchcert 2>/dev/null
 	out "200 OK" "$(status_json)"
 	;;
 cert)
@@ -173,15 +185,15 @@ fi
 port_ok "$ap" || fail radius_auth_port
 port_ok "$cp" || fail radius_acct_port
 [ -z "$sec" ] || match "$sec" "$RE_SECRET" || fail radius_secret
-if [ "$https" = 1 ]; then match "$lh" "$RE_HOST" || fail login_host; fi
+if [ "$en" = 1 ] && [ "$https" = 1 ]; then match "$lh" "$RE_HOST" || fail login_host; fi
 [ -z "$lh" ] || match "$lh" "$RE_HOST" || fail login_host
 port_ok "$hp" || fail https_port
 case "$hp" in 80|443|22|53|8002|8009) fail https_port ;; esac
-if [ "$src" = agent ]; then
+if [ "$en" = 1 ] && [ "$https" = 1 ] && [ "$src" = agent ]; then
 	match "$aurl" "$RE_URL" || fail agent_url
 	[ -n "$tok" ] || [ -n "$(get agent_token)" ] || fail agent_token
 fi
-[ -z "$aurl" ] || match "$aurl" "$RE_URL" || fail agent_url
+[ -z "$aurl" ] || { match "$aurl" "$RE_URL" && secure_url "$aurl"; } || fail agent_url
 [ -z "$tok" ] || match "$tok" "$RE_TOKEN" || fail agent_token
 wgl=""; for x in $(printf '%s' "$wg" | tr ', ' '\n\n'); do match "$x" "$RE_WG" || fail walled_garden; wgl="$wgl $x"; done
 # exclude_if: comma list of LAN ports whose clients skip the portal; only ports this device really has,

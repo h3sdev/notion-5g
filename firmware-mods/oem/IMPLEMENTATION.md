@@ -39,10 +39,11 @@ The package also contains `tunlite.ko`, a small TUN driver H3S built for the **c
 the running kernel is exactly that build; on any other kernel it is never loaded. If you enable `CONFIG_TUN`,
 you may leave `tunlite.ko` out.
 
-**Keep in the image (already present in the current firmware, do not remove):** `/usr/sbin/ebtables` and the
-modules `ebtables`, `ebtable_nat`, `ebt_mark`, `xt_mark` (OpenWrt `ebtables`, `kmod-ebtables`, `kmod-ipt-core`).
-The captive portal uses them to apply the portal only on the LAN ports chosen in the web UI (Wi-Fi SSIDs,
-guest SSIDs, cable, USB), because the kernel has no `br_netfilter`/`physdev`.
+**Keep in the image (already present in the current firmware, do not remove):** `/usr/sbin/ebtables`,
+`ip6tables`, and the modules `ebtables`, `ebtable_nat`, `ebt_mark`, `xt_mark`, `xt_mac`, `xt_multiport`,
+`xt_conntrack`, `ip_set_hash_ipmac`, `ip6t_REJECT`. The captive portal uses them to apply the portal only on
+the LAN ports chosen in the web UI (the kernel has no `br_netfilter`/`physdev`), to bind each client's access
+to its IP and MAC, and to close the router's admin services (web UI, SSH) to hotspot clients.
 
 ## Step 2 — copy `files/` into the image
 

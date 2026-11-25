@@ -11,8 +11,8 @@ Network parameter: requirements R0–R12 of the earlier netparam package, unchan
   network is open as in the current firmware.
 - F4. `/dev/net/tun` can be created: `/proc/misc` lists `tun` after `tunvpn.sh check`/start, using the kernel TUN
   driver (`CONFIG_TUN`).
-- F5. Port selection of the captive portal works: `ebtables -t nat -L` runs and `lsmod` lists `ebt_mark` and
-  `xt_mark` (or they load with `insmod`).
+- F5. The captive portal's kernel support is there: `ebtables -t nat -L` and `ip6tables -S` run, and `ebt_mark`,
+  `xt_mark`, `xt_mac`, `xt_multiport`, `ip_set_hash_ipmac` are loaded or loadable.
 
 ## Web UI
 

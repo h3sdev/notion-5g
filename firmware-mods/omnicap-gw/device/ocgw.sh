@@ -39,7 +39,8 @@ case "$1" in
 check)
 	enabled || exit 0
 	start
-	[ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 262144 ] && tail -c 65536 "$LOG" > "$LOG.1" && mv "$LOG.1" "$LOG"
+	# rotate in place: the daemon keeps the file open (O_APPEND), a mv would leave it writing to a deleted file
+	[ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 262144 ] && tail -c 65536 "$LOG" > "$LOG.1" && cat "$LOG.1" > "$LOG"; rm -f "$LOG.1"
 	;;
 restart) stop; enabled && start ;;
 start) start ;;

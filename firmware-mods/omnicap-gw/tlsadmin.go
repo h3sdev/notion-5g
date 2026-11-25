@@ -35,9 +35,10 @@ type CertInfo struct {
 }
 
 type certStore struct {
-	mu   sync.RWMutex
-	cert *tls.Certificate
-	info CertInfo
+	fetch sync.Mutex // one download at a time (startup, 6-hourly and the web UI button may overlap)
+	mu    sync.RWMutex
+	cert  *tls.Certificate
+	info  CertInfo
 }
 
 func (cs *certStore) get(*tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -52,7 +53,9 @@ func (cs *certStore) get(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 func (cs *certStore) ready() bool {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
-	return cs.cert != nil
+	// an expired certificate is not "ready": the portal falls back to the plain HTTP login instead of
+	// sending every phone to a TLS error
+	return cs.cert != nil && cs.cert.Leaf != nil && time.Now().Before(cs.cert.Leaf.NotAfter)
 }
 
 // parsePair validates a PEM chain + key for host: matching key, hostname covered, not expired.
@@ -101,6 +104,8 @@ func (g *Gateway) fetchCert() error {
 	if g.cfg.AgentURL == "" || g.cfg.AgentToken == "" {
 		return nil
 	}
+	g.certs.fetch.Lock()
+	defer g.certs.fetch.Unlock()
 	c, err := agentGet(g.cfg.AgentURL+"/agent/v1/hotspot-cert/onmicap-portal.crt", g.cfg.AgentToken)
 	if err == nil {
 		var k []byte
@@ -112,7 +117,9 @@ func (g *Gateway) fetchCert() error {
 					if err = writeAtomic(g.cfg.KeyFile, k, 0600); err == nil {
 						err = writeAtomic(g.cfg.CertFile, c, 0644)
 					}
-					log.Printf("certificate updated from the omnicap agent")
+					if err == nil {
+						log.Printf("certificate updated from the omnicap agent")
+					}
 				}
 			}
 		}
@@ -161,6 +168,9 @@ func agentGet(rawURL, token string) ([]byte, error) {
 func agentRequest(method, rawURL, token string, payload []byte) ([]byte, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
+		return nil, err
+	}
+	if err := secureURL(u); err != nil {
 		return nil, err
 	}
 	host := u.Hostname()
@@ -265,6 +275,21 @@ func agentRequest(method, rawURL, token string, payload []byte) ([]byte, error) 
 	return body, nil
 }
 
+// secureURL: the agent API carries the fleet RADIUS secret, the agent token and the TLS private key, so it
+// must be https. Plain http only for a lab server on a private address.
+func secureURL(u *url.URL) error {
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" {
+		if ip := net.ParseIP(u.Hostname()); ip != nil && (ip.IsPrivate() || ip.IsLoopback()) {
+			return nil
+		}
+		return fmt.Errorf("%s must use https (plain http only for a private lab address)", u.Host)
+	}
+	return fmt.Errorf("unsupported scheme %q", u.Scheme)
+}
+
 // syncLoginHost makes dnsmasq answer LoginHost with the router address (/tmp/hosts is an addn-hosts dir,
 // reloaded on SIGHUP; nothing persistent is touched).
 func (g *Gateway) syncLoginHost(on bool) {
@@ -315,7 +340,7 @@ func (g *Gateway) serveTLS() {
 			time.Sleep(time.Second)
 			continue
 		}
-		go g.serveConn(c)
+		g.accept(c)
 	}
 }
 

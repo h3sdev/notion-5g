@@ -38,8 +38,8 @@ echo "== TUN driver (F4)"
 t=$("$RSH" 'grep -q " tun$" /proc/misc && echo builtin-or-loaded; ls /lib/modules/$(uname -r)/tun.ko 2>/dev/null; zcat /proc/config.gz 2>/dev/null | grep "^CONFIG_TUN="')
 if echo "$t" | grep -q -e 'tun.ko' -e builtin -e 'CONFIG_TUN='; then ok "F4 kernel TUN driver available ($t)"; else ko "F4 no kernel TUN driver (CONFIG_TUN missing; tunlite.ko only works on the 2026-08-19 kernel)"; fi
 echo "== ebtables for port selection (F5)"
-e=$("$RSH" 'ebtables -t nat -L >/dev/null 2>&1 && echo ebtables; K=/lib/modules/$(uname -r); for m in ebt_mark xt_mark; do lsmod | grep -q "^$m " && echo $m || { [ -f $K/$m.ko ] && echo $m; }; done' | tr '\n' ' ')
-case "$e" in *ebtables*ebt_mark*xt_mark*) ok "F5 ebtables + ebt_mark + xt_mark ($e)" ;; *) ko "F5 missing for port selection: need ebtables, ebt_mark, xt_mark (found: $e)" ;; esac
+e=$("$RSH" 'ebtables -t nat -L >/dev/null 2>&1 && echo ebtables; K=/lib/modules/$(uname -r); ip6tables -S >/dev/null 2>&1 && echo ip6tables; for m in ebt_mark xt_mark xt_mac xt_multiport ip_set_hash_ipmac; do lsmod | grep -q "^$m " && echo $m || { [ -f $K/$m.ko ] && echo $m; }; done' | tr '\n' ' ')
+case "$e" in *ebtables*ip6tables*ebt_mark*xt_mark*xt_mac*xt_multiport*ip_set_hash_ipmac*) ok "F5 portal kernel support ($e)" ;; *) ko "F5 missing for the captive portal: need ebtables, ip6tables, ebt_mark, xt_mark, xt_mac, xt_multiport, ip_set_hash_ipmac (found: $e)" ;; esac
 
 echo "== menu and services"
 m=$("$RSH" 'grep -c -e "mMgmtVPN" -e "mCaptivePortal" /system/etc/www/xml/ui_mifi.xml; grep -c -e "/usr/sbin/tunvpn.sh check" -e "/usr/sbin/ocgw.sh check" /etc/crontabs/root; /usr/sbin/openvpn --version | head -1')

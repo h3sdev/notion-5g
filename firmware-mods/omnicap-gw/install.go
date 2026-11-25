@@ -10,6 +10,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -40,9 +41,12 @@ func runInstall(installURL, identity, pkg string) int {
 		return 1
 	}
 	installURL = strings.TrimRight(strings.TrimSpace(installURL), "/")
-	if !strings.HasPrefix(installURL, "https://") && !strings.HasPrefix(installURL, "http://") ||
-		!strings.Contains(installURL, "/agent/v1/install/") {
+	u, err := url.Parse(installURL)
+	if err != nil || !strings.Contains(installURL, "/agent/v1/install/") {
 		return fail("the install URL must look like https://<omnicap>/agent/v1/install/<key>")
+	}
+	if err := secureURL(u); err != nil {
+		return fail(err.Error())
 	}
 	if !identityRE.MatchString(identity) {
 		return fail("the identity only allows letters, digits, _ . - (max 64)")

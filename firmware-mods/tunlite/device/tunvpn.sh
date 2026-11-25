@@ -105,7 +105,8 @@ case "$1" in
 check)
 	enabled || exit 0
 	start
-	[ -f /tmp/tunvpn.log ] && [ "$(wc -c < /tmp/tunvpn.log)" -gt 262144 ] && tail -c 65536 /tmp/tunvpn.log > /tmp/tunvpn.log.1 && mv /tmp/tunvpn.log.1 /tmp/tunvpn.log
+	# rotate in place: openvpn keeps the file open (--log-append), a mv would leave it writing to a deleted file
+	[ -f /tmp/tunvpn.log ] && [ "$(wc -c < /tmp/tunvpn.log)" -gt 262144 ] && tail -c 65536 /tmp/tunvpn.log > /tmp/tunvpn.log.1 && cat /tmp/tunvpn.log.1 > /tmp/tunvpn.log; rm -f /tmp/tunvpn.log.1
 	;;
 restart) stop; enabled && start ;;
 start) start ;;

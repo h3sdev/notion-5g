@@ -72,6 +72,9 @@ type Config struct {
 	AgentURL   string `json:"agent_url"`   // https://cautivo.h3s-iot.com: fetch the certificate like RouterOS does
 	AgentToken string `json:"agent_token"` // device agent_token (Authorization: Bearer)
 	AdminAddr  string `json:"admin_addr"`  // 127.0.0.1:8009, status/kick for the web UI CGI
+	// RequireReplyMA: Access-Accept/Reject must carry a valid Message-Authenticator (Blast-RADIUS,
+	// CVE-2024-3596). On by default; uci require_reply_ma '0' only for an old RADIUS server without it.
+	RequireReplyMA bool `json:"require_reply_ma"`
 }
 
 func defaultConfig() *Config {
@@ -146,20 +149,15 @@ func loadUCI(pkg string) (*Config, error) {
 		c.LoginHost = h
 	}
 	c.HTTPSPort = num("https_port", 8443)
+	c.RequireReplyMA = str("require_reply_ma") != "0"
 	if str("cert_source") == "agent" {
 		c.AgentURL, c.AgentToken = str("agent_url"), str("agent_token")
 	}
-	return c.finish()
-}
-
-func loadConfig(path string) (*Config, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	c := defaultConfig()
-	if err := json.Unmarshal(b, c); err != nil {
-		return nil, err
+	// the LAN address may be changed in the vendor UI: redirects, the login host and NAS-IP follow it
+	if out, err := sh("uci", "-q", "get", "network.lan.ipaddr"); err == nil {
+		if ip := net.ParseIP(strings.TrimSpace(strings.SplitN(out, "/", 2)[0])); ip != nil && ip.To4() != nil {
+			c.RouterIP = ip.String()
+		}
 	}
 	return c.finish()
 }
@@ -188,7 +186,16 @@ type Session struct {
 	InOctets, OutOctets              uint64 // client upload / download
 	LastActivity                     time.Time
 	LastInterim                      time.Time
-	Slot                             int // tc class minor / fw mark slot
+	End                              time.Time `json:",omitempty"` // set when the session ends (Stop retries keep it)
+	Slot                             int       // tc class minor / fw mark slot
+	// last raw iptables counters seen; not saved, so after a restart (chains flushed, counters back to 0)
+	// the next reading counts as new traffic instead of freezing the totals
+	rawIn, rawOut uint64
+}
+
+type pendingStop struct {
+	s     *Session
+	cause uint32
 }
 
 type Gateway struct {
@@ -196,8 +203,11 @@ type Gateway struct {
 	mu       sync.Mutex
 	sessions map[string]*Session // by MAC
 	slots    map[int]bool
-	wgIPs    map[string]bool
+	wgByHost map[string][]string // walled garden: last good addresses per host
 	nasPort  uint32
+	stops    []pendingStop          // Accounting-Stop not answered yet, retried every tick
+	fails    map[string][]time.Time // failed logins per MAC (last minute)
+	connSem  chan struct{}          // caps concurrent client connections (8002 + HTTPS)
 	certs    certStore
 	started  time.Time
 	// last RADIUS outcome, for the web UI status
@@ -210,6 +220,7 @@ const (
 	chainAcct = "OCGW_ACCT"
 	chainNat  = "OCGW_NAT"
 	chainMark = "OCGW_MARK"
+	chainIn   = "OCGW_IN" // hotspot clients -> the router itself: only DNS, DHCP, ping and this portal
 	setAuth   = "ocgw_auth"
 	setWG     = "ocgw_wg"
 	setBypass = "ocgw_bypass"
@@ -237,14 +248,11 @@ func validIface(s string) bool {
 	return true
 }
 
-// exemptIfaces returns the bridge ports left out of the portal (nil = capture every port).
-func (c *Config) exemptIfaces() []string { return c.ExcludeIfaces }
-
 var exemptMatch = []string{"-m", "mark", "--mark", fmt.Sprintf("0x%x/0x%x", exemptMark, exemptMark), "-j", "RETURN"}
 
 // setupPorts (re)creates the ebtables marking for the ports left out of the portal. Idempotent.
 func (g *Gateway) setupPorts() error {
-	ex := g.cfg.exemptIfaces()
+	ex := g.cfg.ExcludeIfaces
 	if len(ex) == 0 {
 		g.teardownPorts()
 		return nil
@@ -287,33 +295,43 @@ func (g *Gateway) firewallPresent() bool {
 	out, _ := sh("iptables", "-S", "FORWARD")
 	nat, _ := sh("iptables", "-t", "nat", "-S", "PREROUTING")
 	mg, _ := sh("iptables", "-t", "mangle", "-S", "FORWARD")
+	in, _ := sh("iptables", "-S", "INPUT")
+	in6, _ := sh("ip6tables", "-S", "INPUT")
 	return strings.Contains(out, "-j "+chainFwd) && strings.Contains(out, "-j "+chainAcct) &&
 		strings.Contains(nat, "-j "+chainNat) && strings.Contains(mg, "-j "+chainMark) &&
-		(len(g.cfg.exemptIfaces()) == 0 || g.portsJumpPresent())
+		strings.Contains(in, "-j "+chainIn) && strings.Contains(in6, "-j "+chainIn) &&
+		(len(g.cfg.ExcludeIfaces) == 0 || g.portsJumpPresent())
 }
 
 // setupFirewall (re)creates every chain, set and jump. Idempotent.
 func (g *Gateway) setupFirewall() error {
 	c := g.cfg
-	shq("ipset", "create", setAuth, "hash:mac", "-exist")
-	shq("ipset", "create", setBypass, "hash:mac", "-exist")
-	shq("ipset", "create", setWG, "hash:net", "-exist")
-	for _, m := range c.BypassMACs {
-		shq("ipset", "add", setBypass, strings.ToLower(m), "-exist")
-	}
-	for _, t := range []struct{ table, chain string }{{"filter", chainFwd}, {"filter", chainAcct}, {"nat", chainNat}, {"mangle", chainMark}} {
+	for _, t := range []struct{ table, chain string }{{"filter", chainFwd}, {"filter", chainAcct}, {"filter", chainIn}, {"nat", chainNat}, {"mangle", chainMark}} {
 		shq("iptables", "-t", t.table, "-N", t.chain)
 		shq("iptables", "-t", t.table, "-F", t.chain)
+	}
+	shq("ip6tables", "-N", chainIn)
+	shq("ip6tables", "-F", chainIn)
+	// Access is bound to IP+MAC: a client that changes its IP is captured again, so the IP-based
+	// counters and tc classes always cover what it sends. Older builds used hash:mac under the same name;
+	// the chains above no longer reference it, so it can be replaced.
+	if out, _ := sh("ipset", "list", "-t", setAuth); out != "" && !strings.Contains(out, "hash:ip,mac") {
+		shq("ipset", "destroy", setAuth)
+	}
+	shq("ipset", "create", setAuth, "hash:ip,mac", "-exist")
+	shq("ipset", "create", setBypass, "hash:mac", "-exist")
+	shq("ipset", "create", setWG, "hash:net", "-exist")
+	shq("ipset", "flush", setBypass) // a MAC removed in the web UI loses its bypass now, not at reboot
+	for _, m := range c.BypassMACs {
+		shq("ipset", "add", setBypass, strings.ToLower(m), "-exist")
 	}
 	// filter: captive enforcement for traffic coming from the LAN
 	rules := [][]string{
 		{"-A", chainFwd, "-o", c.LanIf, "-j", "RETURN"},
 		append([]string{"-A", chainFwd}, exemptMatch...),
 		{"-A", chainFwd, "-m", "set", "--match-set", setBypass, "src", "-j", "RETURN"},
-		{"-A", chainFwd, "-m", "set", "--match-set", setAuth, "src", "-j", "RETURN"},
+		{"-A", chainFwd, "-m", "set", "--match-set", setAuth, "src,src", "-j", "RETURN"},
 		{"-A", chainFwd, "-m", "set", "--match-set", setWG, "dst", "-j", "RETURN"},
-		{"-A", chainFwd, "-p", "udp", "--dport", "53", "-j", "RETURN"},
-		{"-A", chainFwd, "-p", "tcp", "--dport", "53", "-j", "RETURN"},
 		{"-A", chainFwd, "-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"},
 		{"-A", chainFwd, "-j", "REJECT", "--reject-with", "icmp-port-unreachable"},
 	}
@@ -326,7 +344,7 @@ func (g *Gateway) setupFirewall() error {
 	nrules := [][]string{
 		append([]string{"-A", chainNat}, exemptMatch...),
 		{"-A", chainNat, "-m", "set", "--match-set", setBypass, "src", "-j", "RETURN"},
-		{"-A", chainNat, "-m", "set", "--match-set", setAuth, "src", "-j", "RETURN"},
+		{"-A", chainNat, "-m", "set", "--match-set", setAuth, "src,src", "-j", "RETURN"},
 		{"-A", chainNat, "-d", c.RouterIP, "-j", "RETURN"},
 		{"-A", chainNat, "-m", "set", "--match-set", setWG, "dst", "-j", "RETURN"},
 		{"-A", chainNat, "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", "53"},
@@ -338,19 +356,24 @@ func (g *Gateway) setupFirewall() error {
 			return err
 		}
 	}
+	if err := g.setupInput(); err != nil {
+		return err
+	}
 	// jumps (first position, ahead of the vendor and fw3 chains)
 	jumps := [][]string{
-		{"filter", "FORWARD", "-i", c.LanIf, "-j", chainFwd},
-		{"filter", "FORWARD", "-j", chainAcct},
-		{"nat", "PREROUTING", "-i", c.LanIf, "-j", chainNat},
-		{"mangle", "FORWARD", "-i", c.LanIf, "-j", chainMark},
+		{"iptables", "filter", "FORWARD", "-i", c.LanIf, "-j", chainFwd},
+		{"iptables", "filter", "FORWARD", "-j", chainAcct},
+		{"iptables", "filter", "INPUT", "-i", c.LanIf, "-j", chainIn},
+		{"ip6tables", "filter", "INPUT", "-i", c.LanIf, "-j", chainIn},
+		{"iptables", "nat", "PREROUTING", "-i", c.LanIf, "-j", chainNat},
+		{"iptables", "mangle", "FORWARD", "-i", c.LanIf, "-j", chainMark},
 	}
 	for _, j := range jumps {
-		args := append([]string{"-t", j[0], "-C", j[1]}, j[2:]...)
-		if _, err := sh("iptables", args...); err != nil {
+		args := append([]string{"-t", j[1], "-C", j[2]}, j[3:]...)
+		if _, err := sh(j[0], args...); err != nil {
 			args[2] = "-I"
 			args = append(args[:4], append([]string{"1"}, args[4:]...)...)
-			if _, err := sh("iptables", args...); err != nil {
+			if _, err := sh(j[0], args...); err != nil {
 				return err
 			}
 		}
@@ -365,6 +388,48 @@ func (g *Gateway) setupFirewall() error {
 	return nil
 }
 
+// setupInput: hotspot clients may only reach the router for DNS, DHCP, ping and this portal. The admin
+// web UI, SSH and the vendor services (8081, UDP 2345/3456, ...) are closed to them; the admin uses an
+// excluded port (e.g. the cable), a bypass MAC or the management VPN (tun0, not br-lan).
+func (g *Gateway) setupInput() error {
+	c := g.cfg
+	open := func(ipt string, rules ...[]string) error {
+		for _, r := range rules {
+			if _, err := sh(ipt, append([]string{"-A", chainIn}, r...)...); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	ports := []string{strconv.Itoa(c.ListenPort), strconv.Itoa(c.HTTPSPort)}
+	common := [][]string{
+		exemptMatch, // excluded ports (e.g. the admin cable) keep full access to the router
+		{"-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "--ctdir", "REPLY", "-j", "RETURN"}, // answers to the router's own connections
+		{"-p", "udp", "--dport", "53", "-j", "RETURN"},
+		{"-p", "tcp", "--dport", "53", "-j", "RETURN"},
+		{"-p", "tcp", "-m", "multiport", "--dports", strings.Join(ports, ","), "-j", "RETURN"},
+	}
+	for _, m := range c.BypassMACs {
+		common = append(common, []string{"-m", "mac", "--mac-source", strings.ToLower(m), "-j", "RETURN"})
+	}
+	v4 := append(common,
+		[]string{"-p", "udp", "--dport", "67", "-j", "RETURN"},
+		[]string{"-p", "icmp", "-j", "RETURN"},
+		[]string{"-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"},
+		[]string{"-j", "REJECT", "--reject-with", "icmp-port-unreachable"},
+	)
+	v6 := append(append([][]string{}, common...),
+		[]string{"-p", "udp", "--dport", "547", "-j", "RETURN"},
+		[]string{"-p", "ipv6-icmp", "-j", "RETURN"},
+		[]string{"-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"},
+		[]string{"-j", "REJECT", "--reject-with", "icmp6-port-unreachable"},
+	)
+	if err := open("iptables", v4...); err != nil {
+		return err
+	}
+	return open("ip6tables", v6...)
+}
+
 func (g *Gateway) teardownFirewall() {
 	c := g.cfg
 	for {
@@ -373,9 +438,13 @@ func (g *Gateway) teardownFirewall() {
 		}
 	}
 	shq("iptables", "-D", "FORWARD", "-j", chainAcct)
+	shq("iptables", "-D", "INPUT", "-i", c.LanIf, "-j", chainIn)
+	shq("ip6tables", "-D", "INPUT", "-i", c.LanIf, "-j", chainIn)
+	shq("ip6tables", "-F", chainIn)
+	shq("ip6tables", "-X", chainIn)
 	shq("iptables", "-t", "nat", "-D", "PREROUTING", "-i", c.LanIf, "-j", chainNat)
 	shq("iptables", "-t", "mangle", "-D", "FORWARD", "-i", c.LanIf, "-j", chainMark)
-	for _, t := range []struct{ table, chain string }{{"filter", chainFwd}, {"filter", chainAcct}, {"nat", chainNat}, {"mangle", chainMark}} {
+	for _, t := range []struct{ table, chain string }{{"filter", chainFwd}, {"filter", chainAcct}, {"filter", chainIn}, {"nat", chainNat}, {"mangle", chainMark}} {
 		shq("iptables", "-t", t.table, "-F", t.chain)
 		shq("iptables", "-t", t.table, "-X", t.chain)
 	}
@@ -388,12 +457,15 @@ func (g *Gateway) teardownFirewall() {
 	}
 }
 
-// refreshWalledGarden resolves the configured hosts (dnsmasq here has no ipset support).
+// refreshWalledGarden resolves the configured hosts (dnsmasq here has no ipset support) and replaces the
+// whole set, so a host removed in the web UI or an address a CDN dropped stops being reachable. A host
+// that does not resolve right now keeps its last good addresses.
 func (g *Gateway) refreshWalledGarden() {
 	hosts := append([]string{}, g.cfg.WalledGarden...)
 	if u, err := url.Parse(g.cfg.PortalURL); err == nil {
 		hosts = append(hosts, u.Hostname())
 	}
+	next := map[string][]string{}
 	for _, h := range hosts {
 		var addrs []string
 		if _, n, err := net.ParseCIDR(h); err == nil {
@@ -407,24 +479,36 @@ func (g *Gateway) refreshWalledGarden() {
 				}
 			}
 		}
+		if len(addrs) == 0 {
+			addrs = g.wgByHost[h]
+		}
+		next[h] = addrs
+	}
+	tmp := setWG + "_n"
+	shq("ipset", "create", tmp, "hash:net", "-exist")
+	shq("ipset", "flush", tmp)
+	for _, addrs := range next {
 		for _, a := range addrs {
-			if !g.wgIPs[a] {
-				shq("ipset", "add", setWG, a, "-exist")
-				g.wgIPs[a] = true
-			}
+			shq("ipset", "add", tmp, a, "-exist")
 		}
 	}
+	if _, err := sh("ipset", "swap", tmp, setWG); err != nil {
+		log.Printf("walled garden: %v", err)
+	}
+	shq("ipset", "destroy", tmp)
+	g.wgByHost = next
 }
 
 func (g *Gateway) applySession(s *Session) {
-	shq("ipset", "add", setAuth, s.MAC, "-exist")
+	shq("ipset", "add", setAuth, s.IP+","+s.MAC, "-exist")
+	s.rawIn, s.rawOut = 0, 0 // fresh counter rules
 	shq("iptables", "-A", chainAcct, "-s", s.IP, "-j", "RETURN")
 	shq("iptables", "-A", chainAcct, "-d", s.IP, "-j", "RETURN")
 	g.applyShaping(s)
 }
 
 func (g *Gateway) revokeSession(s *Session) {
-	shq("ipset", "del", setAuth, s.MAC)
+	shq("ipset", "del", setAuth, s.IP+","+s.MAC)
 	shq("iptables", "-D", chainAcct, "-s", s.IP, "-j", "RETURN")
 	shq("iptables", "-D", chainAcct, "-d", s.IP, "-j", "RETURN")
 	g.removeShaping(s)
@@ -433,8 +517,9 @@ func (g *Gateway) revokeSession(s *Session) {
 }
 
 // tc: download = class under the LAN egress HTB, upload = fwmark + class under the WAN egress HTB.
-// Both roots exist (vendor qos daemon); if not, a root is created.
-func htbRoot(dev string) string {
+// Both roots exist (vendor qos daemon); if not, applyShaping creates one (create=true). Cleanup never
+// creates one: htbRoot(dev, false) returns "" when the device has no HTB root.
+func htbRoot(dev string, create bool) string {
 	out, _ := sh("tc", "qdisc", "show", "dev", dev)
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Fields(l)
@@ -442,13 +527,16 @@ func htbRoot(dev string) string {
 			return strings.TrimSuffix(f[2], ":")
 		}
 	}
+	if !create {
+		return ""
+	}
 	shq("tc", "qdisc", "add", "dev", dev, "root", "handle", "77:", "htb", "default", "0")
 	return "77"
 }
 
 func (g *Gateway) applyShaping(s *Session) {
 	if s.DownKbit > 0 {
-		r := htbRoot(g.cfg.LanIf)
+		r := htbRoot(g.cfg.LanIf, true)
 		cls := fmt.Sprintf("%s:%x", r, 0x100+s.Slot)
 		shq("tc", "class", "replace", "dev", g.cfg.LanIf, "parent", r+":", "classid", cls, "htb",
 			"rate", fmt.Sprintf("%dkbit", s.DownKbit), "ceil", fmt.Sprintf("%dkbit", s.DownKbit))
@@ -458,7 +546,7 @@ func (g *Gateway) applyShaping(s *Session) {
 	if s.UpKbit > 0 {
 		mark := fmt.Sprintf("0x%x/0x%x", (0x01000000*(s.Slot+1))&markMask, markMask)
 		shq("iptables", "-t", "mangle", "-A", chainMark, "-s", s.IP, "-j", "MARK", "--set-xmark", mark)
-		r := htbRoot(g.cfg.WanIf)
+		r := htbRoot(g.cfg.WanIf, true)
 		cls := fmt.Sprintf("%s:%x", r, 0x100+s.Slot)
 		shq("tc", "class", "replace", "dev", g.cfg.WanIf, "parent", r+":", "classid", cls, "htb",
 			"rate", fmt.Sprintf("%dkbit", s.UpKbit), "ceil", fmt.Sprintf("%dkbit", s.UpKbit))
@@ -468,14 +556,14 @@ func (g *Gateway) applyShaping(s *Session) {
 }
 
 func (g *Gateway) removeShaping(s *Session) {
-	if r := htbRoot(g.cfg.LanIf); r != "" {
+	if r := htbRoot(g.cfg.LanIf, false); r != "" {
 		shq("tc", "filter", "del", "dev", g.cfg.LanIf, "parent", r+":", "protocol", "ip", "prio", "3",
 			"handle", fmt.Sprintf("800::%x", 0x100+s.Slot), "u32")
 		shq("tc", "class", "del", "dev", g.cfg.LanIf, "classid", fmt.Sprintf("%s:%x", r, 0x100+s.Slot))
 	}
 	mark := fmt.Sprintf("0x%x/0x%x", (0x01000000*(s.Slot+1))&markMask, markMask)
 	shq("iptables", "-t", "mangle", "-D", chainMark, "-s", s.IP, "-j", "MARK", "--set-xmark", mark)
-	if r := htbRoot(g.cfg.WanIf); r != "" {
+	if r := htbRoot(g.cfg.WanIf, false); r != "" {
 		shq("tc", "filter", "del", "dev", g.cfg.WanIf, "parent", r+":", "protocol", "ip", "prio", "3",
 			"handle", mark, "fw")
 		shq("tc", "class", "del", "dev", g.cfg.WanIf, "classid", fmt.Sprintf("%s:%x", r, 0x100+s.Slot))
@@ -483,12 +571,13 @@ func (g *Gateway) removeShaping(s *Session) {
 }
 
 // readCounters returns bytes per IP from OCGW_ACCT: src = client upload, dst = client download.
-func readCounters() (up, down map[string]uint64) {
+func readCounters() (up, down map[string]uint64, ok bool) {
 	up, down = map[string]uint64{}, map[string]uint64{}
 	out, err := sh("iptables", "-L", chainAcct, "-n", "-v", "-x")
 	if err != nil {
-		return
+		return up, down, false
 	}
+	ok = true
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Fields(l)
 		// pkts bytes target prot opt in out source destination
@@ -558,13 +647,18 @@ func aInt(t byte, n uint32) attr {
 }
 func aIP(t byte, ip string) attr { return attr{t, net.ParseIP(ip).To4()} }
 
-func encodeAttrs(as []attr) []byte {
+// encodeAttrs refuses values over 253 bytes: the length is one byte, and a longer value would wrap it
+// and turn the rest of the value into attributes of a packet signed with the fleet secret.
+func encodeAttrs(as []attr) ([]byte, error) {
 	var b []byte
 	for _, a := range as {
+		if len(a.v) > 253 {
+			return nil, fmt.Errorf("RADIUS attribute %d too long (%d bytes)", a.t, len(a.v))
+		}
 		b = append(b, a.t, byte(len(a.v)+2))
 		b = append(b, a.v...)
 	}
-	return b
+	return b, nil
 }
 
 func papEncrypt(pw []byte, secret string, auth []byte) []byte {
@@ -646,13 +740,21 @@ func (g *Gateway) exchange(code byte, port int, as []attr) (*reply, error) {
 			}
 		}
 		as = append(as, attr{attrMsgAuth, make([]byte, 16)})
-		pkt = build(encodeAttrs(as))
+		body, err := encodeAttrs(as)
+		if err != nil {
+			return nil, err
+		}
+		pkt = build(body)
 		copy(pkt[4:20], auth)
 		mac := hmac.New(md5.New, secret)
 		mac.Write(pkt)
 		copy(pkt[len(pkt)-16:], mac.Sum(nil))
 	} else {
-		pkt = build(encodeAttrs(as))
+		body, err := encodeAttrs(as)
+		if err != nil {
+			return nil, err
+		}
+		pkt = build(body)
 		h := md5.New()
 		h.Write(pkt[:4])
 		h.Write(make([]byte, 16))
@@ -698,13 +800,44 @@ func (g *Gateway) exchange(code byte, port int, as []attr) (*reply, error) {
 		}
 		r := &reply{code: resp[0]}
 		b := resp[20:]
+		maOff := -1
 		for len(b) >= 2 && int(b[1]) <= len(b) && b[1] >= 2 {
+			if b[0] == attrMsgAuth && b[1] == 18 {
+				maOff = len(resp) - len(b) + 2
+			}
 			r.attrs = append(r.attrs, attr{b[0], append([]byte{}, b[2:b[1]]...)})
 			b = b[b[1]:]
+		}
+		if err := checkReplyMsgAuth(resp, auth, secret, maOff); err != nil {
+			if code == 1 && g.cfg.RequireReplyMA {
+				return nil, err
+			}
+			if maOff >= 0 { // present but wrong: always fatal
+				return nil, err
+			}
 		}
 		return r, nil
 	}
 	return nil, fmt.Errorf("no RADIUS answer from %s: %v", addr, lastErr)
+}
+
+// checkReplyMsgAuth verifies the Message-Authenticator of a reply (RFC 3579 3.2: HMAC-MD5 over the reply
+// with the request authenticator in place of the response authenticator and the attribute zeroed).
+// maOff is the offset of its 16-byte value in resp, -1 when the reply has none.
+func checkReplyMsgAuth(resp, reqAuth, secret []byte, maOff int) error {
+	if maOff < 0 {
+		return errors.New("RADIUS reply without Message-Authenticator")
+	}
+	p := append([]byte{}, resp...)
+	copy(p[4:20], reqAuth)
+	got := append([]byte{}, p[maOff:maOff+16]...)
+	copy(p[maOff:maOff+16], make([]byte, 16))
+	m := hmac.New(md5.New, secret)
+	m.Write(p)
+	if !hmac.Equal(m.Sum(nil), got) {
+		return errors.New("RADIUS reply Message-Authenticator mismatch")
+	}
+	return nil
 }
 
 func (g *Gateway) exchangeTracked(code byte, port int, as []attr) (*reply, error) {
@@ -776,16 +909,23 @@ func limit64(r *reply, lo, giga byte) uint64 {
 	return n
 }
 
+func sessionEnd(s *Session) time.Time {
+	if !s.End.IsZero() {
+		return s.End
+	}
+	return time.Now()
+}
+
 func (g *Gateway) accounting(s *Session, status uint32, cause uint32) error {
 	as := g.baseAttrs(s.MAC, s.IP)
 	as = append(as,
 		aInt(attrAcctStatus, status),
 		aStr(attrAcctSessionID, s.AcctID),
 		aStr(attrUserName, s.Username),
-		aInt(attrAcctSessTime, uint32(time.Since(s.Start).Seconds())),
+		aInt(attrAcctSessTime, uint32(sessionEnd(s).Sub(s.Start).Seconds())),
 		aInt(attrAcctInOctets, uint32(s.InOctets)), aInt(attrAcctInGiga, uint32(s.InOctets>>32)),
 		aInt(attrAcctOutOctets, uint32(s.OutOctets)), aInt(attrAcctOutGiga, uint32(s.OutOctets>>32)),
-		aInt(attrEventTimestamp, uint32(time.Now().Unix())),
+		aInt(attrEventTimestamp, uint32(sessionEnd(s).Unix())),
 	)
 	if s.Class != "" {
 		as = append(as, attr{attrClass, []byte(s.Class)})
@@ -811,18 +951,46 @@ func newSessionID() string {
 	return strings.ToUpper(hex.EncodeToString(b))
 }
 
+// freeSlot returns a free tc/mark slot (1..126; the mark field has 7 bits), or 0 when all are taken.
 func (g *Gateway) freeSlot() int {
-	for i := 1; i < 126; i++ {
+	for i := 1; i <= 126; i++ {
 		if !g.slots[i] {
 			g.slots[i] = true
 			return i
 		}
 	}
-	return 126
+	return 0
+}
+
+// tooManyFailures: at most 5 failed logins per device per minute (voucher guessing).
+func (g *Gateway) tooManyFailures(mac string, failed bool) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	var keep []time.Time
+	for _, t := range g.fails[mac] {
+		if time.Since(t) < time.Minute {
+			keep = append(keep, t)
+		}
+	}
+	if failed {
+		keep = append(keep, time.Now())
+	}
+	if len(keep) == 0 {
+		delete(g.fails, mac)
+	} else {
+		g.fails[mac] = keep
+	}
+	return len(keep) >= 5
 }
 
 // login returns "" on success, otherwise the message to show (Reply-Message or a generic one).
 func (g *Gateway) login(mac, ip, user, pass string) string {
+	if len(user) > 253 || len(pass) > 128 {
+		return "invalid username or password"
+	}
+	if g.tooManyFailures(mac, false) {
+		return "too many attempts, wait a minute"
+	}
 	g.mu.Lock()
 	g.nasPort++
 	port := g.nasPort
@@ -844,6 +1012,7 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 			msg = "invalid username or password"
 		}
 		log.Printf("login %s %s: rejected: %s", mac, user, msg)
+		g.tooManyFailures(mac, true)
 		return msg
 	}
 	s := &Session{MAC: mac, IP: ip, Username: user, Class: string(r.get(attrClass)), AcctID: newSessionID(),
@@ -860,17 +1029,28 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 	s.XmitLimit = limit64(r, mtXmitLimit, mtXmitLimitGiga)
 
 	g.mu.Lock()
-	if old, ok := g.sessions[mac]; ok { // re-login of the same device: close the old one first
-		g.mu.Unlock()
-		g.endSession(old, 1)
-		g.mu.Lock()
+	// re-login of the same device: replace the old session under the same lock (two concurrent logins
+	// each replace the one before, so every session that got a Start also gets a Stop)
+	old := g.sessions[mac]
+	if old != nil {
+		g.dropLocked(old)
 	}
-	s.Slot = g.freeSlot()
+	if s.Slot = g.freeSlot(); s.Slot == 0 {
+		g.mu.Unlock()
+		if old != nil {
+			g.sendStop(old, 1)
+		}
+		log.Printf("login %s %s: no free slot (126 sessions)", mac, user)
+		return "the hotspot is full, try again later"
+	}
 	g.sessions[mac] = s
 	g.applySession(s)
 	s.LastInterim = time.Now()
 	g.saveState()
 	g.mu.Unlock()
+	if old != nil {
+		g.sendStop(old, 1)
+	}
 	log.Printf("login %s %s ip=%s ok: timeout=%ds idle=%ds rate=%d/%dkbit total=%d interim=%ds",
 		mac, user, ip, s.SessionTimeout, s.IdleTimeout, s.UpKbit, s.DownKbit, s.TotalLimit, s.Interim)
 	if err := g.accounting(s, 1, 0); err != nil {
@@ -883,17 +1063,54 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 // 5 Session-Timeout, 10 NAS-Request.
 func (g *Gateway) endSession(s *Session, cause uint32) {
 	g.mu.Lock()
-	if g.sessions[s.MAC] == s {
-		delete(g.sessions, s.MAC)
-		delete(g.slots, s.Slot)
-		g.revokeSession(s)
-		g.saveState()
+	if g.sessions[s.MAC] != s { // already ended (logout and a timeout at the same time): one Stop only
+		g.mu.Unlock()
+		return
 	}
+	g.dropLocked(s)
 	g.mu.Unlock()
-	if err := g.accounting(s, 2, cause); err != nil {
-		log.Printf("acct stop %s: %v", s.MAC, err)
-	}
+	g.sendStop(s, cause)
+}
+
+// dropLocked removes a session and its firewall/tc state. Caller holds g.mu.
+func (g *Gateway) dropLocked(s *Session) {
+	s.End = time.Now()
+	delete(g.sessions, s.MAC)
+	delete(g.slots, s.Slot)
+	g.revokeSession(s)
+	g.saveState()
+}
+
+// sendStop sends Accounting-Stop; if RADIUS does not answer, it is queued and retried every tick.
+func (g *Gateway) sendStop(s *Session, cause uint32) {
 	log.Printf("logout %s %s cause=%d in=%d out=%d", s.MAC, s.Username, cause, s.InOctets, s.OutOctets)
+	if err := g.accounting(s, 2, cause); err != nil {
+		log.Printf("acct stop %s: %v (will retry)", s.MAC, err)
+		g.mu.Lock()
+		if len(g.stops) < 100 {
+			g.stops = append(g.stops, pendingStop{s, cause})
+		}
+		g.mu.Unlock()
+	}
+}
+
+// retryStops resends queued Accounting-Stops (one try each per tick).
+func (g *Gateway) retryStops() {
+	g.mu.Lock()
+	q := g.stops
+	g.stops = nil
+	g.mu.Unlock()
+	var left []pendingStop
+	for i, p := range q {
+		if err := g.accounting(p.s, 2, p.cause); err != nil {
+			left = append(left, q[i:]...) // RADIUS still down: keep the rest for the next tick
+			break
+		}
+		log.Printf("acct stop %s: sent on retry", p.s.MAC)
+	}
+	g.mu.Lock()
+	g.stops = append(left, g.stops...)
+	g.mu.Unlock()
 }
 
 // tick: counters, limits, interim updates, firewall self-heal.
@@ -904,10 +1121,9 @@ func (g *Gateway) tick() {
 		if err := g.setupFirewall(); err != nil {
 			log.Printf("setup firewall: %v", err)
 		}
-		g.wgIPs = map[string]bool{}
 		g.mu.Unlock()
 	}
-	up, down := readCounters()
+	up, down, counted := readCounters()
 	var ended []struct {
 		s     *Session
 		cause uint32
@@ -915,15 +1131,14 @@ func (g *Gateway) tick() {
 	var interim []*Session
 	g.mu.Lock()
 	for _, s := range g.sessions {
-		in, out := up[s.IP], down[s.IP]
-		if in > s.InOctets || out > s.OutOctets {
-			s.LastActivity = time.Now()
-		}
-		if in >= s.InOctets {
-			s.InOctets = in
-		}
-		if out >= s.OutOctets {
-			s.OutOctets = out
+		if counted {
+			dIn, dOut := counterDelta(up[s.IP], s.rawIn), counterDelta(down[s.IP], s.rawOut)
+			s.rawIn, s.rawOut = up[s.IP], down[s.IP]
+			s.InOctets += dIn
+			s.OutOctets += dOut
+			if dIn+dOut > 0 {
+				s.LastActivity = time.Now()
+			}
 		}
 		switch {
 		case s.SessionTimeout > 0 && time.Since(s.Start) >= time.Duration(s.SessionTimeout)*time.Second:
@@ -956,6 +1171,16 @@ func (g *Gateway) tick() {
 			log.Printf("acct interim %s: %v", s.MAC, err)
 		}
 	}
+	g.retryStops()
+}
+
+// counterDelta: bytes since the last reading. iptables counters only go down when the chain was flushed
+// (daemon restart, fw3 reload, rules re-added): then everything counted so far is new.
+func counterDelta(raw, last uint64) uint64 {
+	if raw >= last {
+		return raw - last
+	}
+	return raw
 }
 
 // ---------------------------------------------------------------- state (survives a daemon restart, not a reboot)
@@ -980,6 +1205,21 @@ func (g *Gateway) loadState() {
 			g.slots[s.Slot] = true
 		}
 	}
+}
+
+// rebind moves a live session to the client's new IP (DHCP gave it another address): access, counters
+// and tc follow it. Without this the client would stay captured until the session ends.
+func (g *Gateway) rebind(s *Session, ip string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.sessions[s.MAC] != s || s.IP == ip {
+		return
+	}
+	log.Printf("rebind %s %s -> %s", s.MAC, s.IP, ip)
+	g.revokeSession(s)
+	s.IP = ip
+	g.applySession(s)
+	g.saveState()
 }
 
 // ---------------------------------------------------------------- HTTP
@@ -1044,9 +1284,11 @@ func (w *response) redirect(loc string) {
 	w.headers = append(w.headers, [2]string{"Location", loc})
 }
 
+// readRequest reads at most 16 KB per request (request line + headers + body): the clients are untrusted
+// and RAM is scarce (~30 MB free).
 func readRequest(c net.Conn) (*request, error) {
 	c.SetDeadline(time.Now().Add(10 * time.Second))
-	br := bufio.NewReaderSize(c, 4096)
+	br := bufio.NewReaderSize(io.LimitReader(c, 16<<10), 4096)
 	line, err := br.ReadString('\n')
 	if err != nil {
 		return nil, err
@@ -1077,7 +1319,7 @@ func readRequest(c net.Conn) (*request, error) {
 		}
 	}
 	r.Form, _ = url.ParseQuery(r.RawQuery)
-	if r.Method == "POST" && clen > 0 && clen < 65536 {
+	if r.Method == "POST" && clen > 0 && clen <= 4096 {
 		body := make([]byte, clen)
 		if _, err := io.ReadFull(br, body); err == nil {
 			if pf, err := url.ParseQuery(string(body)); err == nil {
@@ -1089,6 +1331,19 @@ func readRequest(c net.Conn) (*request, error) {
 	}
 	r.RemoteIP, _, _ = net.SplitHostPort(c.RemoteAddr().String())
 	return r, nil
+}
+
+// accept serves one client connection, or drops it when 64 are already open (8002 and HTTPS together).
+func (g *Gateway) accept(c net.Conn) {
+	select {
+	case g.connSem <- struct{}{}:
+		go func() {
+			defer func() { <-g.connSem }()
+			g.serveConn(c)
+		}()
+	default:
+		c.Close()
+	}
 }
 
 func (g *Gateway) serveConn(c net.Conn) {
@@ -1114,7 +1369,11 @@ func (g *Gateway) handle(w *response, r *request) {
 	ip := r.RemoteIP
 	mac := arpMAC(ip)
 	self := fmt.Sprintf("http://%s:%d", g.cfg.RouterIP, g.cfg.ListenPort)
-	if !strings.HasPrefix(r.Host, g.cfg.RouterIP) && !(g.cfg.LoginHost != "" && strings.HasPrefix(r.Host, g.cfg.LoginHost)) {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	if host != g.cfg.RouterIP && !(g.cfg.LoginHost != "" && strings.EqualFold(host, g.cfg.LoginHost)) {
 		// captured request: send the client to the login page with the URL it wanted
 		orig := "http://" + r.Host + r.Path
 		if r.RawQuery != "" {
@@ -1163,7 +1422,8 @@ func (g *Gateway) handleLogin(w *response, r *request, ip, mac string) {
 		g.mu.Lock()
 		s := g.sessions[mac]
 		g.mu.Unlock()
-		if s != nil { // already logged in
+		if s != nil { // already logged in (maybe from an IP it no longer has)
+			g.rebind(s, ip)
 			g.trampoline(w, true, mac, ip, s.Username, dst, "")
 			return
 		}
@@ -1180,7 +1440,6 @@ func (g *Gateway) handleLogin(w *response, r *request, ip, mac string) {
 // ---------------------------------------------------------------- main
 
 func main() {
-	cfgPath := flag.String("config", "", "JSON config file (default: read uci package -uci)")
 	uciPkg := flag.String("uci", "omnicapgw", "uci package written by the web UI")
 	cleanup := flag.Bool("cleanup", false, "remove all firewall/tc state and exit")
 	installURL := flag.String("install", "", "register in omnicap with this install URL (.../agent/v1/install/<key>), write uci and exit")
@@ -1192,34 +1451,45 @@ func main() {
 		os.Exit(runInstall(*installURL, *identity, *uciPkg))
 	}
 	log.SetFlags(log.LstdFlags)
-	var cfg *Config
-	var err error
-	if *cfgPath != "" {
-		cfg, err = loadConfig(*cfgPath)
-	} else {
-		cfg, err = loadUCI(*uciPkg)
-	}
+	cfg, err := loadUCI(*uciPkg)
+	radiusOK := err == nil
 	if err != nil && *cleanup {
 		cfg, err = defaultConfig(), nil // cleanup only needs the interface names and the state file
 	}
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
-	g := &Gateway{cfg: cfg, sessions: map[string]*Session{}, slots: map[int]bool{}, wgIPs: map[string]bool{}, started: time.Now()}
+	g := &Gateway{cfg: cfg, sessions: map[string]*Session{}, slots: map[int]bool{}, wgByHost: map[string][]string{},
+		fails: map[string][]time.Time{}, connSem: make(chan struct{}, 64), started: time.Now()}
 	g.loadState()
 	if *cleanup {
 		g.syncLoginHost(false)
 		g.teardownFirewall()
+		if radiusOK { // portal disabled: close the open sessions in omnicap too (in parallel: RADIUS may be down)
+			var wg sync.WaitGroup
+			for _, s := range g.sessions {
+				s.End = time.Now()
+				wg.Add(1)
+				go func(s *Session) {
+					defer wg.Done()
+					if err := g.accounting(s, 2, 10); err != nil {
+						log.Printf("acct stop %s: %v", s.MAC, err)
+					}
+				}(s)
+			}
+			wg.Wait()
+		}
 		os.Remove(cfg.StateFile)
 		return
 	}
 	if err := g.setupFirewall(); err != nil {
 		log.Fatalf("firewall: %v", err)
 	}
+	shq("ipset", "flush", setWG) // start from the current walled garden, not what an older run left
 	g.refreshWalledGarden()
 	g.loadCertFiles("file")
 	if cfg.HTTPS {
-		g.fetchCert()
+		go g.fetchCert() // may take ~35 s with the WAN down: the HTTP portal starts meanwhile
 		go g.serveTLS()
 	}
 	g.syncLoginHost(cfg.HTTPS)
@@ -1259,6 +1529,6 @@ func main() {
 			time.Sleep(time.Second)
 			continue
 		}
-		go g.serveConn(c)
+		g.accept(c)
 	}
 }
