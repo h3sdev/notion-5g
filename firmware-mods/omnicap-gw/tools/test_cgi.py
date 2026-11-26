@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""test_cgi.py - checks /omnicapgw.cgi on a unit and (optionally) saves a configuration through it.
+"""test_cgi.py - checks /omnicapgw.cgi (and the newline rule of /tunvpn.cgi) on a unit and (optionally) saves a
+configuration through it. Run it from a captured port (e.g. the cable while it is marked for the portal): the
+admin-lockout check expects the CGI to refuse enabling the portal for this browser.
 
   python3 firmware-mods/omnicap-gw/tools/test_cgi.py                 # security + validation checks only
   python3 firmware-mods/omnicap-gw/tools/test_cgi.py --apply cfg.json # then save cfg.json through the CGI
 
 cfg.json keys = the form fields (portal_url, nas_identifier, radius_server, radius_secret, https, login_host,
-https_port, cert_source, agent_url, agent_token, walled_garden, bypass_mac, ...). Secrets go only to the device.
+https_port, cert_source, agent_url, agent_token, walled_garden, bypass_mac, exclude_if, ...); it must leave this
+PC's port out (exclude_if) or list its MAC (bypass_mac). Secrets go only to the device.
 Env: NOTION_HTTP_HOST / NOTION_HTTP_USER / NOTION_HTTP_PASS (see netparam/tools/web_login.py).
 """
 import http.client, json, os, sys, urllib.parse
@@ -17,7 +20,7 @@ CGI = "/omnicapgw.cgi"
 ok_all = True
 
 
-def call(method, body=None, sid=None, xrw=True, timeout=90):
+def call(method, body=None, sid=None, xrw=True, timeout=90, cgi=CGI):
     c = http.client.HTTPConnection(HOST, 80, timeout=timeout)
     h = {"Content-Type": "application/x-www-form-urlencoded"}
     if sid:
@@ -25,7 +28,7 @@ def call(method, body=None, sid=None, xrw=True, timeout=90):
     if xrw:
         h["X-Requested-With"] = "XMLHttpRequest"
     data = urllib.parse.urlencode(body).encode() if body is not None else None
-    c.request(method, CGI, body=data, headers=h)
+    c.request(method, cgi, body=data, headers=h)
     r = c.getresponse()
     raw = r.read().decode(errors="replace")
     try:
@@ -66,6 +69,14 @@ for field, bad in [("portal_url", "javascript:alert(1)"), ("nas_identifier", "a 
 st, r = call("POST", {"action": "register", "install_url": "http://cautivo.h3s-iot.com/agent/v1/install/" + "a" * 32,
                       "identity": "X1"}, sid)
 check("rejects plain-http install URL", st == 400 and r.get("error") == "install_url", f"{st} {r}")
+st, r = call("POST", BASE, sid)
+check("refuses to enable the portal on this browser's own port (admin lockout)",
+      st == 400 and isinstance(r, dict) and r.get("error") == "admin_lockout" and r.get("mac"), f"{st} {r}")
+st, r = call("POST", {"enabled": "0", "remote": "vpn.example.com\nscript-security 2\nup /bin/sh", "port": "1194",
+                      "proto": "tcp", "username": "", "password": "", "cipher": "AES-256-CBC", "auth": "SHA1",
+                      "route_nopull": "1"}, sid, cgi="/tunvpn.cgi")
+check("tunvpn: rejects a newline in the server (OpenVPN directives)", st == 400 and isinstance(r, dict)
+      and r.get("error") == "remote", f"{st} {r}")
 st, r = call("POST", {"action": "kick", "mac": "11;reboot"}, sid)
 check("rejects bad kick mac", st == 400, st)
 st, r = call("POST", {"action": "cert", "cert_pem": "nope", "key_pem": "nope"}, sid)

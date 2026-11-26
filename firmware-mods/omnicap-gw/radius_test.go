@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/md5"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -195,16 +196,35 @@ func TestSecureURL(t *testing.T) {
 
 func TestLoginRateLimit(t *testing.T) {
 	g := testGateway(9)
-	for i := 0; i < 4; i++ {
-		if g.tooManyFailures("m", true) {
-			t.Fatalf("blocked after %d failures", i+1)
+	for i := 0; i < 5; i++ {
+		if !g.reserveAttempt("m") {
+			t.Fatalf("blocked at attempt %d", i+1)
 		}
 	}
-	if !g.tooManyFailures("m", true) || !g.tooManyFailures("m", false) {
-		t.Fatal("5 failures in a minute not blocked")
+	if g.reserveAttempt("m") {
+		t.Fatal("6th attempt in a minute (5 counted as failed) not blocked")
 	}
-	if g.tooManyFailures("other", false) {
+	if !g.reserveAttempt("other") {
 		t.Fatal("another device blocked")
+	}
+	g.releaseAttempt("other") // accepted: does not count
+	if _, ok := g.fails["other"]; ok {
+		t.Fatal("released attempt still counted")
+	}
+}
+
+func TestLoginRateLimitGlobal(t *testing.T) {
+	g := testGateway(9)
+	n := 0
+	for i := 0; i < 100; i++ { // random MACs: 4 guesses each
+		for j := 0; j < 4; j++ {
+			if g.reserveAttempt(fmt.Sprintf("02:00:00:00:%02x:%02x", i, j%2)) {
+				n++
+			}
+		}
+	}
+	if n != 30 {
+		t.Fatalf("%d guesses in a minute across MACs, want 30", n)
 	}
 }
 

@@ -11,6 +11,8 @@ Network parameter: requirements R0–R12 of the earlier netparam package, unchan
   network is open as in the current firmware.
 - F4. `/dev/net/tun` can be created: `/proc/misc` lists `tun` after `tunvpn.sh check`/start, using the kernel TUN
   driver (`CONFIG_TUN`).
+- F6. `/etc/config/firewall` has the include `ocgw` (path `/usr/sbin/ocgw.sh`, reload 1); the vendor fastpath
+  bypass file is writable (`/sys/kernel/fastpath/fp_forward/bypass_fastpath`).
 - F5. The captive portal's kernel support is there: `ebtables -t nat -L` and `ip6tables -S` run, and `ebt_mark`,
   `xt_mark`, `xt_mac`, `xt_multiport`, `ip_set_hash_ipmac` are loaded or loadable.
 
@@ -35,5 +37,10 @@ Network parameter: requirements R0–R12 of the earlier netparam package, unchan
 - B2. The VPN reconnects by itself after the mobile link drops or changes (4G/5G).
 - B3. A Wi-Fi/LAN client is redirected to the portal, logs in (credential sent over HTTPS), browses with the
   time and speed limits of its package, and is reported to RADIUS (start, interim, stop).
-- B4. Firewall reloads/restarts do not open the network: the portal restores its rules within 10 seconds.
+- B4. Firewall reloads/restarts do not open the network: the LAN stays closed (excluded ports and bypass MACs
+  apart) until the portal has restored its rules, within 10 seconds.
+- B6. If the captive portal is enabled but cannot run, Wi-Fi/LAN clients cannot browse (fail closed) and the page
+  says so; at boot the LAN is closed from the first firewall start, not open until the portal starts.
+- B7. Enabling the portal or registering it from a browser on a captured port without a bypass MAC is refused
+  with a message (the technician would lose the web UI).
 - B5. Disabling a feature in the web UI stops it and removes all of its rules.

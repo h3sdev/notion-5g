@@ -14,12 +14,20 @@ FM="$(cd "$HERE/.." && pwd)"
 NAME="h3s-firmware-oem-$(date +%Y-%m-%d)"
 OUT="$HERE/dist/$NAME"
 NEW="$HERE/dist/new"
-rm -rf "$OUT" "$OUT.zip" "$NEW"; mkdir -p "$OUT" "$NEW"
 
-# 1) new files of the two modules, at their device path (binaries built/taken here)
+# 0) the binary first, before anything is written in the repository: the package must come from one commit,
+#    and Go stamps the binary with it (vcs.modified=true for any uncommitted or untracked file)
 echo "building omnicap-gw ..."
+BUILD=$(mktemp -d); trap 'rm -rf "$BUILD"' EXIT
 ( cd "$FM/omnicap-gw" && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w" \
-	-o "$NEW/usr/sbin/omnicap-gw" . )
+	-o "$BUILD/omnicap-gw" . )
+vcs=$(go version -m "$BUILD/omnicap-gw" | grep vcs)
+echo "$vcs" | grep -q "vcs.revision=$(git -C "$FM" rev-parse HEAD)" && echo "$vcs" | grep -q 'vcs.modified=false' ||
+	{ echo "ERROR: commit first, the package must come from a clean HEAD:" >&2; git -C "$FM" status --short >&2; exit 1; }
+
+rm -rf "$OUT" "$OUT.zip" "$NEW"; mkdir -p "$OUT" "$NEW"
+# 1) new files of the two modules, at their device path (binaries built/taken here)
+install -D -m 0755 "$BUILD/omnicap-gw"                 "$NEW/usr/sbin/omnicap-gw"
 install -D -m 0755 "$FM/tunlite/bin/openvpn"           "$NEW/usr/sbin/openvpn"
 install -D -m 0755 "$FM/omnicap-gw/device/ocgw.sh"     "$NEW/usr/sbin/ocgw.sh"
 install -D -m 0755 "$FM/tunlite/device/tunvpn.sh"      "$NEW/usr/sbin/tunvpn.sh"
@@ -63,9 +71,8 @@ mkdir -p "$OUT/screenshots"; cp "$HERE"/screenshots/*.png "$OUT/screenshots/"
   cat "$FM/netparam/factory/UNCHANGED.md5" | grep -v ui_mifi.xml ) > "$HERE/dist/MANIFEST.md5"
 
 rev=$(git -C "$HERE" log -1 --format='%h %cd' --date=short)
-dirty=$(git -C "$FM" status --porcelain . | grep -v 'dist/' || true)
-printf 'H3S firmware features (network parameter, management VPN, captive portal) - package %s\nSource: H3S repository, commit %s%s\nStart with IMPLEMENTATION.md. Replaces netparam-oem-*.zip.\n' \
-	"$NAME" "$rev" "${dirty:+ + uncommitted changes}" > "$OUT/VERSION.txt"
+printf 'H3S firmware features (network parameter, management VPN, captive portal) - package %s\nSource: H3S repository, commit %s\nStart with IMPLEMENTATION.md. Replaces netparam-oem-*.zip.\n' \
+	"$NAME" "$rev" > "$OUT/VERSION.txt"
 
 python3 - "$HERE/dist" "$NAME" <<'PY'
 import os, sys, zipfile

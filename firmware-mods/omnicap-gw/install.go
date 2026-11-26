@@ -82,6 +82,7 @@ func runInstall(installURL, identity, pkg string) int {
 		"agent_token": a.AgentToken, "cert_source": "agent",
 	} {
 		if err := set(k, v); err != nil {
+			shq("uci", "revert", pkg) // drop the values staged so far: the next commit (web UI) must not save half a registration
 			return fail(err.Error())
 		}
 	}
@@ -91,7 +92,9 @@ func runInstall(installURL, identity, pkg string) int {
 	}
 	sh("uci", "-q", "delete", pkg+".main.walled_garden")
 	for _, w := range a.WalledGarden {
-		sh("uci", "add_list", pkg+".main.walled_garden="+w)
+		if validWG(w) {
+			sh("uci", "add_list", pkg+".main.walled_garden="+w)
+		}
 	}
 	if _, err := sh("uci", "commit", pkg); err != nil {
 		return fail(err.Error())

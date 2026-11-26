@@ -37,6 +37,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -44,37 +45,37 @@ import (
 // ---------------------------------------------------------------- config
 
 type Config struct {
-	LanIf          string   `json:"lan_if"`           // br-lan
-	WanIf          string   `json:"wan_if"`           // ccinet0 (upload shaping)
-	RouterIP       string   `json:"router_ip"`        // 192.168.1.1
-	ListenPort     int      `json:"listen_port"`      // 8002
-	PortalURL      string   `json:"portal_url"`       // https://cautivo.h3s-iot.com/portal/<ref> (no trailing /login)
-	NASIdentifier  string   `json:"nas_identifier"`   // device.nas_identifier in omnicap
-	RadiusServer   string   `json:"radius_server"`    // host (auth 1812, acct 1813)
-	RadiusAuthPort int      `json:"radius_auth_port"` // default 1812
-	RadiusAcctPort int      `json:"radius_acct_port"` // default 1813
-	RadiusSecret   string   `json:"radius_secret"`    // fleet secret
-	WalledGarden   []string `json:"walled_garden"`    // hostnames, IPs or CIDRs reachable without login
-	BypassMACs     []string `json:"bypass_macs"`      // never captured (e.g. the management PC)
+	LanIf          string   // br-lan
+	WanIf          string   // ccinet0 (upload shaping)
+	RouterIP       string   // 192.168.1.1
+	ListenPort     int      // 8002
+	PortalURL      string   // https://cautivo.h3s-iot.com/portal/<ref> (no trailing /login)
+	NASIdentifier  string   // device.nas_identifier in omnicap
+	RadiusServer   string   // host (auth 1812, acct 1813)
+	RadiusAuthPort int      // default 1812
+	RadiusAcctPort int      // default 1813
+	RadiusSecret   string   // fleet secret
+	WalledGarden   []string // hostnames, IPs or CIDRs reachable without login
+	BypassMACs     []string // never captured (e.g. the management PC)
 	// ExcludeIfaces: LAN bridge ports (exact interface names, "+" = prefix wildcard) whose clients are not
 	// captured, e.g. eth0.2 (cable) or wlan0.1 (guest SSID). Empty = capture every port.
-	ExcludeIfaces  []string `json:"exclude_ifaces"`
-	HotspotName    string   `json:"hotspot_name"` // Called-Station-Id, default "hotspot1"
-	DefaultInterim int      `json:"default_interim_s"`
-	StateFile      string   `json:"state_file"`
+	ExcludeIfaces  []string
+	HotspotName    string // Called-Station-Id, default "hotspot1"
+	DefaultInterim int
+	StateFile      string
 	// Secure login (like RouterOS "login-by=https" with the omnicap certificate): the portal posts the
 	// credential to https://<LoginHost>:<HTTPSPort>/login; dnsmasq resolves LoginHost to the router.
-	HTTPS      bool   `json:"https"`
-	LoginHost  string `json:"login_host"` // login.h3s-iot.com
-	HTTPSPort  int    `json:"https_port"` // 8443 (443 belongs to the web UI)
-	CertFile   string `json:"cert_file"`  // PEM chain, from the web UI or from the omnicap agent
-	KeyFile    string `json:"key_file"`
-	AgentURL   string `json:"agent_url"`   // https://cautivo.h3s-iot.com: fetch the certificate like RouterOS does
-	AgentToken string `json:"agent_token"` // device agent_token (Authorization: Bearer)
-	AdminAddr  string `json:"admin_addr"`  // 127.0.0.1:8009, status/kick for the web UI CGI
+	HTTPS      bool
+	LoginHost  string // login.h3s-iot.com
+	HTTPSPort  int    // 8443 (443 belongs to the web UI)
+	CertFile   string // PEM chain, from the web UI or from the omnicap agent
+	KeyFile    string
+	AgentURL   string // https://cautivo.h3s-iot.com: fetch the certificate like RouterOS does
+	AgentToken string // device agent_token (Authorization: Bearer)
+	AdminAddr  string // 127.0.0.1:8009, status/kick for the web UI CGI
 	// RequireReplyMA: Access-Accept/Reject must carry a valid Message-Authenticator (Blast-RADIUS,
 	// CVE-2024-3596). On by default; uci require_reply_ma '0' only for an old RADIUS server without it.
-	RequireReplyMA bool `json:"require_reply_ma"`
+	RequireReplyMA bool
 }
 
 func defaultConfig() *Config {
@@ -208,6 +209,9 @@ type Gateway struct {
 	stops    []pendingStop          // Accounting-Stop not answered yet, retried every tick
 	fails    map[string][]time.Time // failed logins per MAC (last minute)
 	connSem  chan struct{}          // caps concurrent client connections (8002 + HTTPS)
+	connMu   sync.Mutex             // guards connIP (not g.mu: setupFirewall holds that for seconds)
+	connIP   map[string]int         // open client connections per source IP
+	acctBusy atomic.Bool            // an accounting round (Stops, Interims, retries) is talking to RADIUS
 	certs    certStore
 	started  time.Time
 	// last RADIUS outcome, for the web UI status
@@ -223,7 +227,8 @@ const (
 	chainAcct = "OCGW_ACCT"
 	chainNat  = "OCGW_NAT"
 	chainMark = "OCGW_MARK"
-	chainIn   = "OCGW_IN" // hotspot clients -> the router itself: only DNS, DHCP, ping and this portal
+	chainIn   = "OCGW_IN"   // hotspot clients -> the router itself: only DNS, DHCP, ping and this portal
+	chainDown = "OCGW_DOWN" // ocgw.sh: LAN blocked while the daemon is not up (fail closed); removed here
 	setAuth   = "ocgw_auth"
 	setWG     = "ocgw_wg"
 	setBypass = "ocgw_bypass"
@@ -234,7 +239,9 @@ const (
 	// device itself); the OCGW chains return early on that mark. Nothing excluded = no ebtables rules, and a
 	// port nobody excluded (e.g. a guest SSID enabled later) is always captured (fail closed).
 	chainPorts = "OCGW_PORTS"
-	exemptMark = 0x00800000
+	// vendor fastpath (ASR1901): 1 = every forwarded packet goes through netfilter (and so through our counters)
+	fastpathBypass = "/sys/kernel/fastpath/fp_forward/bypass_fastpath"
+	exemptMark     = 0x00800000
 )
 
 // validIface accepts a Linux interface name, optionally with the ebtables "+" prefix wildcard.
@@ -300,7 +307,9 @@ func (g *Gateway) firewallPresent() bool {
 	mg, _ := sh("iptables", "-t", "mangle", "-S", "FORWARD")
 	in, _ := sh("iptables", "-S", "INPUT")
 	in6, _ := sh("ip6tables", "-S", "INPUT")
+	fwd6, _ := sh("ip6tables", "-S", "FORWARD")
 	return strings.Contains(out, "-j "+chainFwd) && strings.Contains(out, "-j "+chainAcct) &&
+		strings.Contains(fwd6, "-j "+chainFwd) &&
 		strings.Contains(nat, "-j "+chainNat) && strings.Contains(mg, "-j "+chainMark) &&
 		strings.Contains(in, "-j "+chainIn) && strings.Contains(in6, "-j "+chainIn) &&
 		(len(g.cfg.ExcludeIfaces) == 0 || g.portsJumpPresent())
@@ -313,8 +322,16 @@ func (g *Gateway) setupFirewall() error {
 		shq("iptables", "-t", t.table, "-N", t.chain)
 		shq("iptables", "-t", t.table, "-F", t.chain)
 	}
-	shq("ip6tables", "-N", chainIn)
-	shq("ip6tables", "-F", chainIn)
+	for _, ch := range []string{chainIn, chainFwd} {
+		shq("ip6tables", "-N", ch)
+		shq("ip6tables", "-F", ch)
+	}
+	// iptables and tc must see every forwarded packet (accounting, limits): the vendor fastpath would skip them
+	if _, err := os.Stat(fastpathBypass); err == nil {
+		if err := os.WriteFile(fastpathBypass, []byte("1"), 0644); err != nil {
+			log.Printf("fastpath bypass: %v (accounting and limits may miss accelerated flows)", err)
+		}
+	}
 	// Access is bound to IP+MAC: a client that changes its IP is captured again, so the IP-based
 	// counters and tc classes always cover what it sends. Older builds used hash:mac under the same name;
 	// the chains above no longer reference it, so it can be replaced.
@@ -343,6 +360,22 @@ func (g *Gateway) setupFirewall() error {
 			return err
 		}
 	}
+	// IPv6: login, accounting and shaping are IPv4 only, so hotspot clients get no IPv6 forwarding at all
+	// (apps fall back to IPv4 at once on the reject); excluded ports and bypass MACs keep it.
+	r6 := [][]string{
+		{"-A", chainFwd, "-o", c.LanIf, "-j", "RETURN"},
+		append([]string{"-A", chainFwd}, exemptMatch...),
+	}
+	for _, m := range c.BypassMACs {
+		r6 = append(r6, []string{"-A", chainFwd, "-m", "mac", "--mac-source", strings.ToLower(m), "-j", "RETURN"})
+	}
+	r6 = append(r6, []string{"-A", chainFwd, "-p", "tcp", "-j", "REJECT", "--reject-with", "tcp-reset"},
+		[]string{"-A", chainFwd, "-j", "REJECT", "--reject-with", "icmp6-adm-prohibited"})
+	for _, r := range r6 {
+		if _, err := sh("ip6tables", r...); err != nil {
+			return err
+		}
+	}
 	// nat: HTTP of unauthenticated clients -> this daemon; DNS -> router
 	nrules := [][]string{
 		append([]string{"-A", chainNat}, exemptMatch...),
@@ -365,6 +398,7 @@ func (g *Gateway) setupFirewall() error {
 	// jumps (first position, ahead of the vendor and fw3 chains)
 	jumps := [][]string{
 		{"iptables", "filter", "FORWARD", "-i", c.LanIf, "-j", chainFwd},
+		{"ip6tables", "filter", "FORWARD", "-i", c.LanIf, "-j", chainFwd},
 		{"iptables", "filter", "FORWARD", "-j", chainAcct},
 		{"iptables", "filter", "INPUT", "-i", c.LanIf, "-j", chainIn},
 		{"ip6tables", "filter", "INPUT", "-i", c.LanIf, "-j", chainIn},
@@ -388,7 +422,36 @@ func (g *Gateway) setupFirewall() error {
 	for _, s := range g.sessions {
 		g.applySession(s)
 	}
+	removeDown()
 	return nil
+}
+
+// removeDown deletes the fail-closed block ocgw.sh puts in place while the daemon is not up.
+func removeDown() {
+	for _, ipt := range []string{"iptables", "ip6tables"} {
+		for {
+			if _, err := sh(ipt, "-D", "FORWARD", "-i", "br-lan", "-j", chainDown); err != nil {
+				break
+			}
+		}
+		shq(ipt, "-F", chainDown)
+		shq(ipt, "-X", chainDown)
+	}
+}
+
+// ensureFirewall re-applies the rules when fw3 flushed them (fw3 reloads on every 4G/5G change). Called
+// every tick and, right away, by the fw3 include (ocgw.sh -> /admin/reapply).
+func (g *Gateway) ensureFirewall() {
+	if g.firewallPresent() {
+		return
+	}
+	log.Printf("firewall rules missing (fw3 reload?), re-applying")
+	g.mu.Lock()
+	err := g.setupFirewall()
+	g.mu.Unlock()
+	if err != nil {
+		log.Printf("setup firewall: %v", err)
+	}
 }
 
 // setupInput: hotspot clients may only reach the router for DNS, DHCP, ping and this portal. The admin
@@ -443,8 +506,16 @@ func (g *Gateway) teardownFirewall() {
 	shq("iptables", "-D", "FORWARD", "-j", chainAcct)
 	shq("iptables", "-D", "INPUT", "-i", c.LanIf, "-j", chainIn)
 	shq("ip6tables", "-D", "INPUT", "-i", c.LanIf, "-j", chainIn)
-	shq("ip6tables", "-F", chainIn)
-	shq("ip6tables", "-X", chainIn)
+	for {
+		if _, err := sh("ip6tables", "-D", "FORWARD", "-i", c.LanIf, "-j", chainFwd); err != nil {
+			break
+		}
+	}
+	for _, ch := range []string{chainIn, chainFwd} {
+		shq("ip6tables", "-F", ch)
+		shq("ip6tables", "-X", ch)
+	}
+	removeDown()
 	shq("iptables", "-t", "nat", "-D", "PREROUTING", "-i", c.LanIf, "-j", chainNat)
 	shq("iptables", "-t", "mangle", "-D", "FORWARD", "-i", c.LanIf, "-j", chainMark)
 	for _, t := range []struct{ table, chain string }{{"filter", chainFwd}, {"filter", chainAcct}, {"filter", chainIn}, {"nat", chainNat}, {"mangle", chainMark}} {
@@ -969,25 +1040,43 @@ func (g *Gateway) freeSlot() int {
 	return 0
 }
 
-// tooManyFailures: at most 5 failed logins per device per minute (voucher guessing).
-func (g *Gateway) tooManyFailures(mac string, failed bool) bool {
+// reserveAttempt: at most 5 failed logins per device and 30 on the whole hotspot per minute (voucher
+// guessing, also with random MACs). The attempt counts as failed from the start, under the lock, so
+// parallel requests cannot all pass the check before the first one fails; releaseAttempt takes it back.
+func (g *Gateway) reserveAttempt(mac string) bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	var keep []time.Time
-	for _, t := range g.fails[mac] {
-		if time.Since(t) < time.Minute {
-			keep = append(keep, t)
+	now, total := time.Now(), 0
+	for m, ts := range g.fails {
+		keep := ts[:0]
+		for _, t := range ts {
+			if now.Sub(t) < time.Minute {
+				keep = append(keep, t)
+			}
+		}
+		if len(keep) == 0 {
+			delete(g.fails, m)
+		} else {
+			g.fails[m] = keep
+			total += len(keep)
 		}
 	}
-	if failed {
-		keep = append(keep, time.Now())
+	if len(g.fails[mac]) >= 5 || total >= 30 {
+		return false
 	}
-	if len(keep) == 0 {
-		delete(g.fails, mac)
+	g.fails[mac] = append(g.fails[mac], now)
+	return true
+}
+
+// releaseAttempt: the attempt was not a wrong guess (accepted, or RADIUS did not answer).
+func (g *Gateway) releaseAttempt(mac string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if ts := g.fails[mac]; len(ts) > 1 {
+		g.fails[mac] = ts[:len(ts)-1]
 	} else {
-		g.fails[mac] = keep
+		delete(g.fails, mac)
 	}
-	return len(keep) >= 5
 }
 
 // login returns "" on success, otherwise the message to show (Reply-Message or a generic one).
@@ -995,7 +1084,7 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 	if len(user) > 253 || len(pass) > 128 {
 		return "invalid username or password"
 	}
-	if g.tooManyFailures(mac, false) {
+	if !g.reserveAttempt(mac) {
 		return "too many attempts, wait a minute"
 	}
 	g.mu.Lock()
@@ -1011,6 +1100,7 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 	r, err := g.exchangeTracked(1, g.cfg.RadiusAuthPort, as)
 	if err != nil {
 		log.Printf("login %s %s: %v", mac, user, err)
+		g.releaseAttempt(mac)
 		return "RADIUS server is not responding"
 	}
 	if r.code != 2 {
@@ -1019,9 +1109,9 @@ func (g *Gateway) login(mac, ip, user, pass string) string {
 			msg = "invalid username or password"
 		}
 		log.Printf("login %s %s: rejected: %s", mac, user, msg)
-		g.tooManyFailures(mac, true)
 		return msg
 	}
+	g.releaseAttempt(mac)
 	s := &Session{MAC: mac, IP: ip, Username: user, Class: string(r.get(attrClass)), AcctID: newSessionID(),
 		Start: time.Now(), SessionTimeout: r.getInt(attrSessionTimeout), IdleTimeout: r.getInt(attrIdleTimeout),
 		Interim: r.getInt(attrInterim), LastActivity: time.Now()}
@@ -1122,14 +1212,7 @@ func (g *Gateway) retryStops() {
 
 // tick: counters, limits, interim updates, firewall self-heal.
 func (g *Gateway) tick() {
-	if !g.firewallPresent() {
-		log.Printf("firewall rules missing (fw3 reload?), re-applying")
-		g.mu.Lock()
-		if err := g.setupFirewall(); err != nil {
-			log.Printf("setup firewall: %v", err)
-		}
-		g.mu.Unlock()
-	}
+	g.ensureFirewall()
 	up, down, counted := readCounters()
 	var ended []struct {
 		s     *Session
@@ -1168,17 +1251,42 @@ func (g *Gateway) tick() {
 			interim = append(interim, s)
 		}
 	}
-	g.saveState()
-	g.mu.Unlock()
+	// access ends now (local); the Accounting-Stop goes with the RADIUS round below
+	var stops []pendingStop
 	for _, e := range ended {
-		g.endSession(e.s, e.cause)
-	}
-	for _, s := range interim {
-		if err := g.accounting(s, 3, 0); err != nil {
-			log.Printf("acct interim %s: %v", s.MAC, err)
+		if g.sessions[e.s.MAC] == e.s {
+			g.dropLocked(e.s)
+			stops = append(stops, pendingStop{e.s, e.cause})
 		}
 	}
-	g.retryStops()
+	g.saveState()
+	g.mu.Unlock()
+	// RADIUS can take 12 s per packet when it is down: the round runs apart from the ticker, so firewall
+	// self-heal, limits and timeouts keep their 10 s pace. One round at a time; a busy round queues the Stops
+	// (retried later) and skips these Interims (the next ones carry the totals).
+	if !g.acctBusy.CompareAndSwap(false, true) {
+		g.mu.Lock()
+		for _, p := range stops {
+			if len(g.stops) < 100 {
+				g.stops = append(g.stops, p)
+			}
+		}
+		g.mu.Unlock()
+		return
+	}
+	go func() {
+		defer g.acctBusy.Store(false)
+		for _, p := range stops {
+			g.sendStop(p.s, p.cause)
+		}
+		for _, s := range interim {
+			if err := g.accounting(s, 3, 0); err != nil {
+				log.Printf("acct interim %s: %v", s.MAC, err)
+				break // RADIUS down: the next Interims would wait 12 s each for nothing
+			}
+		}
+		g.retryStops()
+	}()
 }
 
 // counterDelta: bytes since the last reading. iptables counters only go down when the chain was flushed
@@ -1340,15 +1448,33 @@ func readRequest(c net.Conn) (*request, error) {
 	return r, nil
 }
 
-// accept serves one client connection, or drops it when 64 are already open (8002 and HTTPS together).
+// accept serves one client connection, or drops it when 64 are already open (8002 and HTTPS together)
+// or 8 from the same IP.
 func (g *Gateway) accept(c net.Conn) {
+	ip, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+	g.connMu.Lock()
+	if g.connIP[ip] >= 8 { // one client cannot hold the 64 slots (10 s each) and stall every login
+		g.connMu.Unlock()
+		c.Close()
+		return
+	}
+	g.connIP[ip]++
+	g.connMu.Unlock()
+	release := func() {
+		g.connMu.Lock()
+		if g.connIP[ip]--; g.connIP[ip] <= 0 {
+			delete(g.connIP, ip)
+		}
+		g.connMu.Unlock()
+	}
 	select {
 	case g.connSem <- struct{}{}:
 		go func() {
-			defer func() { <-g.connSem }()
+			defer func() { <-g.connSem; release() }()
 			g.serveConn(c)
 		}()
 	default:
+		release()
 		c.Close()
 	}
 }
@@ -1393,6 +1519,10 @@ func (g *Gateway) handle(w *response, r *request) {
 	case "/login":
 		g.handleLogin(w, r, ip, mac)
 	case "/logout":
+		if r.Method != "POST" { // a GET would let any web page (<img src=.../logout>) end the session
+			w.redirect(self + "/login")
+			return
+		}
 		g.mu.Lock()
 		s := g.sessions[mac]
 		g.mu.Unlock()
@@ -1467,7 +1597,7 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 	g := &Gateway{cfg: cfg, sessions: map[string]*Session{}, slots: map[int]bool{}, wgByHost: map[string][]string{},
-		fails: map[string][]time.Time{}, connSem: make(chan struct{}, 64), started: time.Now(), uciPkg: *uciPkg,
+		fails: map[string][]time.Time{}, connSem: make(chan struct{}, 64), connIP: map[string]int{}, started: time.Now(), uciPkg: *uciPkg,
 		pull: pullStatus{Interval: defaultPullInterval}}
 	g.loadState()
 	if *cleanup {

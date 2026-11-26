@@ -58,7 +58,7 @@ files/lib/modules/5.4.288+/tunlite.ko                    new       0644   only f
 files/system/etc/config/omnicapgw                        new       0644   captive portal settings (empty)
 files/system/etc/config/tunvpn                           new       0644   management VPN settings (empty)
 files/system/etc/config/netparam                         new       0644   network parameter (as before)
-files/system/etc/config/firewall                         replaces  0644   network parameter (as before)
+files/system/etc/config/firewall                         replaces  0644   network parameter (as before) + captive portal include
 files/system/etc/firewall.netparam.sh                    new       0755   network parameter (as before)
 files/system/etc/crontabs/root                           replaces  0644   + 2 lines
 files/system/etc/www/omnicapgw.cgi                       new       0755
@@ -102,7 +102,10 @@ The additions are:
   `<ThirdlevelMenu id='mMgmtVPN' implFunction='objMgmtVPN' type='submenuabsent'/>` and
   `<ThirdlevelMenu id='mCaptivePortal' implFunction='objCaptivePortal' type='submenuabsent'/>`;
 - `Messages_*.properties`: the lines from `merge/*/i18n` at the end;
-- `config/firewall`: 1 section at the end (network parameter, as before);
+- `config/firewall`: 2 include sections at the end: `netparam` (network parameter, as before) and `ocgw`
+  (`option type 'script'`, `option path '/usr/sbin/ocgw.sh'`, `option reload '1'`, `option family 'any'`): while
+  the captive portal is enabled, it keeps the LAN closed at boot and after each firewall reload until the
+  portal's rules are back (it does nothing in the factory state);
 - `crontabs/root`: 2 lines: `* * * * * /usr/sbin/tunvpn.sh check` and `* * * * * /usr/sbin/ocgw.sh check`.
   These start both services at boot (within one minute) and restart them if they stop. They do nothing while
   the feature is disabled in the web UI, which is the factory state.
@@ -112,6 +115,8 @@ The additions are:
 - Do not edit, rebuild or translate the files of this package (the UI strings are already in es/en/cn).
 - Do not put any server, user, password, certificate, URL or secret in the image.
 - The services write only to `/data/tunvpn/` and `/data/omnicap-gw/` (created at run time) and to `/tmp`.
+- The captive portal writes `1` to `/sys/kernel/fastpath/fp_forward/bypass_fastpath` when it starts (iptables must
+  see forwarded traffic to count and limit it). Keep that file writable by root.
 - Factory reset must restore `/system/etc/config/tunvpn` and `/system/etc/config/omnicapgw` to the files of this
   package and delete `/data/tunvpn/` and `/data/omnicap-gw/` (they hold the provisioned certificates).
 

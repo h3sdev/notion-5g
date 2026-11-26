@@ -6,7 +6,8 @@
 
   python3 firmware-mods/lib/test_register_ui.py register.json
 register.json: {"panel": "https://omnicap.h3s-iot.com", "user": "...", "password": "...",
-                "location": "<name shown in the panel>", "identity": "NOTION5G_0001"}
+                "location": "<name shown in the panel>", "identity": "NOTION5G_0001",
+                "exclude_if": ["eth0.2"]}   # ports left out of the portal (this PC's), set before registering
 """
 import json, os, re, sys
 from playwright.sync_api import sync_playwright
@@ -74,6 +75,10 @@ with sync_playwright() as p:
     pg.get_by_text("Configuraciones avanzadas", exact=True).first.click(); pg.wait_for_timeout(1500)
     pg.get_by_text("Portal cautivo", exact=True).first.click(); pg.wait_for_timeout(4000); dismiss(pg)
     check("modem: portal in factory state", not pg.locator("#ocgwEnable").is_checked() and pg.input_value("#ocgwNas") == "")
+    if cfg.get("exclude_if"):  # registering turns the portal on: first leave this PC's port out (portal still off)
+        for x in cfg["exclude_if"]:
+            pg.locator(f".ocgwPort[value='{x}']").uncheck()
+        pg.click("#lt_btnApply"); pg.wait_for_timeout(5000); dismiss(pg)
     pg.fill("#ocgwInstallUrl", install_url); pg.fill("#ocgwIdentity", cfg["identity"])
     pg.click("#lt_OCGW_btnRegister"); pg.wait_for_timeout(12000)
     text = pg.evaluate("() => document.body.innerText")

@@ -34,7 +34,14 @@ pull after a fixed per-device jitter (sha256 of the token, as RouterOS), then on
 does not answer or answers 429, the wait doubles up to 30 min (+ jitter). An omnicap without the JSON answer
 still records the heartbeat. The web UI status line shows the last report. Access-Accept/Reject must carry a valid Message-Authenticator (Blast-RADIUS);
 uci `require_reply_ma '0'` relaxes it only for a RADIUS server that does not send one.
-If fw3 flushes the tables (`firewall restart`), the daemon puts everything back within 10 s; sessions are kept
+If fw3 flushes the tables (a reload on every 4G/5G change, or `firewall restart`), the fw3 include
+`firewall.ocgw` (= `ocgw.sh` with no argument) blocks forwarding from the LAN (chain `OCGW_DOWN`, excluded ports
+and bypass MACs apart) and asks the daemon (`/admin/reapply`) to put its rules back at once; the daemon deletes
+`OCGW_DOWN` once they are in place, and also checks every 10 s. The same block is set at boot (before cron starts
+the daemon) and by `ocgw.sh check` when the daemon does not stay up, so an enabled portal fails closed.
+IPv6: hotspot clients get no IPv6 forwarding (login, accounting and shaping are IPv4); excluded ports and bypass
+MACs keep it. Logins: at most 5 failed per device and 30 per hotspot per minute; 8 connections per client IP.
+The RADIUS accounting round (Stops, Interims, retries) runs apart from the 10 s tick, one at a time. Sessions are kept
 in `/tmp/omnicap-gw.state` (survive a daemon restart, not a reboot: after a reboot the user registers again
 and omnicap hands back the same credential with the remaining time).
 

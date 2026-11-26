@@ -41,6 +41,9 @@ render() {
 		echo "nobind"
 		[ -n "$user" ] && echo "auth-user-pass auth.txt"
 		[ -s "$D/ca.crt" ] && echo "ca ca.crt"
+		# only a certificate issued for a server is accepted (a client certificate of the same CA is not);
+		# uci server_cert '0' only for a server whose certificate lacks the server key usage
+		[ "$(cfg server_cert)" != 0 ] && echo "remote-cert-tls server"
 		[ -s "$D/client.crt" ] && [ -s "$D/client.key" ] && { echo "cert client.crt"; echo "key client.key"; }
 		c=$(cfg cipher); [ -n "$c" ] || c=AES-256-CBC
 		echo "cipher $c"

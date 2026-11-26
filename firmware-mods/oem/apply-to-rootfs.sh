@@ -1,7 +1,8 @@
 #!/bin/sh
 # apply-to-rootfs.sh - adds the "Management VPN" and "Captive portal" features to a firmware root filesystem
 # tree, before the tree is packed into the image. Use it when your own index.html, xml/ui_mifi.xml,
-# Messages_*.properties or crontabs/root differ from the ones in files/ (otherwise just copy files/). It adds
+# Messages_*.properties, crontabs/root or config/firewall differ from the ones in files/ (otherwise just copy
+# files/). It adds
 # the new files and merges the changes into YOUR versions of those files. Idempotent.
 #
 #   ./apply-to-rootfs.sh <rootfs>
@@ -17,7 +18,7 @@ I18N=$HERE/i18n
 R=${1%/}; E=$R/system/etc; W=$E/www
 
 for f in "$W/index.html" "$W/xml/ui_mifi.xml" "$W/properties/Messages_es.properties" \
-         "$W/properties/Messages_en.properties" "$W/properties/Messages_cn.properties"; do
+         "$W/properties/Messages_en.properties" "$W/properties/Messages_cn.properties" "$E/config/firewall"; do
 	[ -f "$f" ] || { echo "ERROR: missing $f (is $R the rootfs?)" >&2; exit 1; }
 done
 grep -q 'js/panel/router/vpn.js' "$W/index.html" || { echo "ERROR: js/panel/router/vpn.js not found in index.html" >&2; exit 1; }
@@ -75,4 +76,12 @@ cat "$C.tmp" > "$C"; rm -f "$C.tmp"
 [ -z "$(tail -c1 "$C")" ] || printf '\n' >> "$C"
 printf '%s\n' '* * * * * /usr/sbin/tunvpn.sh check' '* * * * * /usr/sbin/ocgw.sh check' >> "$C"
 chmod 0644 "$C"
+
+echo "6) config/firewall: include section 'ocgw' (captive portal closed at boot and on firewall reloads)"
+F=$E/config/firewall
+if ! grep -q "^config include 'ocgw'" "$F"; then
+	[ -z "$(tail -c1 "$F")" ] || printf '\n' >> "$F"
+	printf "\nconfig include 'ocgw'\n\toption type 'script'\n\toption path '/usr/sbin/ocgw.sh'\n\toption reload '1'\n\toption family 'any'\n" >> "$F"
+fi
+echo "   $(grep -c "^config include 'ocgw'" "$F") include section"
 echo "done"

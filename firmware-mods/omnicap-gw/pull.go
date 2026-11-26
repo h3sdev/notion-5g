@@ -132,9 +132,11 @@ func (g *Gateway) pullOnce() (interval, jitter int, err error) {
 		jitter = *a.Jitter
 	}
 	g.applyPullAnswer(a)
-	g.mu.Lock()
-	g.pull.Interval = clampInterval(a.Interval)
-	g.mu.Unlock()
+	if a.Interval > 0 { // no interval in the answer: the loop keeps its current one, so does the status
+		g.mu.Lock()
+		g.pull.Interval = clampInterval(a.Interval)
+		g.mu.Unlock()
+	}
 	return a.Interval, jitter, nil
 }
 
@@ -142,9 +144,22 @@ func (g *Gateway) pullOnce() (interval, jitter int, err error) {
 // keeps it). A different portal URL or login host means the device was moved in omnicap: that needs the
 // registration again (new certificate, new secret), so it is only logged.
 func (g *Gateway) applyPullAnswer(a pullAnswer) {
-	wg := a.WalledGarden
-	if wg == nil {
-		wg = []string{}
+	if a.WalledGarden != nil { // absent or null: omnicap says nothing about it, the local list stays
+		g.applyWalledGarden(a.WalledGarden)
+	}
+	if a.PortalURL != "" && strings.TrimSuffix(a.PortalURL, "/") != g.cfg.PortalURL {
+		log.Printf("pull: omnicap has another portal URL for this device (%s): register it again from the web UI", a.PortalURL)
+	}
+}
+
+func (g *Gateway) applyWalledGarden(in []string) {
+	wg := []string{} // [] from omnicap = empty the list
+	for _, w := range in {
+		if validWG(w) {
+			wg = append(wg, w)
+		} else {
+			log.Printf("pull: walled garden entry %q ignored (not a host, IP or network of /8 or smaller)", w)
+		}
 	}
 	g.mu.Lock()
 	cur := g.cfg.WalledGarden
@@ -165,9 +180,20 @@ func (g *Gateway) applyPullAnswer(a pullAnswer) {
 		shq("uci", "commit", g.uciPkg)
 		g.refreshWalledGarden()
 	}
-	if a.PortalURL != "" && strings.TrimSuffix(a.PortalURL, "/") != g.cfg.PortalURL {
-		log.Printf("pull: omnicap has another portal URL for this device (%s): register it again from the web UI", a.PortalURL)
+}
+
+// validWG: a walled-garden entry as the web UI accepts it (host name, IP or IP/prefix), never a network
+// wider than /8 (0.0.0.0/0 would open the hotspot).
+func validWG(s string) bool {
+	host, bits, cidr := strings.Cut(s, "/")
+	if host == "" || len(host) > 253 || strings.Trim(host, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-") != "" {
+		return false
 	}
+	if !cidr {
+		return true
+	}
+	n, err := strconv.Atoi(bits)
+	return err == nil && n >= 8 && n <= 32 && len(bits) <= 2
 }
 
 type pullObserved struct {

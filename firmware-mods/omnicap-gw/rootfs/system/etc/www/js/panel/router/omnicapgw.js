@@ -78,6 +78,8 @@
 				if(ok){
 					$('#ocgwInstallUrl').val("");
 					showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_registered") + " " + d.register.nas_identifier);
+				} else if(d && d.error == "admin_lockout"){
+					showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_errLockout") + " " + d.mac);
 				} else {
 					var why = d && d.register && d.register.error ? d.register.error : (d && d.error ? d.error : "");
 					showMsgBox(T("lt_OCGW_title"), T("lt_OCGW_registerFail") + (why ? " " + why : ""));
@@ -103,7 +105,9 @@
 						radius_secret: "lt_OCGW_errSecret", login_host: "lt_OCGW_errHost", agent_url: "lt_OCGW_errAgentUrl",
 						agent_token: "lt_OCGW_errToken", walled_garden: "lt_OCGW_errWalled", bypass_mac: "lt_OCGW_errBypass", exclude_if: "lt_OCGW_errPorts",
 						cert: "lt_OCGW_errPem", key: "lt_OCGW_errPem" }[d && d.error];
-					var msg = ok ? T("lt_succ") : errKey ? T(errKey) : (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : ""));
+					var msg = ok ? T("lt_succ") : errKey ? T(errKey)
+						: d && d.error == "admin_lockout" ? T("lt_OCGW_errLockout") + " " + d.mac
+						: (T("lt_fail") + (d && d.error ? " (" + d.error + ")" : ""));
 					showMsgBox(T("lt_OCGW_title"), msg);
 				}
 			});
@@ -118,8 +122,10 @@
 
 		function toggleFields(){
 			var on = $('#ocgwEnable').prop('checked');
-			$('#Content input[type=text], #Content input[type=password], #Content select, #ocgwHttps, .ocgwPort')
-				.not('#ocgwEnable, #ocgwInstallUrl, #ocgwIdentity').prop('disabled', !on);
+			// ports and bypass MACs stay editable with the portal off: they are set before registering, which
+			// turns the portal on (otherwise the technician's own port would be captured)
+			$('#Content input[type=text], #Content input[type=password], #Content select, #ocgwHttps')
+				.not('#ocgwEnable, #ocgwInstallUrl, #ocgwIdentity, #ocgwBypass').prop('disabled', !on);
 			$('#ocgwLoginHost, #ocgwHttpsPort, #ocgwCertSource, #ocgwAgentUrl, #ocgwAgentToken')
 				.prop('disabled', !on || !$('#ocgwHttps').prop('checked'));
 		}

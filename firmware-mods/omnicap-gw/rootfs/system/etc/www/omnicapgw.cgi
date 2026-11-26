@@ -75,6 +75,25 @@ lan_ports() {
 	done
 }
 
+# admin_captured <excluded ports> <bypass MACs>: prints the MAC of the browser making this request when the
+# portal would capture it (it would lose this page and SSH): it is on br-lan, its MAC is not a bypass MAC and
+# its bridge port is not excluded. Prints nothing for the management VPN (tun0) or an excluded port.
+admin_captured() {
+	mac="$(awk -v ip="${REMOTE_ADDR#::ffff:}" '$1 == ip && $6 == "br-lan" {print tolower($4); exit}' /proc/net/arp)"
+	case "$mac" in ''|00:00:00:00:00:00) return 0 ;; esac
+	for m in $2; do [ "$(printf '%s' "$m" | tr A-F a-f)" = "$mac" ] && return 0; done
+	no="$(brctl showmacs br-lan 2>/dev/null | awk -v m="$mac" '$2 == m {print $1; exit}')"
+	for p in /sys/class/net/br-lan/brif/*; do
+		[ -n "$no" ] && [ "$(($(cat "$p/port_no")))" = "$no" ] || continue
+		case " $1 " in *" ${p##*/} "*) return 0 ;; esac
+	done
+	printf '%s' "$mac"
+}
+lockout_check() { # <excluded ports> <bypass MACs>
+	m="$(admin_captured "$1" "$2")"
+	[ -z "$m" ] || out "400 Bad Request" "{\"result\":\"fail\",\"error\":\"admin_lockout\",\"mac\":\"$m\"}"
+}
+
 status_json() {
 	st="$(wget -q -T 3 -O - http://127.0.0.1:8009/admin/status 2>/dev/null)"
 	[ -n "$st" ] || st='{"running":false}'
@@ -129,6 +148,7 @@ register)
 	iu="$(param install_url)"; id="$(param identity)"
 	match "$iu" "$RE_INSTALL" && secure_url "$iu" || fail install_url
 	match "$id" "$RE_IDENT" || fail identity
+	lockout_check "$(get exclude_if)" "$(get bypass_mac)" # registering turns the portal on
 	r="$("$BIN" -uci $PKG -install "$iu" -identity "$id" 2>/dev/null | tail -n1)"
 	case "$r" in
 	*'"result":"ok"'*)
@@ -206,6 +226,7 @@ done
 left=0; for x in $ports; do case " $exl " in *" $x "*) ;; *) left=$((left+1)) ;; esac; done
 [ "$left" -ge 1 ] || fail exclude_if
 bpl=""; for x in $(printf '%s' "$byp" | tr ', ' '\n\n'); do match "$x" "$RE_MAC" || fail bypass_mac; bpl="$bpl $x"; done
+[ "$en" = 1 ] && lockout_check "$exl" "$bpl"
 
 uci -q get $PKG.main >/dev/null || uci set $PKG.main=omnicapgw
 uci set $PKG.main.enabled="$en"

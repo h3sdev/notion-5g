@@ -41,7 +41,8 @@
 				+ "&password=" + encodeURIComponent(val('#tvpnPass'))
 				+ "&cipher=" + encodeURIComponent($('#tvpnCipher').val())
 				+ "&auth=" + encodeURIComponent($('#tvpnAuth').val())
-				+ "&route_nopull=" + ($('#tvpnNoPull').prop('checked') ? 1 : 0);
+				+ "&route_nopull=" + ($('#tvpnNoPull').prop('checked') ? 1 : 0)
+				+ "&server_cert=" + ($('#tvpnServerCert').prop('checked') ? 1 : 0);
 			post(data, true);
 		}
 
@@ -88,6 +89,7 @@
 			$('#tvpnCipher').val(d.cipher);
 			$('#tvpnAuth').val(d.auth);
 			$('#tvpnNoPull').prop('checked', d.route_nopull == 1);
+			$('#tvpnServerCert').prop('checked', d.server_cert != 0);
 			toggleFields();
 		}
 

@@ -118,3 +118,37 @@ func TestFormatUptime(t *testing.T) {
 		t.Fatal(s)
 	}
 }
+
+func TestPullWalledGarden(t *testing.T) {
+	g := testGateway(9)
+	g.uciPkg, g.wgByHost = "omnicapgw-test", map[string][]string{}
+	g.cfg.WalledGarden = []string{"local.example"}
+	g.applyPullAnswer(pullAnswer{}) // no walled_garden in the answer: the local list stays
+	if len(g.cfg.WalledGarden) != 1 || g.cfg.WalledGarden[0] != "local.example" {
+		t.Fatalf("list replaced by an answer without walled_garden: %v", g.cfg.WalledGarden)
+	}
+	g.applyPullAnswer(pullAnswer{WalledGarden: []string{"ok.example", "0.0.0.0/0", "10.0.0.0/7", "a b", "198.51.100.0/24"}})
+	if strings.Join(g.cfg.WalledGarden, ",") != "ok.example,198.51.100.0/24" {
+		t.Fatalf("invalid entries applied: %v", g.cfg.WalledGarden)
+	}
+	g.applyPullAnswer(pullAnswer{WalledGarden: []string{}}) // [] = empty it
+	if len(g.cfg.WalledGarden) != 0 {
+		t.Fatalf("empty list from omnicap not applied: %v", g.cfg.WalledGarden)
+	}
+}
+
+func TestPullNoIntervalKeepsStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"result":"ok"}`)
+	}))
+	defer srv.Close()
+	g := testGateway(9)
+	g.cfg.AgentURL, g.cfg.AgentToken, g.wgByHost = srv.URL, "tok-abc", map[string][]string{}
+	g.pull.Interval = defaultPullInterval
+	if _, _, err := g.pullOnce(); err != nil {
+		t.Fatal(err)
+	}
+	if g.pull.Interval != defaultPullInterval {
+		t.Fatalf("status shows %d s, the loop still uses %d", g.pull.Interval, defaultPullInterval)
+	}
+}

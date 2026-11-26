@@ -30,10 +30,13 @@ if [ -z "$sid" ] || ! grep -q 'log_status=login' "/tmp/cgisess_$sid" 2>/dev/null
 fi
 
 get() { uci -q get "$PKG.main.$1"; }
-jstr() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r\t'; }
+jstr() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\000-\037'; }
 urldecode() { printf '%b' "$(printf '%s' "$1" | sed 's/+/ /g; s/\\/%5C/g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g')"; }
 param() { urldecode "$(printf '%s' "$BODY" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1)"; }
-match() { printf '%s' "$1" | grep -Eq "$2"; }
+NL='
+'
+# grep accepts the value if ANY line matches: a newline would smuggle OpenVPN directives into client.conf
+match() { case "$1" in *"$NL"*) return 1 ;; esac; printf '%s' "$1" | grep -Eq "$2"; }
 
 status_json() {
 	pid=""; [ -f /var/run/tunvpn.pid ] && kill -0 "$(cat /var/run/tunvpn.pid)" 2>/dev/null && pid=$(cat /var/run/tunvpn.pid)
@@ -56,10 +59,10 @@ status_json() {
 	fi
 	pw=false; [ -n "$(get password)" ] && pw=true
 	ca=false; [ -s "$D/ca.crt" ] && ca=true
-	printf '{"result":"ok","enabled":%s,"remote":"%s","port":%s,"proto":"%s","username":"%s","password_set":%s,"cipher":"%s","auth":"%s","route_nopull":%s,"ca_set":%s,"status":{"module":%s,"running":%s,"connected":%s,"ip":"%s","since":"%s","rx":%s,"tx":%s,"log":[%s]}}' \
+	printf '{"result":"ok","enabled":%s,"remote":"%s","port":%s,"proto":"%s","username":"%s","password_set":%s,"cipher":"%s","auth":"%s","route_nopull":%s,"server_cert":%s,"ca_set":%s,"status":{"module":%s,"running":%s,"connected":%s,"ip":"%s","since":"%s","rx":%s,"tx":%s,"log":[%s]}}' \
 		"$(get enabled || echo 0)" "$(jstr "$(get remote)")" "$(get port || echo 1194)" "$(jstr "$(get proto || echo tcp)")" \
 		"$(jstr "$(get username)")" "$pw" "$(jstr "$(get cipher || echo AES-256-CBC)")" "$(jstr "$(get auth || echo SHA1)")" \
-		"$(get route_nopull || echo 1)" "$ca" "$mod" "$([ -n "$pid" ] && echo true || echo false)" "$conn" \
+		"$(get route_nopull || echo 1)" "$(get server_cert || echo 1)" "$ca" "$mod" "$([ -n "$pid" ] && echo true || echo false)" "$conn" \
 		"$(jstr "$ip4")" "$(jstr "$since")" "$rx" "$tx" "$logl"
 }
 
@@ -103,12 +106,14 @@ esac
 
 en="$(param enabled)"; rem="$(param remote)"; port="$(param port)"; proto="$(param proto)"
 user="$(param username)"; pass="$(param password)"; ciph="$(param cipher)"; auth="$(param auth)"; nop="$(param route_nopull)"
+scert="$(param server_cert)"; [ -n "$scert" ] || scert=1 # an older page without the checkbox keeps the check on
 
 case "$en" in 0|1) ;; *) fail enabled ;; esac
 case "$proto" in tcp|udp) ;; *) fail proto ;; esac
 case "$ciph" in AES-256-CBC|AES-128-CBC|AES-256-GCM|AES-128-GCM|CHACHA20-POLY1305|none) ;; *) fail cipher ;; esac
 case "$auth" in SHA1|SHA256|SHA512|none) ;; *) fail auth ;; esac
 case "$nop" in 0|1) ;; *) fail route_nopull ;; esac
+case "$scert" in 0|1) ;; *) fail server_cert ;; esac
 match "$port" '^[0-9]{1,5}$' && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail port
 if [ "$en" = 1 ] || [ -n "$rem" ]; then match "$rem" "$RE_HOST" || fail remote; fi
 [ "$en" = 1 ] && [ ! -s "$D/ca.crt" ] && fail ca_missing
@@ -127,6 +132,7 @@ uci set $PKG.main.username="$user"
 uci set $PKG.main.cipher="$ciph"
 uci set $PKG.main.auth="$auth"
 uci set $PKG.main.route_nopull="$nop"
+uci set $PKG.main.server_cert="$scert"
 uci commit $PKG
 logger -t tunvpn "web: settings saved enabled=$en remote=$rem:$port/$proto user=$user (from ${REMOTE_ADDR:-?})"
 

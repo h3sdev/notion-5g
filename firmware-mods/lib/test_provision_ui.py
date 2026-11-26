@@ -5,7 +5,8 @@ the way a technician does it: Management VPN (CA, server, user, password) and Ca
   python3 firmware-mods/lib/test_provision_ui.py provision.json
 
 provision.json (keep it out of git, it has secrets):
-{"vpn": {"ca_file": "...", "remote": "...", "port": "1194", "proto": "tcp", "username": "...", "password": "..."},
+{"vpn": {"ca_file": "...", "remote": "...", "port": "1194", "proto": "tcp", "username": "...", "password": "...",
+         "server_cert": "1"},   # "0" only for a server certificate without the server key usage
  "portal": {"portal_url": "...", "nas_identifier": "...", "radius_server": "...", "radius_secret": "...",
             "login_host": "login.h3s-iot.com", "https_port": "8443", "cert_source": "agent",
             "agent_url": "...", "agent_token": "...", "walled_garden": "", "bypass_mac": ""}}
@@ -83,6 +84,8 @@ with sync_playwright() as p:
     pg.check("#tvpnEnable")
     pg.fill("#tvpnRemote", v["remote"]); pg.fill("#tvpnPort", v["port"]); pg.select_option("#tvpnProto", v["proto"])
     pg.fill("#tvpnUser", v["username"]); pg.fill("#tvpnPass", v["password"])
+    if v.get("server_cert") == "0":  # only for a server whose certificate lacks the server key usage
+        pg.uncheck("#tvpnServerCert")
     pg.click("#lt_btnApply"); pg.wait_for_timeout(4000); dismiss(pg)
     st = wait_text(pg, "#tvpnState", "Conectada", 120)
     check("vpn: connected after provisioning from the page", st.startswith("Conectada, IP "), st)

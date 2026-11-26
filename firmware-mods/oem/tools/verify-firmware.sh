@@ -41,6 +41,11 @@ echo "== ebtables for port selection (F5)"
 e=$("$RSH" 'ebtables -t nat -L >/dev/null 2>&1 && echo ebtables; K=/lib/modules/$(uname -r); ip6tables -S >/dev/null 2>&1 && echo ip6tables; for m in ebt_mark xt_mark xt_mac xt_multiport ip_set_hash_ipmac; do lsmod | grep -q "^$m " && echo $m || { [ -f $K/$m.ko ] && echo $m; }; done' | tr '\n' ' ')
 case "$e" in *ebtables*ip6tables*ebt_mark*xt_mark*xt_mac*xt_multiport*ip_set_hash_ipmac*) ok "F5 portal kernel support ($e)" ;; *) ko "F5 missing for the captive portal: need ebtables, ip6tables, ebt_mark, xt_mark, xt_mac, xt_multiport, ip_set_hash_ipmac (found: $e)" ;; esac
 
+echo "== fastpath and firewall include (F6)"
+f=$("$RSH" 'cat /sys/kernel/fastpath/fp_forward/bypass_fastpath 2>/dev/null || echo none; uci -q get firewall.ocgw.path; uci -q get firewall.ocgw.reload')
+case "$(echo "$f" | sed -n 1p)" in *1|none) ok "F6 vendor fastpath bypassed or absent (iptables sees forwarded traffic)" ;; *) ko "F6 fastpath active: /sys/kernel/fastpath/fp_forward/bypass_fastpath = $(echo "$f" | sed -n 1p) (the portal sets 1 when it starts; it must be writable)" ;; esac
+[ "$(echo "$f" | sed -n 2p)" = /usr/sbin/ocgw.sh ] && [ "$(echo "$f" | sed -n 3p)" = 1 ] && ok "F6 firewall include ocgw (reload=1)" || ko "F6 firewall include 'ocgw' missing in /etc/config/firewall"
+
 echo "== menu and services"
 m=$("$RSH" 'grep -c -e "mMgmtVPN" -e "mCaptivePortal" /system/etc/www/xml/ui_mifi.xml; grep -c -e "/usr/sbin/tunvpn.sh check" -e "/usr/sbin/ocgw.sh check" /etc/crontabs/root; /usr/sbin/openvpn --version | head -1')
 [ "$(echo "$m" | sed -n 1p)" = 2 ] && ok "U1 two menu entries" || ko "U1 menu entries"

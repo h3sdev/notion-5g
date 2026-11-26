@@ -114,8 +114,14 @@ func (g *Gateway) fetchCert() error {
 			if _, _, err = parsePair(c, k, g.cfg.LoginHost); err == nil {
 				old, _ := os.ReadFile(g.cfg.CertFile)
 				if !bytes.Equal(old, c) {
-					if err = writeAtomic(g.cfg.KeyFile, k, 0600); err == nil {
-						err = writeAtomic(g.cfg.CertFile, c, 0644)
+					// both written before either is renamed: a full disk cannot leave a new key with the old certificate
+					if err = os.WriteFile(g.cfg.KeyFile+".tmp", k, 0600); err == nil {
+						err = os.WriteFile(g.cfg.CertFile+".tmp", c, 0644)
+					}
+					if err == nil {
+						if err = os.Rename(g.cfg.KeyFile+".tmp", g.cfg.KeyFile); err == nil {
+							err = os.Rename(g.cfg.CertFile+".tmp", g.cfg.CertFile)
+						}
 					}
 					if err == nil {
 						log.Printf("certificate updated from the omnicap agent")
@@ -141,14 +147,6 @@ func (g *Gateway) fetchCert() error {
 	}
 	g.loadCertFiles("agent")
 	return nil
-}
-
-func writeAtomic(path string, b []byte, mode os.FileMode) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, mode); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }
 
 // agentGet: GET a PEM file from the omnicap agent.
@@ -412,6 +410,9 @@ func (g *Gateway) serveAdmin() {
 				if s != nil {
 					g.endSession(s, 6) // Admin-Reset
 				}
+				body = []byte(`{"result":"ok"}`)
+			case "/admin/reapply": // fw3 include (ocgw.sh): rules flushed by a firewall reload, put them back now
+				g.ensureFirewall()
 				body = []byte(`{"result":"ok"}`)
 			case "/admin/fetchcert":
 				if err := g.fetchCert(); err != nil {
