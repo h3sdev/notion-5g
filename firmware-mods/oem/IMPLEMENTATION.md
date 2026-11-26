@@ -103,6 +103,9 @@ merge/netparam/apply-to-rootfs.sh   <rootfs>
 merge/vpn-portal/apply-to-rootfs.sh <rootfs>
 ```
 
+Both scripts are idempotent: on a tree that already has the network parameter (your current build), the
+`merge/netparam` script changes nothing, and running either script twice changes nothing.
+
 The additions are:
 
 - `index.html`: 3 `<script>` lines (netparam.js after `sipalg.js`; tunvpn.js and omnicapgw.js after `vpn.js`);
