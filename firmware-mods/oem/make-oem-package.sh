@@ -71,7 +71,7 @@ mkdir -p "$OUT/screenshots"; cp "$HERE"/screenshots/*.png "$OUT/screenshots/"
   cat "$FM/netparam/factory/UNCHANGED.md5" | grep -v ui_mifi.xml ) > "$HERE/dist/MANIFEST.md5"
 
 rev=$(git -C "$HERE" log -1 --format='%h %cd' --date=short)
-printf 'H3S firmware features (network parameter, management VPN, captive portal) - package %s\nSource: H3S repository, commit %s\nStart with IMPLEMENTATION.md. Replaces netparam-oem-*.zip.\n' \
+printf 'H3S firmware features (network parameter, management VPN, captive portal) - package %s\nSource: H3S repository, commit %s\nStart with IMPLEMENTATION.md. Adds management VPN + captive portal; network parameter files unchanged from netparam-oem-2026-11-24.\n' \
 	"$NAME" "$rev" > "$OUT/VERSION.txt"
 
 python3 - "$HERE/dist" "$NAME" <<'PY'

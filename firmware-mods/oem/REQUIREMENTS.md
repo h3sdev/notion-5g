@@ -1,6 +1,6 @@
 # Requirements: H3S firmware features (what H3S checks on the delivered firmware)
 
-Network parameter: requirements R0–R12 of the earlier netparam package, unchanged.
+Network parameter (TTL): already delivered in netparam-oem-2026-11-24; R0–R12 of that package must still pass, unchanged.
 
 ## Factory state
 

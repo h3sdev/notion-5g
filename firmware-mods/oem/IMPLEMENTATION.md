@@ -2,18 +2,26 @@
 
 **Product:** Notion 5G CPE (H3S P52HL, ASR1901) · **Requested by:** H3S (Colombia)
 
-This package adds three features to the firmware. It **replaces** the earlier `netparam-oem-*.zip` (the network
-parameter files are included here, unchanged), because the three features change the same web UI files.
+This package adds **two** features to the firmware: the **management VPN** and the **captive portal**.
+
+The network parameter (TTL) was already delivered in `netparam-oem-2026-11-24.zip`. Its files are included here
+byte-for-byte unchanged, only because the three features edit the same web UI files (`index.html`,
+`config/firewall`, `Messages_*.properties`). Those shared files in this package are the ones you already have with
+lines **added and none removed**: replace them and the network parameter keeps working as before.
 
 | Feature | Where in the web UI | What it does |
 |---|---|---|
-| Network parameter | Router → System Settings → Diagnostics, section "Parámetro de red" | configurable value applied to outbound mobile traffic (as before) |
+| Network parameter | Router → System Settings → Diagnostics, section "Parámetro de red" | already delivered, unchanged (included only for the shared files) |
 | Management VPN | Router → Advanced Settings → "VPN de gestión" (below "VPN") | OpenVPN client to a management server chosen by the operator (empty by default) |
 | Captive portal | Router → Advanced Settings → "Portal cautivo" (below "VPN") | Wi-Fi/LAN clients must log in on the H3S portal (RADIUS) before browsing |
 
 Provisioning of the captive portal is one step in the web UI: the technician pastes the install URL of the
 location (from the H3S omnicap panel) and the device identifier, presses "Registrar en omnicap", and the device
 registers itself and receives all its settings (this needs the omnicap version with OpenWrt support).
+
+**Default state: both features disabled and empty.** A unit leaves the factory with the management VPN off
+and the captive portal off, so the LAN works exactly as today. H3S enables and provisions them from the web UI
+only on the units of customers who ask for them.
 
 The firmware must ship **without any H3S data**: no VPN server, user, password or CA certificate, and no portal
 URL, RADIUS server, secret or certificate. H3S enters all of that in the web UI when the unit is provisioned.
